@@ -77,31 +77,49 @@ public class ApiConfigFragment extends qA {
     }
 
     private void showEditDialog(String title, String currentValue, ValueSetter setter) {
-        android.widget.EditText editText = new android.widget.EditText(requireContext());
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_edit_api_config, null);
+        
+        TextView dialogTitle = dialogView.findViewById(R.id.dialog_title);
+        TextView dialogDescription = dialogView.findViewById(R.id.dialog_description);
+        com.google.android.material.textfield.TextInputEditText editText = dialogView.findViewById(R.id.edit_text);
+        com.google.android.material.textfield.TextInputLayout inputLayout = dialogView.findViewById(R.id.text_input_layout);
+        
+        dialogTitle.setText("Edit " + title);
+        dialogDescription.setText("Configure the " + title.toLowerCase() + " parameter for API requests");
         editText.setText(currentValue);
         editText.setHint("Enter " + title.toLowerCase());
+        inputLayout.setHint(title);
         
-        new MaterialAlertDialogBuilder(requireContext())
-                .setTitle("Edit " + title)
-                .setView(editText)
+        // Set cursor to end
+        editText.setSelection(editText.getText().length());
+        
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireContext())
+                .setView(dialogView)
                 .setPositiveButton("Save", (dialog, which) -> {
                     String newValue = editText.getText().toString().trim();
                     setter.setValue(newValue);
                     loadCurrentValues();
-                    Toast.makeText(requireContext(), title + " updated", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), title + " updated successfully", Toast.LENGTH_SHORT).show();
                 })
-                .setNegativeButton("Cancel", null)
-                .show();
+                .setNegativeButton("Cancel", null);
+        
+        // Show keyboard when dialog opens
+        android.app.AlertDialog dialog = builder.show();
+        editText.requestFocus();
+        android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) 
+            requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+        imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
     }
 
     private void showResetDialog() {
         new MaterialAlertDialogBuilder(requireContext())
                 .setTitle("Reset to Defaults")
-                .setMessage("This will reset all API configuration values to their defaults. Are you sure?")
+                .setMessage("This will reset all API configuration values to their factory defaults.\n\nAny custom values you've entered will be lost. Are you sure you want to continue?")
+                .setIcon(R.drawable.ic_smart_toy)
                 .setPositiveButton("Reset", (dialog, which) -> {
                     apiConfig.resetToDefaults();
                     loadCurrentValues();
-                    Toast.makeText(requireContext(), "API configuration reset to defaults", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), "API configuration reset to defaults successfully", Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("Cancel", null)
                 .show();

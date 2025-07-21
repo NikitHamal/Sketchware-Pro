@@ -142,34 +142,43 @@ public class AiFragment extends Fragment {
     }
 
     private void showRenameDialog(Conversation conversation) {
-        EditText editText = new EditText(requireContext());
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_rename_conversation, null);
+        com.google.android.material.textfield.TextInputEditText editText = dialogView.findViewById(R.id.edit_text);
         editText.setText(conversation.getTitle());
-        editText.setHint("Enter new title");
+        editText.setSelection(editText.getText().length()); // Place cursor at end
         
-        new MaterialAlertDialogBuilder(requireContext())
-                .setTitle("Rename Conversation")
-                .setView(editText)
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireContext())
+                .setView(dialogView)
                 .setPositiveButton("Rename", (dialog, which) -> {
                     String newTitle = editText.getText().toString().trim();
                     if (!newTitle.isEmpty()) {
                         conversationStorage.updateConversationTitle(conversation.getId(), newTitle);
                         loadConversations();
-                        Toast.makeText(requireContext(), "Conversation renamed", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(requireContext(), "Conversation renamed successfully", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(requireContext(), "Please enter a valid name", Toast.LENGTH_SHORT).show();
                     }
                 })
-                .setNegativeButton("Cancel", null)
-                .show();
+                .setNegativeButton("Cancel", null);
+        
+        // Show keyboard when dialog opens
+        android.app.AlertDialog dialog = builder.show();
+        editText.requestFocus();
+        android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) 
+            requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+        imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
     }
 
     private void showDeleteDialog(Conversation conversation) {
         new MaterialAlertDialogBuilder(requireContext())
                 .setTitle("Delete Conversation")
-                .setMessage("Are you sure you want to delete this conversation? This action cannot be undone.")
+                .setMessage("Are you sure you want to delete \"" + conversation.getTitle() + "\"?\n\nThis action cannot be undone and will permanently remove all messages in this conversation.")
+                .setIcon(R.drawable.ic_delete_grey_48dp)
                 .setPositiveButton("Delete", (dialog, which) -> {
                     conversationStorage.deleteConversation(conversation.getId());
                     messageStorage.deleteMessages(conversation.getId());
                     loadConversations();
-                    Toast.makeText(requireContext(), "Conversation deleted", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), "Conversation deleted successfully", Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("Cancel", null)
                 .show();

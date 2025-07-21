@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical">
 
+    <!-- Top Bar -->
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appbar"
         android:layout_width="match_parent"
@@ -59,52 +61,57 @@
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- Messages RecyclerView -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/messages_recycler_view"
+    <!-- Middle Area - Messages with Typing Indicator -->
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:padding="16dp"
-        android:paddingBottom="100dp"
-        android:clipToPadding="false"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior"
-        tools:listitem="@layout/item_chat_message" />
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
-    <!-- Typing Indicator -->
-    <LinearLayout
-        android:id="@+id/typing_indicator"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|start"
-        android:layout_marginStart="16dp"
-        android:layout_marginBottom="100dp"
-        android:background="@drawable/chat_bubble_ai"
-        android:orientation="horizontal"
-        android:padding="12dp"
-        android:visibility="gone"
-        tools:visibility="visible">
+        <!-- Messages RecyclerView -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/messages_recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="16dp"
+            android:clipToPadding="false"
+            tools:listitem="@layout/item_chat_message" />
 
-        <ProgressBar
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:layout_marginEnd="8dp"
-            android:indeterminateTint="?attr/colorOnSurfaceVariant" />
-
-        <TextView
+        <!-- Typing Indicator -->
+        <LinearLayout
+            android:id="@+id/typing_indicator"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="AI is typing..."
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            android:layout_gravity="bottom|start"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/typing_indicator_background"
+            android:orientation="horizontal"
+            android:padding="12dp"
+            android:visibility="gone"
+            tools:visibility="visible">
 
-    </LinearLayout>
+            <ProgressBar
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginEnd="8dp"
+                android:indeterminateTint="?attr/colorOnSurfaceVariant" />
 
-    <!-- Input Area -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AI is typing..."
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <!-- Bottom Input Area -->
     <LinearLayout
         android:id="@+id/input_area"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
         android:orientation="vertical"
         android:background="?attr/colorSurface"
         android:elevation="8dp">
@@ -117,7 +124,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:padding="16dp"
+            android:padding="20dp"
             android:gravity="center_vertical">
 
             <EditText
@@ -125,29 +132,31 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginEnd="12dp"
+                android:layout_marginEnd="16dp"
                 android:background="@drawable/message_input_background"
                 android:hint="Type a message..."
                 android:imeOptions="actionSend"
                 android:inputType="textCapSentences|textMultiLine"
                 android:maxLines="4"
-                android:minHeight="48dp"
-                android:padding="12dp"
+                android:minHeight="52dp"
+                android:padding="16dp"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorOnSurface"
                 android:textColorHint="?attr/colorOnSurfaceVariant" />
 
             <ImageButton
                 android:id="@+id/send_button"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
                 android:background="@drawable/send_button_background"
                 android:src="@drawable/ic_send"
                 android:contentDescription="Send message"
-                android:scaleType="center" />
+                android:scaleType="center"
+                android:tint="?attr/colorOnPrimary"
+                app:tint="?attr/colorOnPrimary" />
 
         </LinearLayout>
 
     </LinearLayout>
 
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+</LinearLayout>
