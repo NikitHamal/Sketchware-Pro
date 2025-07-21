@@ -222,7 +222,7 @@ public class CompileLogActivity extends BaseAppCompatActivity {
     private void openAiErrorFixer(String projectId) {
         try {
             // Read the compile log
-            String compileLog = compileErrorSaver.getStoredLogs();
+            String compileLog = compileErrorSaver.getLogsFromFile();
             if (compileLog == null || compileLog.trim().isEmpty()) {
                 SketchwareUtil.toast("No compile log found");
                 return;
