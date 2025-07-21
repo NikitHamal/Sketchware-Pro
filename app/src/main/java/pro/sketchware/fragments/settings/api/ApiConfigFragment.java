@@ -13,7 +13,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import pro.sketchware.activities.ai.config.ApiConfig;
 import pro.sketchware.databinding.FragmentApiConfigBinding;
-import pro.sketchware.fragments.settings.qA;
+import a.a.a.qA;
 
 public class ApiConfigFragment extends qA {
 
