@@ -11,7 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="?attr/colorSurface"
-        app:navigationIcon="@drawable/ic_mtrl_arrow_back"
+        app:navigationIcon="?attr/homeAsUpIndicator"
         app:title="API Configuration"
         app:titleTextColor="?attr/colorOnSurface" />
 
