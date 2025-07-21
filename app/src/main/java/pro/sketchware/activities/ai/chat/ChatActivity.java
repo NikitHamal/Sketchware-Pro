@@ -13,6 +13,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
@@ -28,6 +29,9 @@ import pro.sketchware.databinding.ActivityChatBinding;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import a.a.a.lC;
+import a.a.a.yB;
 
 public class ChatActivity extends AppCompatActivity {
     private static final String TAG = "ChatActivity";
@@ -253,40 +257,61 @@ public class ChatActivity extends AppCompatActivity {
 
             @Override
             public void onActionExecuted(String actionResult, String projectId) {
-                // Handle action execution result
                 Log.d(TAG, "Action executed: " + actionResult);
-                // The response will be handled in onResponse
+                // Don't handle UI updates here - let onProjectCreated handle it for project creation
+                // This is called first, then onProjectCreated is called for project-specific actions
             }
 
             @Override
             public void onProjectCreated(String projectId, String projectName) {
                 runOnUiThread(() -> {
+                    hideTypingIndicator();
+                    
                     try {
-                        // Parse the action result to get project details
-                        JSONObject result = new JSONObject(streamingContent.toString());
-                        if (result.optBoolean("success", false)) {
-                            // Update the last AI message with project data
-                            if (!messages.isEmpty()) {
-                                ChatMessage lastMessage = messages.get(messages.size() - 1);
-                                if (lastMessage.getType() == ChatMessage.TYPE_AI) {
-                                    // Set project data for interactive display
-                                    lastMessage.setProjectId(projectId);
-                                    lastMessage.setProjectName(result.optString("project_name"));
-                                    lastMessage.setAppName(result.optString("app_name"));
-                                    lastMessage.setPackageName(result.optString("package_name"));
-                                    
-                                    // Set a user-friendly message
-                                    String message = result.optString("message", "Project created successfully!");
-                                    lastMessage.setContent(message);
-                                    
-                                    chatAdapter.notifyItemChanged(messages.size() - 1);
-                                    messageStorage.saveMessages(conversationId, messages);
-                                    binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
-                                }
-                            }
+                        // Get project details from the project system
+                        HashMap<String, Object> projectData = lC.b(projectId);
+                        if (projectData != null) {
+                            // Create a new AI message with project data
+                            ChatMessage projectMessage = new ChatMessage(
+                                UUID.randomUUID().toString(),
+                                "",  // We'll set the content below
+                                ChatMessage.TYPE_AI,
+                                System.currentTimeMillis()
+                            );
+                            
+                            // Set project data for interactive display
+                            projectMessage.setProjectId(projectId);
+                            projectMessage.setProjectName(yB.c(projectData, "my_ws_name"));
+                            projectMessage.setAppName(yB.c(projectData, "my_app_name"));
+                            projectMessage.setPackageName(yB.c(projectData, "my_sc_pkg_name"));
+                            
+                            // Set a user-friendly message
+                            String projectDisplayName = yB.c(projectData, "my_ws_name");
+                            String message = "Perfect! I've successfully created your '" + projectDisplayName + "' project. You can click on the project card below to open it in the design editor.";
+                            projectMessage.setContent(message);
+                            
+                            // Add the project message to the conversation
+                            messages.add(projectMessage);
+                            chatAdapter.notifyItemInserted(messages.size() - 1);
+                            messageStorage.saveMessages(conversationId, messages);
+                            binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+                            
+                            // Save/update conversation with the project creation message
+                            saveConversation(messageText, message);
                         }
-                    } catch (JSONException e) {
-                        Log.e(TAG, "Error parsing project creation result", e);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error creating project message", e);
+                        // Create a simple success message
+                        ChatMessage projectMessage = new ChatMessage(
+                            UUID.randomUUID().toString(),
+                            "Project '" + projectName + "' created successfully! You can find it in your projects list.",
+                            ChatMessage.TYPE_AI,
+                            System.currentTimeMillis()
+                        );
+                        messages.add(projectMessage);
+                        chatAdapter.notifyItemInserted(messages.size() - 1);
+                        messageStorage.saveMessages(conversationId, messages);
+                        saveConversation(messageText, projectMessage.getContent());
                     }
                 });
             }

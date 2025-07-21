@@ -131,6 +131,11 @@ public class AgenticQwenApiClient extends QwenApiClient {
                         try {
                             JSONObject responseJson = new JSONObject(response.trim());
                             if ("action".equals(responseJson.optString("response_type"))) {
+                                // First show the explanation to the user
+                                String explanation = responseJson.optString("explanation", "I'm working on that for you...");
+                                mainHandler.post(() -> callback.onResponse(explanation));
+                                
+                                // Then execute the action
                                 executeAction(responseJson, context, callback);
                                 return;
                             }
@@ -138,7 +143,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
                             // Not JSON, treat as regular response
                         }
                         
-                        // Regular response
+                        // Regular response - only call this if no action was executed
                         mainHandler.post(() -> callback.onResponse(response));
                     }
 

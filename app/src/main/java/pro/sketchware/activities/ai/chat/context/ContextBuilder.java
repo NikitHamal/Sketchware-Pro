@@ -54,8 +54,9 @@ public class ContextBuilder {
         prompt.append("    \"param1\": \"value1\",\n");
         prompt.append("    \"param2\": \"value2\"\n");
         prompt.append("  },\n");
-        prompt.append("  \"explanation\": \"Brief explanation of what you're doing\"\n");
-        prompt.append("}\n\n");
+        prompt.append("  \"explanation\": \"I'll create that project for you right away!\"\n");
+        prompt.append("}\n");
+        prompt.append("IMPORTANT: Always include a helpful explanation that will be shown to the user.\n\n");
 
         // Available actions
         prompt.append("AVAILABLE_ACTIONS:\n");
