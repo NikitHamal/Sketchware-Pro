@@ -8,7 +8,10 @@ import android.widget.ArrayAdapter;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,6 +19,8 @@ import pro.sketchware.activities.ai.chat.adapters.ChatAdapter;
 import pro.sketchware.activities.ai.chat.models.ChatMessage;
 import pro.sketchware.activities.ai.chat.models.QwenModel;
 import pro.sketchware.activities.ai.chat.api.QwenApiClient;
+import pro.sketchware.activities.ai.storage.ConversationStorage;
+import pro.sketchware.activities.main.fragments.ai.models.Conversation;
 import pro.sketchware.databinding.ActivityChatBinding;
 
 public class ChatActivity extends AppCompatActivity {
@@ -26,6 +31,9 @@ public class ChatActivity extends AppCompatActivity {
     private String conversationId;
     private String selectedModel = "qwen3-235b-a22b"; // Default model
     private boolean isTyping = false;
+    private ConversationStorage conversationStorage;
+    private String qwenChatId; // The actual chat ID from Qwen server
+    private boolean isNewConversation = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,6 +44,9 @@ public class ChatActivity extends AppCompatActivity {
         conversationId = getIntent().getStringExtra("conversation_id");
         if (conversationId == null) {
             conversationId = UUID.randomUUID().toString();
+            isNewConversation = true;
+        } else {
+            isNewConversation = false;
         }
 
         String conversationTitle = getIntent().getStringExtra("conversation_title");
@@ -45,12 +56,13 @@ public class ChatActivity extends AppCompatActivity {
             setTitle("New Chat");
         }
 
+        conversationStorage = new ConversationStorage(this);
         setupToolbar();
         setupModelSelector();
         setupRecyclerView();
         setupInputArea();
         
-        apiClient = new QwenApiClient();
+        apiClient = new QwenApiClient(this);
     }
 
     private void setupToolbar() {
@@ -64,25 +76,34 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     private void setupModelSelector() {
+        // Update the model selector text
+        binding.modelSelectorText.setText(getModelDisplayName(selectedModel));
+        
+        // Set click listener for model selector button
+        binding.modelSelectorButton.setOnClickListener(v -> showModelSelectionDialog());
+    }
+
+    private void showModelSelectionDialog() {
         List<QwenModel> models = getAvailableModels();
-        List<String> modelNames = new ArrayList<>();
-        for (QwenModel model : models) {
-            modelNames.add(model.getDisplayName());
+        String[] modelNames = new String[models.size()];
+        int selectedIndex = 0;
+        
+        for (int i = 0; i < models.size(); i++) {
+            modelNames[i] = models.get(i).getDisplayName();
+            if (models.get(i).getId().equals(selectedModel)) {
+                selectedIndex = i;
+            }
         }
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(
-            this, 
-            android.R.layout.simple_dropdown_item_1line, 
-            modelNames
-        );
-        
-        binding.modelSelector.setAdapter(adapter);
-        binding.modelSelector.setText(getModelDisplayName(selectedModel), false);
-        
-        binding.modelSelector.setOnItemClickListener((parent, view, position, id) -> {
-            QwenModel selected = models.get(position);
-            selectedModel = selected.getId();
-        });
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Select AI Model")
+                .setSingleChoiceItems(modelNames, selectedIndex, (dialog, which) -> {
+                    selectedModel = models.get(which).getId();
+                    binding.modelSelectorText.setText(models.get(which).getDisplayName());
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void setupRecyclerView() {
@@ -144,6 +165,9 @@ public class ChatActivity extends AppCompatActivity {
                     messages.add(aiMessage);
                     chatAdapter.notifyItemInserted(messages.size() - 1);
                     binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+                    
+                    // Save/update conversation
+                    saveConversation(messageText, response);
                 });
             }
 
@@ -198,5 +222,39 @@ public class ChatActivity extends AppCompatActivity {
             }
         }
         return modelId;
+    }
+
+    private void saveConversation(String userMessage, String aiResponse) {
+        // Generate title from first user message if this is a new conversation
+        String title = isNewConversation ? generateConversationTitle(userMessage) : getTitle().toString();
+        
+        Conversation conversation = new Conversation();
+        conversation.setId(conversationId);
+        conversation.setTitle(title);
+        conversation.setLastMessage(aiResponse);
+        conversation.setLastMessageTime(new Date());
+        conversation.setModel(getModelDisplayName(selectedModel));
+        
+        conversationStorage.saveConversation(conversation);
+        
+        // Update title if this was a new conversation
+        if (isNewConversation) {
+            setTitle(title);
+            isNewConversation = false;
+        }
+    }
+
+    private String generateConversationTitle(String firstMessage) {
+        // Take first 50 characters or until first sentence ends
+        String title = firstMessage.trim();
+        if (title.length() > 50) {
+            int endIndex = title.indexOf('.', 30);
+            if (endIndex > 0 && endIndex < 50) {
+                title = title.substring(0, endIndex);
+            } else {
+                title = title.substring(0, 50) + "...";
+            }
+        }
+        return title;
     }
 }

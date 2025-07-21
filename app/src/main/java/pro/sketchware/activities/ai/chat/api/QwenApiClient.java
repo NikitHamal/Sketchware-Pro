@@ -1,5 +1,6 @@
 package pro.sketchware.activities.ai.chat.api;
 
+import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -22,24 +23,29 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import pro.sketchware.activities.ai.config.ApiConfig;
+
 public class QwenApiClient {
     private static final String TAG = "QwenApiClient";
     private static final String BASE_URL = "https://chat.qwen.ai/api/v2";
-    
-    // Hardcoded values based on the reverse-engineered API
-    private static final String AUTHORIZATION_TOKEN = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU0MTY4MjJ9.jmyaxu5mrr1M1rvtRtpGi2DKyp6RM8xRZ1nEx-rHRgQ";
-    private static final String USER_AGENT = "Mozilla/5.0 (Linux; Android 12; itel A662LM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Mobile Safari/537.36";
-    private static final String BX_V = "2.5.31";
-    private static final String SOURCE = "h5";
-    private static final String TIMEZONE = "Asia/Kathmandu";
 
     private ExecutorService executor = Executors.newSingleThreadExecutor();
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Map<String, String> chatIdMap = new HashMap<>();
+    private ApiConfig apiConfig;
 
     public interface ChatCallback {
         void onResponse(String response);
         void onError(String error);
+    }
+
+    public interface NewChatCallback {
+        void onChatCreated(String chatId);
+        void onError(String error);
+    }
+
+    public QwenApiClient(Context context) {
+        apiConfig = new ApiConfig(context);
     }
 
     public void sendMessage(String conversationId, String model, String message, ChatCallback callback) {
@@ -76,13 +82,24 @@ public class QwenApiClient {
             // Set headers based on reverse-engineered API
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Accept", "application/json");
-            conn.setRequestProperty("Authorization", AUTHORIZATION_TOKEN);
+            conn.setRequestProperty("Authorization", apiConfig.getAuthorization());
             conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("User-Agent", USER_AGENT);
-            conn.setRequestProperty("bx-v", BX_V);
-            conn.setRequestProperty("source", SOURCE);
-            conn.setRequestProperty("timezone", TIMEZONE);
+            conn.setRequestProperty("User-Agent", apiConfig.getUserAgent());
+            conn.setRequestProperty("bx-v", apiConfig.getBxV());
+            conn.setRequestProperty("source", apiConfig.getSource());
+            conn.setRequestProperty("timezone", apiConfig.getTimezone());
             conn.setRequestProperty("x-request-id", UUID.randomUUID().toString());
+            
+            // Add optional headers if they exist
+            if (!apiConfig.getCookie().isEmpty()) {
+                conn.setRequestProperty("Cookie", apiConfig.getCookie());
+            }
+            if (!apiConfig.getBxUa().isEmpty()) {
+                conn.setRequestProperty("bx-ua", apiConfig.getBxUa());
+            }
+            if (!apiConfig.getBxUmidtoken().isEmpty()) {
+                conn.setRequestProperty("bx-umidtoken", apiConfig.getBxUmidtoken());
+            }
             conn.setDoOutput(true);
 
             // Create request body
@@ -124,14 +141,25 @@ public class QwenApiClient {
             // Set headers
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Accept", "*/*");
-            conn.setRequestProperty("Authorization", AUTHORIZATION_TOKEN);
+            conn.setRequestProperty("Authorization", apiConfig.getAuthorization());
             conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("User-Agent", USER_AGENT);
-            conn.setRequestProperty("bx-v", BX_V);
-            conn.setRequestProperty("source", SOURCE);
-            conn.setRequestProperty("timezone", TIMEZONE);
+            conn.setRequestProperty("User-Agent", apiConfig.getUserAgent());
+            conn.setRequestProperty("bx-v", apiConfig.getBxV());
+            conn.setRequestProperty("source", apiConfig.getSource());
+            conn.setRequestProperty("timezone", apiConfig.getTimezone());
             conn.setRequestProperty("x-accel-buffering", "no");
             conn.setRequestProperty("x-request-id", UUID.randomUUID().toString());
+            
+            // Add optional headers if they exist
+            if (!apiConfig.getCookie().isEmpty()) {
+                conn.setRequestProperty("Cookie", apiConfig.getCookie());
+            }
+            if (!apiConfig.getBxUa().isEmpty()) {
+                conn.setRequestProperty("bx-ua", apiConfig.getBxUa());
+            }
+            if (!apiConfig.getBxUmidtoken().isEmpty()) {
+                conn.setRequestProperty("bx-umidtoken", apiConfig.getBxUmidtoken());
+            }
             conn.setDoOutput(true);
 
             // Create message object

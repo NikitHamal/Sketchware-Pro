@@ -20,11 +20,13 @@ import pro.sketchware.activities.main.fragments.ai.adapters.ConversationAdapter;
 import pro.sketchware.activities.main.fragments.ai.models.Conversation;
 import pro.sketchware.databinding.FragmentAiBinding;
 import pro.sketchware.activities.ai.chat.ChatActivity;
+import pro.sketchware.activities.ai.storage.ConversationStorage;
 
 public class AiFragment extends Fragment {
     private FragmentAiBinding binding;
     private ConversationAdapter conversationAdapter;
     private List<Conversation> conversations = new ArrayList<>();
+    private ConversationStorage conversationStorage;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -45,9 +47,10 @@ public class AiFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         
+        conversationStorage = new ConversationStorage(requireContext());
         setupRecyclerView();
         setupNewConversationButton();
-        updateUI();
+        loadConversations();
     }
 
     private void setupRecyclerView() {
@@ -97,9 +100,8 @@ public class AiFragment extends Fragment {
     }
 
     private void loadConversations() {
-        // TODO: Load conversations from database/storage
-        // For now, we'll keep it empty to show the empty state
         conversations.clear();
+        conversations.addAll(conversationStorage.getAllConversations());
         conversationAdapter.notifyDataSetChanged();
         updateUI();
     }

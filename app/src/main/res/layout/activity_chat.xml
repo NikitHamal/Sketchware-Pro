@@ -16,37 +16,42 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:title="New Chat"
-            app:titleTextColor="?attr/colorOnSurface" />
+            app:titleTextColor="?attr/colorOnSurface">
 
-        <!-- Model Selector -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:padding="16dp"
-            android:gravity="center_vertical">
-
-            <TextView
+            <!-- Model Selector Button in Toolbar -->
+            <LinearLayout
+                android:id="@+id/model_selector_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Model:"
-                android:textAppearance="?attr/textAppearanceBodyMedium"
-                android:textColor="?attr/colorOnSurface"
-                android:layout_marginEnd="12dp" />
+                android:layout_gravity="end"
+                android:layout_marginEnd="16dp"
+                android:background="@drawable/model_selector_background"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="8dp">
 
-            <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                android:id="@+id/model_selector"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:inputType="none"
-                android:focusable="false"
-                android:textAppearance="?attr/textAppearanceBodyMedium"
-                android:textColor="?attr/colorPrimary"
-                android:textStyle="bold"
-                tools:text="Qwen3-235B-A22B" />
+                <TextView
+                    android:id="@+id/model_selector_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="4dp"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorPrimary"
+                    android:textStyle="bold"
+                    tools:text="Qwen3-235B-A22B" />
 
-        </LinearLayout>
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_arrow_drop_down"
+                    android:tint="?attr/colorPrimary"
+                    app:tint="?attr/colorPrimary" />
+
+            </LinearLayout>
+
+        </com.google.android.material.appbar.MaterialToolbar>
 
         <com.google.android.material.divider.MaterialDivider
             android:layout_width="match_parent"
@@ -58,8 +63,9 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/messages_recycler_view"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
         android:padding="16dp"
+        android:paddingBottom="80dp"
         android:clipToPadding="false"
         app:layout_behavior="@string/appbar_scrolling_view_behavior"
         tools:listitem="@layout/item_chat_message" />
@@ -113,31 +119,31 @@
             android:padding="16dp"
             android:gravity="center_vertical">
 
-            <com.google.android.material.textfield.TextInputLayout
+            <EditText
+                android:id="@+id/message_input"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginEnd="12dp"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+                android:background="@drawable/message_input_background"
+                android:hint="Type a message..."
+                android:imeOptions="actionSend"
+                android:inputType="textCapSentences|textMultiLine"
+                android:maxLines="4"
+                android:minHeight="48dp"
+                android:padding="12dp"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOnSurface"
+                android:textColorHint="?attr/colorOnSurfaceVariant" />
 
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/message_input"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="Type a message..."
-                    android:imeOptions="actionSend"
-                    android:inputType="textCapSentences|textMultiLine"
-                    android:maxLines="4" />
-
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.floatingactionbutton.FloatingActionButton
+            <ImageButton
                 android:id="@+id/send_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/send_button_background"
                 android:src="@drawable/ic_send"
-                app:fabSize="mini"
-                android:contentDescription="Send message" />
+                android:contentDescription="Send message"
+                android:scaleType="center" />
 
         </LinearLayout>
 
