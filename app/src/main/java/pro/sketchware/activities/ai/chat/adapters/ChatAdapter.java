@@ -1,5 +1,6 @@
 package pro.sketchware.activities.ai.chat.adapters;
 
+import android.content.Context;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
@@ -12,6 +13,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+import io.noties.markwon.Markwon;
 import pro.sketchware.activities.ai.chat.models.ChatMessage;
 import pro.sketchware.databinding.ItemChatMessageBinding;
 
@@ -19,9 +21,11 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageVie
     private static final String TAG = "ChatAdapter";
     private List<ChatMessage> messages;
     private SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
+    private Markwon markwon;
 
-    public ChatAdapter(List<ChatMessage> messages) {
+    public ChatAdapter(List<ChatMessage> messages, Context context) {
         this.messages = messages;
+        this.markwon = Markwon.create(context);
     }
 
     @NonNull
@@ -43,6 +47,16 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageVie
     public int getItemCount() {
         Log.d(TAG, "getItemCount: " + messages.size());
         return messages.size();
+    }
+
+    public void updateLastMessage(String content) {
+        if (!messages.isEmpty()) {
+            ChatMessage lastMessage = messages.get(messages.size() - 1);
+            if (lastMessage.getType() == ChatMessage.TYPE_AI) {
+                lastMessage.setContent(content);
+                notifyItemChanged(messages.size() - 1);
+            }
+        }
     }
 
     public class ChatMessageViewHolder extends RecyclerView.ViewHolder {
@@ -68,7 +82,8 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageVie
                 binding.userMessageLayout.setVisibility(android.view.View.GONE);
                 binding.aiMessageLayout.setVisibility(android.view.View.VISIBLE);
                 
-                binding.aiMessage.setText(message.getContent());
+                // Use Markwon to render markdown in AI messages
+                markwon.setMarkdown(binding.aiMessage, message.getContent());
                 binding.aiMessageTime.setText(timeFormat.format(new Date(message.getTimestamp())));
                 
                 Log.d(TAG, "Showing AI message: " + message.getContent());

@@ -20,6 +20,7 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
 
     public interface OnConversationClickListener {
         void onConversationClick(Conversation conversation);
+        void onConversationLongClick(Conversation conversation);
     }
 
     public ConversationAdapter(List<Conversation> conversations, OnConversationClickListener listener) {
@@ -63,11 +64,19 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
                 binding.conversationTime.setText(dateFormat.format(conversation.getLastMessageTime()));
             }
 
-            binding.getRoot().setOnClickListener(v -> {
-                if (listener != null) {
-                    listener.onConversationClick(conversation);
-                }
-            });
+                            binding.getRoot().setOnClickListener(v -> {
+                    if (listener != null) {
+                        listener.onConversationClick(conversation);
+                    }
+                });
+                
+                binding.getRoot().setOnLongClickListener(v -> {
+                    if (listener != null) {
+                        listener.onConversationLongClick(conversation);
+                        return true;
+                    }
+                    return false;
+                });
         }
     }
 }

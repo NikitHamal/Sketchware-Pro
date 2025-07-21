@@ -37,6 +37,10 @@ public class QwenApiClient {
     public interface ChatCallback {
         void onResponse(String response);
         void onError(String error);
+        
+        default void onStreamingResponse(String partialResponse) {
+            // Default implementation does nothing - subclasses can override
+        }
     }
 
     public interface NewChatCallback {

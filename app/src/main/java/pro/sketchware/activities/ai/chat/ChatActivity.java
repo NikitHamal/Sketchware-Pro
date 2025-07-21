@@ -21,6 +21,7 @@ import pro.sketchware.activities.ai.chat.models.ChatMessage;
 import pro.sketchware.activities.ai.chat.models.QwenModel;
 import pro.sketchware.activities.ai.chat.api.QwenApiClient;
 import pro.sketchware.activities.ai.storage.ConversationStorage;
+import pro.sketchware.activities.ai.storage.MessageStorage;
 import pro.sketchware.activities.main.fragments.ai.models.Conversation;
 import pro.sketchware.databinding.ActivityChatBinding;
 
@@ -34,6 +35,7 @@ public class ChatActivity extends AppCompatActivity {
     private String selectedModel = "qwen3-235b-a22b"; // Default model
     private boolean isTyping = false;
     private ConversationStorage conversationStorage;
+    private MessageStorage messageStorage;
     private String qwenChatId; // The actual chat ID from Qwen server
     private boolean isNewConversation = true;
 
@@ -59,10 +61,12 @@ public class ChatActivity extends AppCompatActivity {
         }
 
         conversationStorage = new ConversationStorage(this);
+        messageStorage = new MessageStorage(this);
         setupToolbar();
         setupModelSelector();
         setupRecyclerView();
         setupInputArea();
+        loadMessages();
         
         apiClient = new QwenApiClient(this);
     }
@@ -109,7 +113,7 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     private void setupRecyclerView() {
-        chatAdapter = new ChatAdapter(messages);
+        chatAdapter = new ChatAdapter(messages, this);
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         layoutManager.setStackFromEnd(true);
         
@@ -117,6 +121,15 @@ public class ChatActivity extends AppCompatActivity {
         binding.messagesRecyclerView.setAdapter(chatAdapter);
         
         Log.d(TAG, "RecyclerView setup complete. Initial message count: " + messages.size());
+    }
+
+    private void loadMessages() {
+        messages.clear();
+        messages.addAll(messageStorage.getMessages(conversationId));
+        if (chatAdapter != null) {
+            chatAdapter.notifyDataSetChanged();
+        }
+        Log.d(TAG, "Loaded " + messages.size() + " messages for conversation: " + conversationId);
     }
 
     private void setupInputArea() {
@@ -145,35 +158,71 @@ public class ChatActivity extends AppCompatActivity {
         Log.d(TAG, "Added user message: " + messageText + ", total messages: " + messages.size());
         chatAdapter.notifyItemInserted(messages.size() - 1);
         
+        // Save user message immediately
+        messageStorage.addMessage(conversationId, userMessage);
+        
         // Clear input
         binding.messageInput.setText("");
         
         // Scroll to bottom
         binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
         
+        // Add empty AI message for streaming
+        ChatMessage aiMessage = new ChatMessage(
+            UUID.randomUUID().toString(),
+            "",
+            ChatMessage.TYPE_AI,
+            System.currentTimeMillis()
+        );
+        messages.add(aiMessage);
+        chatAdapter.notifyItemInserted(messages.size() - 1);
+        binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+        
         // Show typing indicator
         showTypingIndicator();
         
-        // Send to API
+        // Send to API with streaming support
         apiClient.sendMessage(conversationId, selectedModel, messageText, new QwenApiClient.ChatCallback() {
+            private StringBuilder streamingContent = new StringBuilder();
+            
             @Override
             public void onResponse(String response) {
                 runOnUiThread(() -> {
                     hideTypingIndicator();
                     
-                    ChatMessage aiMessage = new ChatMessage(
-                        UUID.randomUUID().toString(),
-                        response,
-                        ChatMessage.TYPE_AI,
-                        System.currentTimeMillis()
-                    );
-                    messages.add(aiMessage);
-                    Log.d(TAG, "Added AI message: " + response + ", total messages: " + messages.size());
-                    chatAdapter.notifyItemInserted(messages.size() - 1);
+                    // Update the last AI message with final response
+                    if (!messages.isEmpty()) {
+                        ChatMessage lastMessage = messages.get(messages.size() - 1);
+                        if (lastMessage.getType() == ChatMessage.TYPE_AI) {
+                            lastMessage.setContent(response);
+                            chatAdapter.notifyItemChanged(messages.size() - 1);
+                            
+                            // Save final AI message
+                            messageStorage.saveMessages(conversationId, messages);
+                        }
+                    }
+                    
                     binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+                    Log.d(TAG, "Final AI message: " + response + ", total messages: " + messages.size());
                     
                     // Save/update conversation
                     saveConversation(messageText, response);
+                });
+            }
+            
+            public void onStreamingResponse(String partialResponse) {
+                runOnUiThread(() -> {
+                    // Update the streaming content
+                    streamingContent.append(partialResponse);
+                    
+                    // Update the last AI message with streaming content
+                    if (!messages.isEmpty()) {
+                        ChatMessage lastMessage = messages.get(messages.size() - 1);
+                        if (lastMessage.getType() == ChatMessage.TYPE_AI) {
+                            chatAdapter.updateLastMessage(streamingContent.toString());
+                            binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+                        }
+                    }
                 });
             }
 
@@ -182,14 +231,19 @@ public class ChatActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     hideTypingIndicator();
                     
-                    ChatMessage errorMessage = new ChatMessage(
-                        UUID.randomUUID().toString(),
-                        "Sorry, I encountered an error: " + error,
-                        ChatMessage.TYPE_AI,
-                        System.currentTimeMillis()
-                    );
-                    messages.add(errorMessage);
-                    chatAdapter.notifyItemInserted(messages.size() - 1);
+                    // Update the last AI message with error
+                    if (!messages.isEmpty()) {
+                        ChatMessage lastMessage = messages.get(messages.size() - 1);
+                        if (lastMessage.getType() == ChatMessage.TYPE_AI) {
+                            String errorMsg = "Sorry, I encountered an error: " + error;
+                            lastMessage.setContent(errorMsg);
+                            chatAdapter.notifyItemChanged(messages.size() - 1);
+                            
+                            // Save error message
+                            messageStorage.saveMessages(conversationId, messages);
+                        }
+                    }
+                    
                     binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
                 });
             }
