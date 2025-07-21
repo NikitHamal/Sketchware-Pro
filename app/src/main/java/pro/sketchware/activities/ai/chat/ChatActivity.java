@@ -120,7 +120,7 @@ public class ChatActivity extends AppCompatActivity {
         binding.messagesRecyclerView.setLayoutManager(layoutManager);
         binding.messagesRecyclerView.setAdapter(chatAdapter);
         
-        Log.d(TAG, "RecyclerView setup complete. Initial message count: " + messages.size());
+
     }
 
     private void loadMessages() {
@@ -129,7 +129,7 @@ public class ChatActivity extends AppCompatActivity {
         if (chatAdapter != null) {
             chatAdapter.notifyDataSetChanged();
         }
-        Log.d(TAG, "Loaded " + messages.size() + " messages for conversation: " + conversationId);
+
     }
 
     private void setupInputArea() {
@@ -155,7 +155,6 @@ public class ChatActivity extends AppCompatActivity {
             System.currentTimeMillis()
         );
         messages.add(userMessage);
-        Log.d(TAG, "Added user message: " + messageText + ", total messages: " + messages.size());
         chatAdapter.notifyItemInserted(messages.size() - 1);
         
         // Save user message immediately
@@ -203,7 +202,6 @@ public class ChatActivity extends AppCompatActivity {
                     }
                     
                     binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
-                    Log.d(TAG, "Final AI message: " + response + ", total messages: " + messages.size());
                     
                     // Save/update conversation
                     saveConversation(messageText, response);

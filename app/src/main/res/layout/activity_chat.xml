@@ -65,7 +65,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:padding="16dp"
-        android:paddingBottom="80dp"
+        android:paddingBottom="100dp"
         android:clipToPadding="false"
         app:layout_behavior="@string/appbar_scrolling_view_behavior"
         tools:listitem="@layout/item_chat_message" />
@@ -77,7 +77,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|start"
         android:layout_marginStart="16dp"
-        android:layout_marginBottom="80dp"
+        android:layout_marginBottom="100dp"
         android:background="@drawable/chat_bubble_ai"
         android:orientation="horizontal"
         android:padding="12dp"
@@ -101,6 +101,7 @@
 
     <!-- Input Area -->
     <LinearLayout
+        android:id="@+id/input_area"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
