@@ -176,10 +176,10 @@ public class AgenticQwenApiClient extends QwenApiClient {
                     if (chatId != null) {
                         context.setQwenChatId(chatId);
                         contextStorage.saveContext(context);
-                        // Store the chatId in our map for direct use
-                        agenticChatIdMap.put(context.getConversationId(), chatId);
-                        // Send the message using our own implementation
-                        sendMessageDirectly(chatId, model, message, callback);
+                                                    // Store the chatId in our map for direct use
+                            agenticChatIdMap.put(context.getConversationId(), chatId);
+                            // Send the message using our own implementation
+                            sendMessageDirectly(chatId, model, message, context, callback);
                     } else {
                         mainHandler.post(() -> callback.onError("Failed to create new chat"));
                     }
@@ -188,33 +188,35 @@ public class AgenticQwenApiClient extends QwenApiClient {
                     mainHandler.post(() -> callback.onError("Error creating new chat: " + e.getMessage()));
                 }
             });
-        } else {
-            // Use existing chat
-            sendMessageDirectly(qwenChatId, model, message, callback);
-        }
-    }
-
-    private void sendMessageDirectly(String chatId, String model, String message, ChatCallback callback) {
-        executor.execute(() -> {
-            try {
-                String response = sendChatMessageSync(chatId, model, message);
-                if (response != null) {
-                    mainHandler.post(() -> callback.onResponse(response));
-                } else {
-                    mainHandler.post(() -> callback.onError("Failed to get response"));
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error sending message", e);
-                mainHandler.post(() -> callback.onError(e.getMessage()));
+                    } else {
+                // Use existing chat
+                sendMessageDirectly(qwenChatId, model, message, context, callback);
             }
-        });
     }
 
-    private String sendChatMessageSync(String chatId, String model, String message) {
+            private void sendMessageDirectly(String chatId, String model, String message, ConversationContext context, ChatCallback callback) {
+            executor.execute(() -> {
+                try {
+                    String response = sendChatMessageSync(chatId, model, message, context);
+                    if (response != null) {
+                        // Save context with updated parent_id
+                        contextStorage.saveContext(context);
+                        mainHandler.post(() -> callback.onResponse(response));
+                    } else {
+                        mainHandler.post(() -> callback.onError("Failed to get response"));
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error sending message", e);
+                    mainHandler.post(() -> callback.onError(e.getMessage()));
+                }
+            });
+        }
+
+        private String sendChatMessageSync(String chatId, String model, String message, ConversationContext context) {
         try {
             URL url = new URL("https://chat.qwen.ai/api/v2/chat/completions?chat_id=" + chatId);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            
+
             // Set headers
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Accept", "*/*");
@@ -228,10 +230,16 @@ public class AgenticQwenApiClient extends QwenApiClient {
             conn.setRequestProperty("x-request-id", UUID.randomUUID().toString());
             conn.setDoOutput(true);
 
-            // Create message object
+            // Generate unique message ID
+            String userMessageId = UUID.randomUUID().toString();
+            
+            // Create message object with proper parent chain
             JSONObject messageObj = new JSONObject();
-            messageObj.put("fid", UUID.randomUUID().toString());
-            messageObj.put("parentId", JSONObject.NULL);
+            messageObj.put("fid", userMessageId);
+            
+            // Set proper parent ID - link to last AI response
+            Object parentId = context.getLastParentId() != null ? context.getLastParentId() : JSONObject.NULL;
+            messageObj.put("parentId", parentId);
             messageObj.put("childrenIds", new JSONArray());
             messageObj.put("role", "user");
             messageObj.put("content", message);
@@ -254,7 +262,11 @@ public class AgenticQwenApiClient extends QwenApiClient {
             extra.put("meta", meta);
             messageObj.put("extra", extra);
             messageObj.put("sub_chat_type", "t2t");
-            messageObj.put("parent_id", JSONObject.NULL);
+            messageObj.put("parent_id", parentId);
+
+            // Store this message in context for future reference
+            context.addToQwenMessageHistory(new JSONObject(messageObj.toString()));
+            context.setLastUserMessageId(userMessageId);
 
             // Create request body
             JSONObject requestBody = new JSONObject();
@@ -263,7 +275,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
             requestBody.put("chat_id", chatId);
             requestBody.put("chat_mode", "normal");
             requestBody.put("model", model);
-            requestBody.put("parent_id", JSONObject.NULL);
+            requestBody.put("parent_id", parentId);  // Set proper parent_id for request
             JSONArray messages = new JSONArray();
             messages.put(messageObj);
             requestBody.put("messages", messages);
@@ -278,7 +290,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
             // Read streaming response
             int responseCode = conn.getResponseCode();
             if (responseCode == HttpURLConnection.HTTP_OK) {
-                return readStreamingResponseInternal(conn.getInputStream());
+                return readStreamingResponseInternal(conn.getInputStream(), context);
             }
         } catch (Exception e) {
             Log.e(TAG, "Error sending chat message", e);
@@ -286,7 +298,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
         return null;
     }
 
-    private String readStreamingResponseInternal(InputStream inputStream) throws IOException {
+    private String readStreamingResponseInternal(InputStream inputStream, ConversationContext context) throws IOException {
         StringBuilder fullResponse = new StringBuilder();
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
         String line;
@@ -297,6 +309,18 @@ public class AgenticQwenApiClient extends QwenApiClient {
                 if (!data.trim().isEmpty()) {
                     try {
                         JSONObject jsonData = new JSONObject(data);
+                        
+                        // Extract parent_id from response.created
+                        if (jsonData.has("response.created")) {
+                            JSONObject responseCreated = jsonData.getJSONObject("response.created");
+                            if (responseCreated.has("response_id")) {
+                                String responseId = responseCreated.getString("response_id");
+                                // Store this as the parent_id for the next message
+                                context.setLastParentId(responseId);
+                                Log.d(TAG, "Extracted AI response ID: " + responseId);
+                            }
+                        }
+                        
                         if (jsonData.has("choices")) {
                             JSONArray choices = jsonData.getJSONArray("choices");
                             if (choices.length() > 0) {

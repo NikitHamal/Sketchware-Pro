@@ -1,5 +1,7 @@
 package pro.sketchware.activities.ai.chat.models;
 
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -13,12 +15,15 @@ public class ConversationContext {
     private Map<String, Object> sessionState;
     private List<String> executedActions;
     private String lastParentId;
-    
+    private String lastUserMessageId;
+    private List<JSONObject> qwenMessageHistory;
+
     public ConversationContext(String conversationId) {
         this.conversationId = conversationId;
         this.fullHistory = new ArrayList<>();
         this.sessionState = new HashMap<>();
         this.executedActions = new ArrayList<>();
+        this.qwenMessageHistory = new ArrayList<>();
     }
     
     // Getters and setters
@@ -68,5 +73,29 @@ public class ConversationContext {
     
     public void setLastParentId(String lastParentId) {
         this.lastParentId = lastParentId;
+    }
+
+    public String getLastUserMessageId() {
+        return lastUserMessageId;
+    }
+
+    public void setLastUserMessageId(String lastUserMessageId) {
+        this.lastUserMessageId = lastUserMessageId;
+    }
+
+    public List<JSONObject> getQwenMessageHistory() {
+        return qwenMessageHistory;
+    }
+
+    public void setQwenMessageHistory(List<JSONObject> qwenMessageHistory) {
+        this.qwenMessageHistory = qwenMessageHistory;
+    }
+
+    public void addToQwenMessageHistory(JSONObject message) {
+        this.qwenMessageHistory.add(message);
+    }
+
+    public void clearQwenMessageHistory() {
+        this.qwenMessageHistory.clear();
     }
 }
