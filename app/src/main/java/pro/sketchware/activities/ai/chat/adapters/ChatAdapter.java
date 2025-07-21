@@ -18,14 +18,13 @@ import pro.sketchware.activities.ai.chat.models.ChatMessage;
 import pro.sketchware.activities.ai.chat.views.ProjectItemView;
 import pro.sketchware.activities.ai.chat.views.FixProposalView;
 import pro.sketchware.databinding.ItemChatMessageBinding;
-import pro.sketchware.databinding.ItemChatProposalBinding;
 
 public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageViewHolder> {
     private static final String TAG = "ChatAdapter";
     private List<ChatMessage> messages;
     private SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
     private Markwon markwon;
-    private FixProposalView.OnProposalActionListener proposalActionListener;
+    private OnProposalActionListener proposalActionListener;
 
     public interface OnProposalActionListener {
         void onAcceptProposal(ChatMessage message);
@@ -50,9 +49,10 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageVie
     @Override
     public ChatMessageViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         if (viewType == ChatMessage.TYPE_PROPOSAL) {
-            ItemChatProposalBinding binding = ItemChatProposalBinding.inflate(
-                    LayoutInflater.from(parent.getContext()), parent, false);
-            return new ProposalViewHolder(binding);
+            // Inflate the proposal layout directly
+            android.view.View view = LayoutInflater.from(parent.getContext())
+                    .inflate(pro.sketchware.R.layout.item_chat_proposal, parent, false);
+            return new ProposalViewHolder(view);
         } else {
             ItemChatMessageBinding binding = ItemChatMessageBinding.inflate(
                     LayoutInflater.from(parent.getContext()), parent, false);
@@ -63,7 +63,11 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageVie
     @Override
     public void onBindViewHolder(@NonNull ChatMessageViewHolder holder, int position) {
         ChatMessage message = messages.get(position);
-        holder.bind(message);
+        if (holder instanceof ProposalViewHolder) {
+            ((ProposalViewHolder) holder).bind(message);
+        } else {
+            holder.bind(message);
+        }
     }
 
     @Override
@@ -125,32 +129,36 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageVie
         }
     }
 
-    public class ProposalViewHolder extends ChatMessageViewHolder {
-        private ItemChatProposalBinding proposalBinding;
+    public class ProposalViewHolder extends RecyclerView.ViewHolder {
+        private android.view.View proposalView;
+        private android.widget.TextView tvTime;
+        private android.widget.FrameLayout proposalContainer;
 
-        public ProposalViewHolder(ItemChatProposalBinding binding) {
-            super(null);
-            this.proposalBinding = binding;
+        public ProposalViewHolder(android.view.View view) {
+            super(view);
+            this.proposalView = view;
+            this.tvTime = view.findViewById(pro.sketchware.R.id.tvTime);
+            this.proposalContainer = view.findViewById(pro.sketchware.R.id.proposalContainer);
         }
 
         @Override
         public void bind(ChatMessage message) {
             // Set timestamp
-            proposalBinding.tvTime.setText(timeFormat.format(new Date(message.getTimestamp())));
+            tvTime.setText(timeFormat.format(new Date(message.getTimestamp())));
 
             // Clear any existing proposal views
-            proposalBinding.proposalContainer.removeAllViews();
+            proposalContainer.removeAllViews();
 
             if (message.hasProposalData()) {
                 try {
                     org.json.JSONObject proposalData = new org.json.JSONObject(message.getProposalData());
                     
                     // Create and configure proposal view
-                    FixProposalView proposalView = new FixProposalView(proposalBinding.getRoot().getContext());
-                    proposalView.setProposal(message.getExplanation(), proposalData);
+                    FixProposalView fixProposalView = new FixProposalView(proposalView.getContext());
+                    fixProposalView.setProposal(message.getExplanation(), proposalData);
                     
-                    // Set up proposal action listener
-                    proposalView.setOnProposalActionListener(new FixProposalView.OnProposalActionListener() {
+                    // Set up proposal action listener - bridge between FixProposalView and ChatAdapter listeners
+                    fixProposalView.setOnProposalActionListener(new FixProposalView.OnProposalActionListener() {
                         @Override
                         public void onAccept(org.json.JSONObject proposalData) {
                             if (proposalActionListener != null) {
@@ -167,7 +175,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageVie
                     });
                     
                     // Add to container
-                    proposalBinding.proposalContainer.addView(proposalView);
+                    proposalContainer.addView(fixProposalView);
                     
                 } catch (org.json.JSONException e) {
                     Log.e(TAG, "Error parsing proposal data", e);
