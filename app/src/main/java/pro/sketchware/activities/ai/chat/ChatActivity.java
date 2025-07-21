@@ -32,6 +32,8 @@ import org.json.JSONObject;
 
 import a.a.a.lC;
 import a.a.a.yB;
+import pro.sketchware.activities.ai.chat.views.FixProposalView;
+import pro.sketchware.activities.ai.chat.views.ProjectItemView;
 
 public class ChatActivity extends AppCompatActivity {
     private static final String TAG = "ChatActivity";
@@ -260,9 +262,44 @@ public class ChatActivity extends AppCompatActivity {
 
             @Override
             public void onActionExecuted(String actionResult, String projectId) {
-                Log.d(TAG, "Action executed: " + actionResult);
-                // Don't handle UI updates here - let onProjectCreated handle it for project creation
-                // This is called first, then onProjectCreated is called for project-specific actions
+                runOnUiThread(() -> {
+                    hideTypingIndicator();
+                    
+                    // Show success message for action execution
+                    ChatMessage successMessage = new ChatMessage(
+                        UUID.randomUUID().toString(),
+                        "✅ Fix applied successfully! The file has been updated. Please rebuild your project to see if the errors are resolved.",
+                        ChatMessage.TYPE_AI,
+                        System.currentTimeMillis()
+                    );
+                    messages.add(successMessage);
+                    chatAdapter.notifyItemInserted(messages.size() - 1);
+                    messageStorage.saveMessages(conversationId, messages);
+                    binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+                    
+                    // Show project card if we have a project ID
+                    if (projectId != null) {
+                        showProjectCard(projectId);
+                    }
+                });
+            }
+
+            @Override
+            public void onFixProposal(String explanation, String actionJson, String projectId) {
+                runOnUiThread(() -> {
+                    hideTypingIndicator();
+                    
+                    try {
+                        JSONObject actionData = new JSONObject(actionJson);
+                        JSONObject parameters = actionData.getJSONObject("parameters");
+                        
+                        // Create and show fix proposal view
+                        showFixProposal(explanation, parameters, projectId);
+                        
+                    } catch (JSONException e) {
+                        Log.e(TAG, "Error parsing fix proposal", e);
+                    }
+                });
             }
 
             @Override
@@ -345,11 +382,155 @@ public class ChatActivity extends AppCompatActivity {
         }
     }
     
-         private void showErrorAnalysisHeader(String projectId, int errorCount) {
-         // This could be enhanced with a header view showing project context
-         // For now, we'll just update the title
-         setTitle("🔧 AI Error Fixer - " + errorCount + " errors");
-     }
+                   private void showErrorAnalysisHeader(String projectId, int errorCount) {
+          // This could be enhanced with a header view showing project context
+          // For now, we'll just update the title
+          setTitle("🔧 AI Error Fixer - " + errorCount + " errors");
+      }
+
+    private void showFixProposal(String explanation, JSONObject actionData, String projectId) {
+        // Create fix proposal view
+        FixProposalView proposalView = new FixProposalView(this);
+        proposalView.setProposal(explanation, actionData);
+        
+        proposalView.setOnProposalActionListener(new FixProposalView.OnProposalActionListener() {
+            @Override
+            public void onAccept(JSONObject proposalData) {
+                // Execute the approved action
+                try {
+                    JSONObject actionJson = new JSONObject();
+                    actionJson.put("action", "fix_file_error");
+                    actionJson.put("parameters", proposalData);
+                    
+                    apiClient.executeApprovedAction(conversationId, actionJson, new AgenticQwenApiClient.AgenticChatCallback() {
+                        @Override
+                        public void onResponse(String response) {
+                            // Handle in onActionExecuted
+                        }
+
+                        @Override
+                        public void onStreamingResponse(String partialResponse) {
+                            // Not needed for action execution
+                        }
+
+                        @Override
+                        public void onError(String error) {
+                            runOnUiThread(() -> {
+                                proposalView.hideProposal();
+                                // Show error message
+                                ChatMessage errorMessage = new ChatMessage(
+                                    UUID.randomUUID().toString(),
+                                    "❌ Error applying fix: " + error,
+                                    ChatMessage.TYPE_AI,
+                                    System.currentTimeMillis()
+                                );
+                                messages.add(errorMessage);
+                                chatAdapter.notifyItemInserted(messages.size() - 1);
+                                messageStorage.saveMessages(conversationId, messages);
+                            });
+                        }
+
+                        @Override
+                        public void onActionExecuted(String actionResult, String projectId) {
+                            runOnUiThread(() -> {
+                                proposalView.showSuccessState("✅ Fix applied successfully!");
+                                
+                                // Show success message
+                                ChatMessage successMessage = new ChatMessage(
+                                    UUID.randomUUID().toString(),
+                                    "✅ Fix applied successfully! The file has been updated. Please rebuild your project to see if the errors are resolved.",
+                                    ChatMessage.TYPE_AI,
+                                    System.currentTimeMillis()
+                                );
+                                messages.add(successMessage);
+                                chatAdapter.notifyItemInserted(messages.size() - 1);
+                                messageStorage.saveMessages(conversationId, messages);
+                                binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+                                
+                                // Show project card
+                                if (projectId != null) {
+                                    showProjectCard(projectId);
+                                }
+                            });
+                        }
+
+                        @Override
+                        public void onProjectCreated(String projectId, String projectName) {
+                            // Not needed for fix actions
+                        }
+
+                        @Override
+                        public void onFixProposal(String explanation, String actionJson, String projectId) {
+                            // Not needed for approved actions
+                        }
+                    });
+                    
+                } catch (JSONException e) {
+                    Log.e(TAG, "Error creating action JSON", e);
+                }
+            }
+
+            @Override
+            public void onDiscard(JSONObject proposalData) {
+                proposalView.hideProposal();
+                
+                // Show discard message
+                ChatMessage discardMessage = new ChatMessage(
+                    UUID.randomUUID().toString(),
+                    "Fix proposal discarded. The file will not be modified.",
+                    ChatMessage.TYPE_AI,
+                    System.currentTimeMillis()
+                );
+                messages.add(discardMessage);
+                chatAdapter.notifyItemInserted(messages.size() - 1);
+                messageStorage.saveMessages(conversationId, messages);
+                binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+            }
+        });
+        
+        // Add the proposal view to a message
+        ChatMessage proposalMessage = new ChatMessage(
+            UUID.randomUUID().toString(),
+            "AI has proposed a fix. Please review and approve:",
+            ChatMessage.TYPE_AI,
+            System.currentTimeMillis()
+        );
+        messages.add(proposalMessage);
+        chatAdapter.notifyItemInserted(messages.size() - 1);
+        
+        // Add the proposal view to the chat (this would need custom adapter support)
+        // For now, we'll handle it differently - show it as a separate UI element
+        
+        messageStorage.saveMessages(conversationId, messages);
+        binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+    }
+    
+    private void showProjectCard(String projectId) {
+        try {
+            HashMap<String, Object> projectData = lC.b(projectId);
+            if (projectData != null) {
+                ChatMessage projectMessage = new ChatMessage(
+                    UUID.randomUUID().toString(),
+                    "Project updated successfully:",
+                    ChatMessage.TYPE_AI,
+                    System.currentTimeMillis()
+                );
+                
+                // Set project data for interactive display
+                projectMessage.setProjectId(projectId);
+                projectMessage.setProjectName(yB.c(projectData, "my_ws_name"));
+                projectMessage.setAppName(yB.c(projectData, "my_app_name"));
+                projectMessage.setPackageName(yB.c(projectData, "my_sc_pkg_name"));
+                
+                messages.add(projectMessage);
+                chatAdapter.notifyItemInserted(messages.size() - 1);
+                messageStorage.saveMessages(conversationId, messages);
+                binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error showing project card", e);
+        }
+    }
 
     private void showTypingIndicator() {
         isTyping = true;

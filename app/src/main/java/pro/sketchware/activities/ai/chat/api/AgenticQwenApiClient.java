@@ -41,6 +41,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
     public interface AgenticChatCallback extends ChatCallback {
         void onActionExecuted(String actionResult, String projectId);
         void onProjectCreated(String projectId, String projectName);
+        void onFixProposal(String explanation, String actionJson, String projectId);
     }
 
     public AgenticQwenApiClient(Context context) {
@@ -370,7 +371,22 @@ public class AgenticQwenApiClient extends QwenApiClient {
             
             Log.d(TAG, "Executing action: " + actionName + " with params: " + paramMap);
             
-            // Execute the action
+            // Check if this is a fix_file_error action - should show proposal first
+            if ("fix_file_error".equals(actionName)) {
+                // Create proposal JSON for user approval
+                JSONObject proposalJson = new JSONObject();
+                try {
+                    proposalJson.put("action", actionName);
+                    proposalJson.put("parameters", parameters);
+                    
+                    mainHandler.post(() -> callback.onFixProposal(explanation, proposalJson.toString(), context.getCurrentProjectId()));
+                } catch (JSONException e) {
+                    Log.e(TAG, "Error creating fix proposal", e);
+                }
+                return;
+            }
+            
+            // Execute the action directly for non-fix actions
             String result = contextBuilder.executeAction(actionName, paramMap, context.getCurrentProjectId());
             
             // Parse result for success
@@ -406,5 +422,38 @@ public class AgenticQwenApiClient extends QwenApiClient {
             Log.e(TAG, "Error executing action", e);
             mainHandler.post(() -> callback.onError("Error executing action: " + e.getMessage()));
         }
+    }
+    
+    public void executeApprovedAction(String conversationId, JSONObject actionData, AgenticChatCallback callback) {
+        executor.execute(() -> {
+            try {
+                ConversationContext context = contextStorage.loadContext(conversationId);
+                
+                String actionName = actionData.getString("action");
+                JSONObject parameters = actionData.getJSONObject("parameters");
+                
+                Map<String, Object> paramMap = new HashMap<>();
+                parameters.keys().forEachRemaining(key -> {
+                    try {
+                        paramMap.put(key, parameters.get(key));
+                    } catch (JSONException e) {
+                        Log.e(TAG, "Error parsing parameter: " + key, e);
+                    }
+                });
+                
+                // Execute the approved action
+                String result = contextBuilder.executeAction(actionName, paramMap, context.getCurrentProjectId());
+                
+                // Update context
+                context.addExecutedAction(actionName);
+                contextStorage.saveContext(context);
+                
+                mainHandler.post(() -> callback.onActionExecuted(result, context.getCurrentProjectId()));
+                
+            } catch (Exception e) {
+                Log.e(TAG, "Error executing approved action", e);
+                mainHandler.post(() -> callback.onError("Action execution failed: " + e.getMessage()));
+            }
+        });
     }
 }

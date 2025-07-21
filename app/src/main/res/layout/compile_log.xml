@@ -113,9 +113,7 @@
             android:layout_marginHorizontal="5dp"
             android:layout_marginTop="10dp"
             android:layout_marginBottom="20dp"
-            android:src="@drawable/ic_ai_fix"
-            android:backgroundTint="?attr/colorSecondary"
-            android:tint="?attr/colorOnSecondary" />
+            android:src="@drawable/ic_ai_fix" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/clearButton"

@@ -93,10 +93,10 @@ public class ContextBuilder {
         prompt.append("ERROR_FIXING_GUIDANCE:\n");
         prompt.append("When fixing compile errors:\n");
         prompt.append("1. Analyze the error carefully and identify the root cause\n");
-        prompt.append("2. Propose specific solutions with clear explanations\n");
-        prompt.append("3. Use fix_file_error action to create, edit, or modify files\n");
-        prompt.append("4. Always explain what changes you're making and why\n");
-        prompt.append("5. Create backups automatically before modifying files\n");
+        prompt.append("2. Explain the issue and your proposed solution clearly\n");
+        prompt.append("3. ALWAYS use fix_file_error action when you need to modify files\n");
+        prompt.append("4. For empty XML files, provide complete valid XML content\n");
+        prompt.append("5. Include both explanation AND action in your response\n");
         prompt.append("6. Focus on minimal, targeted fixes rather than major restructuring\n\n");
 
         prompt.append("USER_MESSAGE: ").append(userMessage);
