@@ -20,17 +20,21 @@ import pro.sketchware.activities.ai.chat.adapters.ChatAdapter;
 import pro.sketchware.activities.ai.chat.models.ChatMessage;
 import pro.sketchware.activities.ai.chat.models.QwenModel;
 import pro.sketchware.activities.ai.chat.api.QwenApiClient;
+import pro.sketchware.activities.ai.chat.api.AgenticQwenApiClient;
 import pro.sketchware.activities.ai.storage.ConversationStorage;
 import pro.sketchware.activities.ai.storage.MessageStorage;
 import pro.sketchware.activities.main.fragments.ai.models.Conversation;
 import pro.sketchware.databinding.ActivityChatBinding;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class ChatActivity extends AppCompatActivity {
     private static final String TAG = "ChatActivity";
     private ActivityChatBinding binding;
     private ChatAdapter chatAdapter;
     private List<ChatMessage> messages = new ArrayList<>();
-    private QwenApiClient apiClient;
+    private AgenticQwenApiClient apiClient;
     private String conversationId;
     private String selectedModel = "qwen3-235b-a22b"; // Default model
     private boolean isTyping = false;
@@ -68,7 +72,7 @@ public class ChatActivity extends AppCompatActivity {
         setupInputArea();
         loadMessages();
         
-        apiClient = new QwenApiClient(this);
+        apiClient = new AgenticQwenApiClient(this);
     }
 
     private void setupToolbar() {
@@ -180,8 +184,8 @@ public class ChatActivity extends AppCompatActivity {
         // Show typing indicator
         showTypingIndicator();
         
-        // Send to API with streaming support
-        apiClient.sendMessage(conversationId, selectedModel, messageText, new QwenApiClient.ChatCallback() {
+        // Send to API with agentic support
+        apiClient.sendMessage(conversationId, selectedModel, messageText, new AgenticQwenApiClient.AgenticChatCallback() {
             private StringBuilder streamingContent = new StringBuilder();
             
             @Override
@@ -208,6 +212,7 @@ public class ChatActivity extends AppCompatActivity {
                 });
             }
             
+            @Override
             public void onStreamingResponse(String partialResponse) {
                 runOnUiThread(() -> {
                     // Update the streaming content
@@ -243,6 +248,46 @@ public class ChatActivity extends AppCompatActivity {
                     }
                     
                     binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+                });
+            }
+
+            @Override
+            public void onActionExecuted(String actionResult, String projectId) {
+                // Handle action execution result
+                Log.d(TAG, "Action executed: " + actionResult);
+                // The response will be handled in onResponse
+            }
+
+            @Override
+            public void onProjectCreated(String projectId, String projectName) {
+                runOnUiThread(() -> {
+                    try {
+                        // Parse the action result to get project details
+                        JSONObject result = new JSONObject(streamingContent.toString());
+                        if (result.optBoolean("success", false)) {
+                            // Update the last AI message with project data
+                            if (!messages.isEmpty()) {
+                                ChatMessage lastMessage = messages.get(messages.size() - 1);
+                                if (lastMessage.getType() == ChatMessage.TYPE_AI) {
+                                    // Set project data for interactive display
+                                    lastMessage.setProjectId(projectId);
+                                    lastMessage.setProjectName(result.optString("project_name"));
+                                    lastMessage.setAppName(result.optString("app_name"));
+                                    lastMessage.setPackageName(result.optString("package_name"));
+                                    
+                                    // Set a user-friendly message
+                                    String message = result.optString("message", "Project created successfully!");
+                                    lastMessage.setContent(message);
+                                    
+                                    chatAdapter.notifyItemChanged(messages.size() - 1);
+                                    messageStorage.saveMessages(conversationId, messages);
+                                    binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+                                }
+                            }
+                        }
+                    } catch (JSONException e) {
+                        Log.e(TAG, "Error parsing project creation result", e);
+                    }
                 });
             }
         });

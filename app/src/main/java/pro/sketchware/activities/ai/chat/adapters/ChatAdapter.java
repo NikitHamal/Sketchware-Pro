@@ -15,6 +15,7 @@ import java.util.Locale;
 
 import io.noties.markwon.Markwon;
 import pro.sketchware.activities.ai.chat.models.ChatMessage;
+import pro.sketchware.activities.ai.chat.views.ProjectItemView;
 import pro.sketchware.databinding.ItemChatMessageBinding;
 
 public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageViewHolder> {
@@ -79,6 +80,24 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageVie
                 // Use Markwon to render markdown in AI messages
                 markwon.setMarkdown(binding.aiMessage, message.getContent());
                 binding.aiMessageTime.setText(timeFormat.format(new Date(message.getTimestamp())));
+                
+                // Handle project item display
+                if (message.hasProjectData()) {
+                    binding.projectItemContainer.setVisibility(android.view.View.VISIBLE);
+                    binding.projectItemContainer.removeAllViews();
+                    
+                    ProjectItemView projectView = new ProjectItemView(binding.getRoot().getContext());
+                    projectView.setProjectData(
+                        message.getProjectId(),
+                        message.getProjectName(),
+                        message.getAppName(),
+                        message.getPackageName()
+                    );
+                    
+                    binding.projectItemContainer.addView(projectView);
+                } else {
+                    binding.projectItemContainer.setVisibility(android.view.View.GONE);
+                }
             }
         }
     }

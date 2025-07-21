@@ -30,6 +30,10 @@ public class MessageStorage {
                 jsonMessage.put("content", message.getContent());
                 jsonMessage.put("type", message.getType());
                 jsonMessage.put("timestamp", message.getTimestamp());
+                jsonMessage.put("project_id", message.getProjectId());
+                jsonMessage.put("project_name", message.getProjectName());
+                jsonMessage.put("app_name", message.getAppName());
+                jsonMessage.put("package_name", message.getPackageName());
                 jsonArray.put(jsonMessage);
             }
         } catch (JSONException e) {
@@ -53,6 +57,10 @@ public class MessageStorage {
                     jsonMessage.getInt("type"),
                     jsonMessage.getLong("timestamp")
                 );
+                message.setProjectId(jsonMessage.optString("project_id", null));
+                message.setProjectName(jsonMessage.optString("project_name", null));
+                message.setAppName(jsonMessage.optString("app_name", null));
+                message.setPackageName(jsonMessage.optString("package_name", null));
                 messages.add(message);
             }
         } catch (JSONException e) {

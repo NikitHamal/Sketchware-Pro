@@ -8,6 +8,10 @@ public class ChatMessage {
     private String content;
     private int type;
     private long timestamp;
+    private String projectId;
+    private String projectName;
+    private String appName;
+    private String packageName;
 
     public ChatMessage() {
     }
@@ -57,5 +61,41 @@ public class ChatMessage {
 
     public boolean isAiMessage() {
         return type == TYPE_AI;
+    }
+
+    public String getProjectId() {
+        return projectId;
+    }
+
+    public void setProjectId(String projectId) {
+        this.projectId = projectId;
+    }
+
+    public String getProjectName() {
+        return projectName;
+    }
+
+    public void setProjectName(String projectName) {
+        this.projectName = projectName;
+    }
+
+    public String getAppName() {
+        return appName;
+    }
+
+    public void setAppName(String appName) {
+        this.appName = appName;
+    }
+
+    public String getPackageName() {
+        return packageName;
+    }
+
+    public void setPackageName(String packageName) {
+        this.packageName = packageName;
+    }
+
+    public boolean hasProjectData() {
+        return projectId != null && !projectId.isEmpty();
     }
 }
