@@ -13,6 +13,7 @@ import java.util.Map;
 import a.a.a.lC;
 import a.a.a.yB;
 import pro.sketchware.activities.ai.chat.actions.CreateProjectAction;
+import pro.sketchware.activities.ai.chat.actions.FixFileErrorAction;
 import pro.sketchware.activities.ai.chat.models.AgenticAction;
 import pro.sketchware.activities.ai.chat.models.ConversationContext;
 
@@ -29,6 +30,7 @@ public class ContextBuilder {
 
     private void registerActions() {
         registerAction(new CreateProjectAction());
+        registerAction(new FixFileErrorAction());
         // More actions will be added here in future phases
     }
 
@@ -86,6 +88,16 @@ public class ContextBuilder {
         prompt.append("- If user doesn't specify package name, auto-generate one like 'com.my.projectname'\n");
         prompt.append("- If user doesn't specify app name, use the project name\n");
         prompt.append("- Always validate that names follow Android conventions\n\n");
+        
+        // Error fixing guidance
+        prompt.append("ERROR_FIXING_GUIDANCE:\n");
+        prompt.append("When fixing compile errors:\n");
+        prompt.append("1. Analyze the error carefully and identify the root cause\n");
+        prompt.append("2. Propose specific solutions with clear explanations\n");
+        prompt.append("3. Use fix_file_error action to create, edit, or modify files\n");
+        prompt.append("4. Always explain what changes you're making and why\n");
+        prompt.append("5. Create backups automatically before modifying files\n");
+        prompt.append("6. Focus on minimal, targeted fixes rather than major restructuring\n\n");
 
         prompt.append("USER_MESSAGE: ").append(userMessage);
 

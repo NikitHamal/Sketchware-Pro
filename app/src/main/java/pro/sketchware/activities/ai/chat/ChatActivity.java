@@ -77,6 +77,9 @@ public class ChatActivity extends AppCompatActivity {
         loadMessages();
         
         apiClient = new AgenticQwenApiClient(this);
+        
+        // Handle auto_message from error analysis
+        handleAutoMessage();
     }
 
     private void setupToolbar() {
@@ -316,7 +319,36 @@ public class ChatActivity extends AppCompatActivity {
                 });
             }
         });
+
+    private void handleAutoMessage() {
+        String autoMessage = getIntent().getStringExtra("auto_message");
+        String contextType = getIntent().getStringExtra("context_type");
+        
+        if (autoMessage != null && !autoMessage.trim().isEmpty()) {
+            // Add some delay to ensure UI is ready
+            binding.messageInput.postDelayed(() -> {
+                if ("error_analysis".equals(contextType)) {
+                    // Set the title for error analysis
+                    String projectId = getIntent().getStringExtra("project_id");
+                    int errorCount = getIntent().getIntExtra("error_count", 0);
+                    setTitle("AI Error Analysis - " + errorCount + " errors");
+                    
+                    // Add a visual indicator that this is error analysis
+                    showErrorAnalysisHeader(projectId, errorCount);
+                }
+                
+                // Set the message and send automatically
+                binding.messageInput.setText(autoMessage);
+                sendMessage();
+            }, 500);
+        }
     }
+    
+         private void showErrorAnalysisHeader(String projectId, int errorCount) {
+         // This could be enhanced with a header view showing project context
+         // For now, we'll just update the title
+         setTitle("🔧 AI Error Fixer - " + errorCount + " errors");
+     }
 
     private void showTypingIndicator() {
         isTyping = true;
