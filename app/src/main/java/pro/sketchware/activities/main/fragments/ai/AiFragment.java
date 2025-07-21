@@ -11,6 +11,7 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
@@ -162,7 +163,7 @@ public class AiFragment extends Fragment {
                 .setNegativeButton("Cancel", null);
         
         // Show keyboard when dialog opens
-        android.app.AlertDialog dialog = builder.show();
+        AlertDialog dialog = builder.show();
         editText.requestFocus();
         android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) 
             requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE);

@@ -4,10 +4,12 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -104,7 +106,7 @@ public class ApiConfigFragment extends qA {
                 .setNegativeButton("Cancel", null);
         
         // Show keyboard when dialog opens
-        android.app.AlertDialog dialog = builder.show();
+        AlertDialog dialog = builder.show();
         editText.requestFocus();
         android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) 
             requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
