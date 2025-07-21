@@ -2,6 +2,7 @@ package pro.sketchware.activities.ai.chat;
 
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
 
@@ -24,6 +25,7 @@ import pro.sketchware.activities.main.fragments.ai.models.Conversation;
 import pro.sketchware.databinding.ActivityChatBinding;
 
 public class ChatActivity extends AppCompatActivity {
+    private static final String TAG = "ChatActivity";
     private ActivityChatBinding binding;
     private ChatAdapter chatAdapter;
     private List<ChatMessage> messages = new ArrayList<>();
@@ -113,6 +115,8 @@ public class ChatActivity extends AppCompatActivity {
         
         binding.messagesRecyclerView.setLayoutManager(layoutManager);
         binding.messagesRecyclerView.setAdapter(chatAdapter);
+        
+        Log.d(TAG, "RecyclerView setup complete. Initial message count: " + messages.size());
     }
 
     private void setupInputArea() {
@@ -138,6 +142,7 @@ public class ChatActivity extends AppCompatActivity {
             System.currentTimeMillis()
         );
         messages.add(userMessage);
+        Log.d(TAG, "Added user message: " + messageText + ", total messages: " + messages.size());
         chatAdapter.notifyItemInserted(messages.size() - 1);
         
         // Clear input
@@ -163,6 +168,7 @@ public class ChatActivity extends AppCompatActivity {
                         System.currentTimeMillis()
                     );
                     messages.add(aiMessage);
+                    Log.d(TAG, "Added AI message: " + response + ", total messages: " + messages.size());
                     chatAdapter.notifyItemInserted(messages.size() - 1);
                     binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
                     
