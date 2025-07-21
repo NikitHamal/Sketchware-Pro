@@ -287,6 +287,11 @@
 
         <activity android:name="pro.sketchware.activities.resourceseditor.ResourcesEditorActivity" />
 
+        <activity 
+            android:name="pro.sketchware.activities.ai.chat.ChatActivity"
+            android:theme="@style/Theme.SketchwarePro"
+            android:parentActivityName="pro.sketchware.activities.main.activities.MainActivity" />
+
         <activity
             android:name="com.besome.sketch.editor.manage.library.material3.Material3LibraryActivity"
             android:configChanges="orientation|screenSize" />
