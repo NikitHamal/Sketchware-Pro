@@ -15,6 +15,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import pro.sketchware.activities.ai.config.ApiConfig;
 import pro.sketchware.databinding.FragmentApiConfigBinding;
+import pro.sketchware.R;
 import a.a.a.qA;
 
 public class ApiConfigFragment extends qA {
@@ -81,10 +82,10 @@ public class ApiConfigFragment extends qA {
     private void showEditDialog(String title, String currentValue, ValueSetter setter) {
         View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_edit_api_config, null);
         
-        TextView dialogTitle = dialogView.findViewById(R.id.dialog_title);
-        TextView dialogDescription = dialogView.findViewById(R.id.dialog_description);
-        com.google.android.material.textfield.TextInputEditText editText = dialogView.findViewById(R.id.edit_text);
-        com.google.android.material.textfield.TextInputLayout inputLayout = dialogView.findViewById(R.id.text_input_layout);
+        TextView dialogTitle = dialogView.findViewById(R.id.api_dialog_title);
+        TextView dialogDescription = dialogView.findViewById(R.id.api_dialog_description);
+        com.google.android.material.textfield.TextInputEditText editText = dialogView.findViewById(R.id.api_edit_text);
+        com.google.android.material.textfield.TextInputLayout inputLayout = dialogView.findViewById(R.id.api_text_input_layout);
         
         dialogTitle.setText("Edit " + title);
         dialogDescription.setText("Configure the " + title.toLowerCase() + " parameter for API requests");

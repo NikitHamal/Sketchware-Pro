@@ -144,7 +144,7 @@ public class AiFragment extends Fragment {
 
     private void showRenameDialog(Conversation conversation) {
         View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_rename_conversation, null);
-        com.google.android.material.textfield.TextInputEditText editText = dialogView.findViewById(R.id.edit_text);
+        com.google.android.material.textfield.TextInputEditText editText = dialogView.findViewById(R.id.rename_edit_text);
         editText.setText(conversation.getTitle());
         editText.setSelection(editText.getText().length()); // Place cursor at end
         

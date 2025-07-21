@@ -12,7 +12,7 @@
         android:padding="24dp">
 
         <TextView
-            android:id="@+id/dialog_title"
+            android:id="@+id/api_dialog_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Edit Configuration"
@@ -21,7 +21,7 @@
             android:layout_marginBottom="8dp" />
 
         <TextView
-            android:id="@+id/dialog_description"
+            android:id="@+id/api_dialog_description"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Configure the API parameter value"
@@ -30,7 +30,7 @@
             android:layout_marginBottom="24dp" />
 
         <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/text_input_layout"
+            android:id="@+id/api_text_input_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
@@ -45,7 +45,7 @@
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/edit_text"
+                android:id="@+id/api_edit_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="Enter value"
