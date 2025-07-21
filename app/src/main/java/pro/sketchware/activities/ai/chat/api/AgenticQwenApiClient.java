@@ -12,10 +12,22 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.UUID;
+import java.io.OutputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.InputStream;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+
+import org.json.JSONArray;
 
 import pro.sketchware.activities.ai.chat.context.ContextBuilder;
 import pro.sketchware.activities.ai.chat.models.ConversationContext;
 import pro.sketchware.activities.ai.storage.ConversationContextStorage;
+import pro.sketchware.activities.ai.config.ApiConfig;
 
 public class AgenticQwenApiClient extends QwenApiClient {
     private static final String TAG = "AgenticQwenApiClient";
@@ -24,6 +36,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
     private final ConversationContextStorage contextStorage;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Map<String, String> agenticChatIdMap = new HashMap<>();
 
     public interface AgenticChatCallback extends ChatCallback {
         void onActionExecuted(String actionResult, String projectId);
@@ -34,6 +47,69 @@ public class AgenticQwenApiClient extends QwenApiClient {
         super(context);
         this.contextBuilder = new ContextBuilder(context);
         this.contextStorage = new ConversationContextStorage(context);
+    }
+
+    private String createNewChatSync(String model) {
+        try {
+            URL url = new URL("https://chat.qwen.ai/api/v2/chats/new");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            
+            // Set headers based on reverse-engineered API
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + getAuthToken());
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12; itel A662LM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Mobile Safari/537.36");
+            conn.setRequestProperty("bx-v", "2.5.31");
+            conn.setRequestProperty("source", "h5");
+            conn.setRequestProperty("timezone", "Fri Jul 18 2025 13:32:16 GMT+0545");
+            conn.setRequestProperty("x-request-id", UUID.randomUUID().toString());
+            conn.setDoOutput(true);
+
+            // Create request body
+            JSONObject requestBody = new JSONObject();
+            requestBody.put("title", "New Chat");
+            JSONArray models = new JSONArray();
+            models.put(model);
+            requestBody.put("models", models);
+            requestBody.put("chat_mode", "normal");
+            requestBody.put("chat_type", "t2t");
+            requestBody.put("timestamp", System.currentTimeMillis());
+
+            // Send request
+            try (OutputStream os = conn.getOutputStream()) {
+                byte[] input = requestBody.toString().getBytes(StandardCharsets.UTF_8);
+                os.write(input, 0, input.length);
+            }
+
+            // Read response
+            int responseCode = conn.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                String responseStr = readResponse(conn.getInputStream());
+                JSONObject response = new JSONObject(responseStr);
+                if (response.getBoolean("success")) {
+                    return response.getJSONObject("data").getString("id");
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error creating new chat", e);
+        }
+        return null;
+    }
+
+    private String getAuthToken() {
+        // This should return the actual auth token - for now using placeholder
+        return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU0MTY4MjJ9.jmyaxu5mrr1M1rvtRtpGi2DKyp6RM8xRZ1nEx-rHRgQ";
+    }
+
+    private String readResponse(InputStream inputStream) throws IOException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+        StringBuilder response = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            response.append(line);
+        }
+        return response.toString();
     }
 
     public void sendMessage(String conversationId, String model, String message, AgenticChatCallback callback) {
@@ -88,45 +164,162 @@ public class AgenticQwenApiClient extends QwenApiClient {
         String qwenChatId = context.getQwenChatId();
         
         if (qwenChatId == null) {
-            // Create new chat and store the ID
-            createNewChat(model, new NewChatCallback() {
-                @Override
-                public void onChatCreated(String chatId) {
-                    context.setQwenChatId(chatId);
-                    contextStorage.saveContext(context);
-                    sendChatMessageWithParent(chatId, model, message, context.getLastParentId(), callback);
-                }
-
-                @Override
-                public void onError(String error) {
-                    callback.onError(error);
+            // Create new chat synchronously using parent method
+            executor.execute(() -> {
+                try {
+                    String chatId = createNewChatSync(model);
+                    if (chatId != null) {
+                        context.setQwenChatId(chatId);
+                        contextStorage.saveContext(context);
+                        // Store the chatId in our map for direct use
+                        agenticChatIdMap.put(context.getConversationId(), chatId);
+                        // Send the message using our own implementation
+                        sendMessageDirectly(chatId, model, message, callback);
+                    } else {
+                        mainHandler.post(() -> callback.onError("Failed to create new chat"));
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error creating new chat", e);
+                    mainHandler.post(() -> callback.onError("Error creating new chat: " + e.getMessage()));
                 }
             });
         } else {
             // Use existing chat
-            sendChatMessageWithParent(qwenChatId, model, message, context.getLastParentId(), callback);
+            sendMessageDirectly(qwenChatId, model, message, callback);
         }
     }
 
-    private void sendChatMessageWithParent(String chatId, String model, String message, String parentId, ChatCallback callback) {
-        // Use the parent class implementation but with proper parent_id handling
-        super.sendMessage("dummy", model, message, new ChatCallback() {
-            @Override
-            public void onResponse(String response) {
-                // Update parent ID for next message (this would need to be extracted from response)
-                callback.onResponse(response);
-            }
-
-            @Override
-            public void onError(String error) {
-                callback.onError(error);
-            }
-
-            @Override
-            public void onStreamingResponse(String partialResponse) {
-                callback.onStreamingResponse(partialResponse);
+    private void sendMessageDirectly(String chatId, String model, String message, ChatCallback callback) {
+        executor.execute(() -> {
+            try {
+                String response = sendChatMessageSync(chatId, model, message);
+                if (response != null) {
+                    mainHandler.post(() -> callback.onResponse(response));
+                } else {
+                    mainHandler.post(() -> callback.onError("Failed to get response"));
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error sending message", e);
+                mainHandler.post(() -> callback.onError(e.getMessage()));
             }
         });
+    }
+
+    private String sendChatMessageSync(String chatId, String model, String message) {
+        try {
+            URL url = new URL("https://chat.qwen.ai/api/v2/chat/completions?chat_id=" + chatId);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            
+            // Set headers
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Accept", "*/*");
+            conn.setRequestProperty("Authorization", "Bearer " + getAuthToken());
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12; itel A662LM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Mobile Safari/537.36");
+            conn.setRequestProperty("bx-v", "2.5.31");
+            conn.setRequestProperty("source", "h5");
+            conn.setRequestProperty("timezone", "Fri Jul 18 2025 13:32:16 GMT+0545");
+            conn.setRequestProperty("x-accel-buffering", "no");
+            conn.setRequestProperty("x-request-id", UUID.randomUUID().toString());
+            conn.setDoOutput(true);
+
+            // Create message object
+            JSONObject messageObj = new JSONObject();
+            messageObj.put("fid", UUID.randomUUID().toString());
+            messageObj.put("parentId", JSONObject.NULL);
+            messageObj.put("childrenIds", new JSONArray());
+            messageObj.put("role", "user");
+            messageObj.put("content", message);
+            messageObj.put("user_action", "chat");
+            messageObj.put("files", new JSONArray());
+            messageObj.put("timestamp", System.currentTimeMillis() / 1000);
+            JSONArray models = new JSONArray();
+            models.put(model);
+            messageObj.put("models", models);
+            messageObj.put("chat_type", "t2t");
+            
+            JSONObject featureConfig = new JSONObject();
+            featureConfig.put("thinking_enabled", false);
+            featureConfig.put("output_schema", "phase");
+            messageObj.put("feature_config", featureConfig);
+            
+            JSONObject extra = new JSONObject();
+            JSONObject meta = new JSONObject();
+            meta.put("subChatType", "t2t");
+            extra.put("meta", meta);
+            messageObj.put("extra", extra);
+            messageObj.put("sub_chat_type", "t2t");
+            messageObj.put("parent_id", JSONObject.NULL);
+
+            // Create request body
+            JSONObject requestBody = new JSONObject();
+            requestBody.put("stream", true);
+            requestBody.put("incremental_output", true);
+            requestBody.put("chat_id", chatId);
+            requestBody.put("chat_mode", "normal");
+            requestBody.put("model", model);
+            requestBody.put("parent_id", JSONObject.NULL);
+            JSONArray messages = new JSONArray();
+            messages.put(messageObj);
+            requestBody.put("messages", messages);
+            requestBody.put("timestamp", System.currentTimeMillis() / 1000);
+
+            // Send request
+            try (OutputStream os = conn.getOutputStream()) {
+                byte[] input = requestBody.toString().getBytes(StandardCharsets.UTF_8);
+                os.write(input, 0, input.length);
+            }
+
+            // Read streaming response
+            int responseCode = conn.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                return readStreamingResponseInternal(conn.getInputStream());
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error sending chat message", e);
+        }
+        return null;
+    }
+
+    private String readStreamingResponseInternal(InputStream inputStream) throws IOException {
+        StringBuilder fullResponse = new StringBuilder();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+        String line;
+        
+        while ((line = reader.readLine()) != null) {
+            if (line.startsWith("data: ")) {
+                String data = line.substring(6);
+                if (!data.trim().isEmpty()) {
+                    try {
+                        JSONObject jsonData = new JSONObject(data);
+                        if (jsonData.has("choices")) {
+                            JSONArray choices = jsonData.getJSONArray("choices");
+                            if (choices.length() > 0) {
+                                JSONObject choice = choices.getJSONObject(0);
+                                if (choice.has("delta")) {
+                                    JSONObject delta = choice.getJSONObject("delta");
+                                    if (delta.has("content")) {
+                                        String content = delta.getString("content");
+                                        if (!content.isEmpty()) {
+                                            fullResponse.append(content);
+                                        }
+                                        
+                                        // Check if finished
+                                        if (delta.has("status") && "finished".equals(delta.getString("status"))) {
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (JSONException e) {
+                        Log.w(TAG, "Error parsing streaming data: " + data, e);
+                    }
+                }
+            }
+        }
+        
+        return fullResponse.toString().trim();
     }
 
     private void executeAction(JSONObject actionJson, ConversationContext context, AgenticChatCallback callback) {
