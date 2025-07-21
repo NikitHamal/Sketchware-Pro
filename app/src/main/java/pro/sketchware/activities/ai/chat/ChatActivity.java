@@ -319,6 +319,7 @@ public class ChatActivity extends AppCompatActivity {
                 });
             }
         });
+    }
 
     private void handleAutoMessage() {
         String autoMessage = getIntent().getStringExtra("auto_message");
