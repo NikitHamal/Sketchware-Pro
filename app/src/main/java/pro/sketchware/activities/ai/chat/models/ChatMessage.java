@@ -3,6 +3,7 @@ package pro.sketchware.activities.ai.chat.models;
 public class ChatMessage {
     public static final int TYPE_USER = 1;
     public static final int TYPE_AI = 2;
+    public static final int TYPE_PROPOSAL = 3;
 
     private String id;
     private String content;
@@ -12,6 +13,8 @@ public class ChatMessage {
     private String projectName;
     private String appName;
     private String packageName;
+    private String proposalData;
+    private String explanation;
 
     public ChatMessage() {
     }
@@ -97,5 +100,25 @@ public class ChatMessage {
 
     public boolean hasProjectData() {
         return projectId != null && !projectId.isEmpty();
+    }
+
+    public String getProposalData() {
+        return proposalData;
+    }
+
+    public void setProposalData(String proposalData) {
+        this.proposalData = proposalData;
+    }
+
+    public String getExplanation() {
+        return explanation;
+    }
+
+    public void setExplanation(String explanation) {
+        this.explanation = explanation;
+    }
+
+    public boolean hasProposalData() {
+        return proposalData != null && !proposalData.isEmpty();
     }
 }

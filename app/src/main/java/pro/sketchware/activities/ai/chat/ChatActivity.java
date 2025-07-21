@@ -133,6 +133,19 @@ public class ChatActivity extends AppCompatActivity {
         binding.messagesRecyclerView.setLayoutManager(layoutManager);
         binding.messagesRecyclerView.setAdapter(chatAdapter);
         
+        // Set up proposal action listener
+        chatAdapter.setOnProposalActionListener(new ChatAdapter.OnProposalActionListener() {
+            @Override
+            public void onAcceptProposal(ChatMessage message) {
+                handleProposalAccepted(message);
+            }
+
+            @Override
+            public void onDiscardProposal(ChatMessage message) {
+                handleProposalDiscarded(message);
+            }
+        });
+        
 
     }
 
@@ -389,118 +402,20 @@ public class ChatActivity extends AppCompatActivity {
       }
 
     private void showFixProposal(String explanation, JSONObject actionData, String projectId) {
-        // Create fix proposal view
-        FixProposalView proposalView = new FixProposalView(this);
-        proposalView.setProposal(explanation, actionData);
-        
-        proposalView.setOnProposalActionListener(new FixProposalView.OnProposalActionListener() {
-            @Override
-            public void onAccept(JSONObject proposalData) {
-                // Execute the approved action
-                try {
-                    JSONObject actionJson = new JSONObject();
-                    actionJson.put("action", "fix_file_error");
-                    actionJson.put("parameters", proposalData);
-                    
-                    apiClient.executeApprovedAction(conversationId, actionJson, new AgenticQwenApiClient.AgenticChatCallback() {
-                        @Override
-                        public void onResponse(String response) {
-                            // Handle in onActionExecuted
-                        }
-
-                        @Override
-                        public void onStreamingResponse(String partialResponse) {
-                            // Not needed for action execution
-                        }
-
-                        @Override
-                        public void onError(String error) {
-                            runOnUiThread(() -> {
-                                proposalView.hideProposal();
-                                // Show error message
-                                ChatMessage errorMessage = new ChatMessage(
-                                    UUID.randomUUID().toString(),
-                                    "❌ Error applying fix: " + error,
-                                    ChatMessage.TYPE_AI,
-                                    System.currentTimeMillis()
-                                );
-                                messages.add(errorMessage);
-                                chatAdapter.notifyItemInserted(messages.size() - 1);
-                                messageStorage.saveMessages(conversationId, messages);
-                            });
-                        }
-
-                        @Override
-                        public void onActionExecuted(String actionResult, String projectId) {
-                            runOnUiThread(() -> {
-                                proposalView.showSuccessState("✅ Fix applied successfully!");
-                                
-                                // Show success message
-                                ChatMessage successMessage = new ChatMessage(
-                                    UUID.randomUUID().toString(),
-                                    "✅ Fix applied successfully! The file has been updated. Please rebuild your project to see if the errors are resolved.",
-                                    ChatMessage.TYPE_AI,
-                                    System.currentTimeMillis()
-                                );
-                                messages.add(successMessage);
-                                chatAdapter.notifyItemInserted(messages.size() - 1);
-                                messageStorage.saveMessages(conversationId, messages);
-                                binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
-                                
-                                // Show project card
-                                if (projectId != null) {
-                                    showProjectCard(projectId);
-                                }
-                            });
-                        }
-
-                        @Override
-                        public void onProjectCreated(String projectId, String projectName) {
-                            // Not needed for fix actions
-                        }
-
-                        @Override
-                        public void onFixProposal(String explanation, String actionJson, String projectId) {
-                            // Not needed for approved actions
-                        }
-                    });
-                    
-                } catch (JSONException e) {
-                    Log.e(TAG, "Error creating action JSON", e);
-                }
-            }
-
-            @Override
-            public void onDiscard(JSONObject proposalData) {
-                proposalView.hideProposal();
-                
-                // Show discard message
-                ChatMessage discardMessage = new ChatMessage(
-                    UUID.randomUUID().toString(),
-                    "Fix proposal discarded. The file will not be modified.",
-                    ChatMessage.TYPE_AI,
-                    System.currentTimeMillis()
-                );
-                messages.add(discardMessage);
-                chatAdapter.notifyItemInserted(messages.size() - 1);
-                messageStorage.saveMessages(conversationId, messages);
-                binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
-            }
-        });
-        
-        // Add the proposal view to a message
+        // Create proposal message with proper type
         ChatMessage proposalMessage = new ChatMessage(
             UUID.randomUUID().toString(),
-            "AI has proposed a fix. Please review and approve:",
-            ChatMessage.TYPE_AI,
+            "AI has proposed a fix for your compile error:",
+            ChatMessage.TYPE_PROPOSAL,
             System.currentTimeMillis()
         );
+        
+        // Set proposal data
+        proposalMessage.setProposalData(actionData.toString());
+        proposalMessage.setExplanation(explanation);
+        
         messages.add(proposalMessage);
         chatAdapter.notifyItemInserted(messages.size() - 1);
-        
-        // Add the proposal view to the chat (this would need custom adapter support)
-        // For now, we'll handle it differently - show it as a separate UI element
-        
         messageStorage.saveMessages(conversationId, messages);
         binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
     }
@@ -527,9 +442,94 @@ public class ChatActivity extends AppCompatActivity {
                 messageStorage.saveMessages(conversationId, messages);
                 binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
             }
-        } catch (Exception e) {
-            Log.e(TAG, "Error showing project card", e);
+                 } catch (Exception e) {
+             Log.e(TAG, "Error showing project card", e);
+         }
+     }
+
+    private void handleProposalAccepted(ChatMessage message) {
+        try {
+            JSONObject actionData = new JSONObject(message.getProposalData());
+            JSONObject actionJson = new JSONObject();
+            actionJson.put("action", "fix_file_error");
+            actionJson.put("parameters", actionData);
+            
+            // Hide the proposal by changing its type to AI message
+            message.setType(ChatMessage.TYPE_AI);
+            message.setContent("✅ Fix approved. Applying changes...");
+            chatAdapter.notifyItemChanged(messages.indexOf(message));
+            
+            apiClient.executeApprovedAction(conversationId, actionJson, new AgenticQwenApiClient.AgenticChatCallback() {
+                @Override
+                public void onResponse(String response) {
+                    // Handle in onActionExecuted
+                }
+
+                @Override
+                public void onStreamingResponse(String partialResponse) {
+                    // Not needed for action execution
+                }
+
+                @Override
+                public void onError(String error) {
+                    runOnUiThread(() -> {
+                        // Show error message
+                        ChatMessage errorMessage = new ChatMessage(
+                            UUID.randomUUID().toString(),
+                            "❌ Error applying fix: " + error,
+                            ChatMessage.TYPE_AI,
+                            System.currentTimeMillis()
+                        );
+                        messages.add(errorMessage);
+                        chatAdapter.notifyItemInserted(messages.size() - 1);
+                        messageStorage.saveMessages(conversationId, messages);
+                    });
+                }
+
+                @Override
+                public void onActionExecuted(String actionResult, String projectId) {
+                    runOnUiThread(() -> {
+                        // Show success message
+                        ChatMessage successMessage = new ChatMessage(
+                            UUID.randomUUID().toString(),
+                            "✅ Fix applied successfully! The file has been updated. Please rebuild your project to see if the errors are resolved.",
+                            ChatMessage.TYPE_AI,
+                            System.currentTimeMillis()
+                        );
+                        messages.add(successMessage);
+                        chatAdapter.notifyItemInserted(messages.size() - 1);
+                        messageStorage.saveMessages(conversationId, messages);
+                        binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+                        
+                        // Show project card
+                        if (projectId != null) {
+                            showProjectCard(projectId);
+                        }
+                    });
+                }
+
+                @Override
+                public void onProjectCreated(String projectId, String projectName) {
+                    // Not needed for fix actions
+                }
+
+                @Override
+                public void onFixProposal(String explanation, String actionJson, String projectId) {
+                    // Not needed for approved actions
+                }
+            });
+            
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating action JSON", e);
         }
+    }
+
+    private void handleProposalDiscarded(ChatMessage message) {
+        // Change proposal to AI message showing discard
+        message.setType(ChatMessage.TYPE_AI);
+        message.setContent("❌ Fix proposal discarded. The file will not be modified.");
+        chatAdapter.notifyItemChanged(messages.indexOf(message));
+        messageStorage.saveMessages(conversationId, messages);
     }
 
     private void showTypingIndicator() {

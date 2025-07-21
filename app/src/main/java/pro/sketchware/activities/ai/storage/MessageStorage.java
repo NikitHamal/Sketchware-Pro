@@ -34,6 +34,8 @@ public class MessageStorage {
                 jsonMessage.put("project_name", message.getProjectName());
                 jsonMessage.put("app_name", message.getAppName());
                 jsonMessage.put("package_name", message.getPackageName());
+                jsonMessage.put("proposal_data", message.getProposalData());
+                jsonMessage.put("explanation", message.getExplanation());
                 jsonArray.put(jsonMessage);
             }
         } catch (JSONException e) {
@@ -61,6 +63,8 @@ public class MessageStorage {
                 message.setProjectName(jsonMessage.optString("project_name", null));
                 message.setAppName(jsonMessage.optString("app_name", null));
                 message.setPackageName(jsonMessage.optString("package_name", null));
+                message.setProposalData(jsonMessage.optString("proposal_data", null));
+                message.setExplanation(jsonMessage.optString("explanation", null));
                 messages.add(message);
             }
         } catch (JSONException e) {
