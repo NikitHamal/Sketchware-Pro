@@ -208,39 +208,39 @@ public class AgenticQwenApiClient extends QwenApiClient {
                     mainHandler.post(() -> callback.onError("Error creating new chat: " + e.getMessage()));
                 }
             });
-                    } else {
-                // Use existing chat
-                                            sendMessageDirectly(qwenChatId, model, message, attachedFiles, 
-                                               thinkingEnabled, webSearchEnabled, context, callback);
-            }
+        } else {
+            // Use existing chat
+            sendMessageDirectly(qwenChatId, model, message, attachedFiles, 
+                               thinkingEnabled, webSearchEnabled, context, callback);
+        }
     }
 
-            private void sendMessageDirectly(String chatId, String model, String message, 
+    private void sendMessageDirectly(String chatId, String model, String message, 
                                     List<ChatMessage.AttachedFile> attachedFiles, 
                                     boolean thinkingEnabled, boolean webSearchEnabled, 
                                     ConversationContext context, ChatCallback callback) {
-            executor.execute(() -> {
-                try {
-                                          String response = sendChatMessageSync(chatId, model, message, attachedFiles, 
-                                                           thinkingEnabled, webSearchEnabled, context);
-                    if (response != null) {
-                        // Save context with updated parent_id
-                        contextStorage.saveContext(context);
-                        mainHandler.post(() -> callback.onResponse(response));
-                    } else {
-                        mainHandler.post(() -> callback.onError("Failed to get response"));
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error sending message", e);
-                    mainHandler.post(() -> callback.onError(e.getMessage()));
+        executor.execute(() -> {
+            try {
+                String response = sendChatMessageSync(chatId, model, message, attachedFiles, 
+                                                     thinkingEnabled, webSearchEnabled, context);
+                if (response != null) {
+                    // Save context with updated parent_id
+                    contextStorage.saveContext(context);
+                    mainHandler.post(() -> callback.onResponse(response));
+                } else {
+                    mainHandler.post(() -> callback.onError("Failed to get response"));
                 }
-            });
-        }
+            } catch (Exception e) {
+                Log.e(TAG, "Error sending message", e);
+                mainHandler.post(() -> callback.onError(e.getMessage()));
+            }
+        });
+    }
 
-        private String sendChatMessageSync(String chatId, String model, String message, 
-                                          List<ChatMessage.AttachedFile> attachedFiles, 
-                                          boolean thinkingEnabled, boolean webSearchEnabled, 
-                                          ConversationContext context) {
+    private String sendChatMessageSync(String chatId, String model, String message, 
+                                      List<ChatMessage.AttachedFile> attachedFiles, 
+                                      boolean thinkingEnabled, boolean webSearchEnabled, 
+                                      ConversationContext context) {
         try {
             URL url = new URL("https://chat.qwen.ai/api/v2/chat/completions?chat_id=" + chatId);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
