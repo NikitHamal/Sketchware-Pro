@@ -114,6 +114,63 @@ public class AgenticQwenApiClient extends QwenApiClient {
         }
         return response.toString();
     }
+    
+    /**
+     * Splits a string containing multiple JSON objects into individual JSON strings.
+     * This method manually parses the string to find complete JSON objects without
+     * using regex lookbehind/lookahead which are not supported on Android.
+     */
+    private String[] splitJsonObjects(String input) {
+        java.util.List<String> jsonObjects = new java.util.ArrayList<>();
+        int braceCount = 0;
+        int start = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+            
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            
+            if (c == '\\') {
+                escaped = true;
+                continue;
+            }
+            
+            if (c == '"') {
+                inString = !inString;
+                continue;
+            }
+            
+            if (!inString) {
+                if (c == '{') {
+                    if (braceCount == 0) {
+                        start = i; // Start of new JSON object
+                    }
+                    braceCount++;
+                } else if (c == '}') {
+                    braceCount--;
+                    if (braceCount == 0) {
+                        // Complete JSON object found
+                        String jsonObject = input.substring(start, i + 1).trim();
+                        if (!jsonObject.isEmpty()) {
+                            jsonObjects.add(jsonObject);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If no complete JSON objects were found, return the original input
+        if (jsonObjects.isEmpty()) {
+            return new String[]{input};
+        }
+        
+        return jsonObjects.toArray(new String[0]);
+    }
 
     public void sendMessage(String conversationId, String model, String message, AgenticChatCallback callback) {
         sendMessage(conversationId, model, message, null, false, false, callback);
@@ -143,8 +200,8 @@ public class AgenticQwenApiClient extends QwenApiClient {
                         
                         // Handle multiple JSON objects in response
                         if (trimmedResponse.startsWith("{") && trimmedResponse.contains("\"response_type\"")) {
-                            // Split multiple JSON objects if they exist
-                            String[] jsonParts = trimmedResponse.split("(?<=})\\s*(?=\\{)");
+                            // Split multiple JSON objects if they exist using a simpler approach
+                            String[] jsonParts = splitJsonObjects(trimmedResponse);
                             
                             boolean actionProcessed = false;
                             
