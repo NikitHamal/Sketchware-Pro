@@ -106,6 +106,29 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
                 
                 binding.userMessage.setText(message.getContent());
                 binding.userMessageTime.setText(timeFormat.format(new Date(message.getTimestamp())));
+                
+                // Handle attached files
+                if (message.hasAttachedFiles()) {
+                    binding.userAttachedFiles.setVisibility(android.view.View.VISIBLE);
+                    binding.userAttachedFiles.removeAllViews();
+                    
+                    for (ChatMessage.AttachedFile file : message.getAttachedFiles()) {
+                        android.view.View fileView = android.view.LayoutInflater.from(binding.getRoot().getContext())
+                            .inflate(pro.sketchware.R.layout.item_attached_file, binding.userAttachedFiles, false);
+                        
+                        android.widget.TextView fileName = fileView.findViewById(pro.sketchware.R.id.file_name);
+                        android.widget.TextView fileSize = fileView.findViewById(pro.sketchware.R.id.file_size);
+                        android.widget.ImageView fileRemove = fileView.findViewById(pro.sketchware.R.id.file_remove);
+                        
+                        fileName.setText(file.getName());
+                        fileSize.setText(file.getFormattedSize());
+                        fileRemove.setVisibility(android.view.View.GONE); // Don't show remove for sent messages
+                        
+                        binding.userAttachedFiles.addView(fileView);
+                    }
+                } else {
+                    binding.userAttachedFiles.setVisibility(android.view.View.GONE);
+                }
             } else {
                 binding.userMessageLayout.setVisibility(android.view.View.GONE);
                 binding.aiMessageLayout.setVisibility(android.view.View.VISIBLE);

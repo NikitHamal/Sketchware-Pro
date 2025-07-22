@@ -1,14 +1,21 @@
 package pro.sketchware.activities.ai.chat;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
+import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
+import com.google.android.material.bottomsheet.BottomSheetDialog;
+import com.google.android.material.chip.Chip;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
@@ -32,6 +39,7 @@ import org.json.JSONObject;
 
 import a.a.a.lC;
 import a.a.a.yB;
+import pro.sketchware.activities.ai.chat.FileUploadManager;
 import pro.sketchware.activities.ai.chat.views.FixProposalView;
 import pro.sketchware.activities.ai.chat.views.ProjectItemView;
 
@@ -48,6 +56,11 @@ public class ChatActivity extends AppCompatActivity {
     private MessageStorage messageStorage;
     private String qwenChatId; // The actual chat ID from Qwen server
     private boolean isNewConversation = true;
+    private FileUploadManager fileUploadManager;
+    private List<ChatMessage.AttachedFile> pendingFiles = new ArrayList<>();
+    private boolean thinkingEnabled = false;
+    private boolean webSearchEnabled = false;
+    private ActivityResultLauncher<Intent> filePickerLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,6 +85,9 @@ public class ChatActivity extends AppCompatActivity {
 
         conversationStorage = new ConversationStorage(this);
         messageStorage = new MessageStorage(this);
+        fileUploadManager = new FileUploadManager(this);
+        
+        setupFilePickerLauncher();
         setupToolbar();
         setupModelSelector();
         setupRecyclerView();
@@ -158,13 +174,122 @@ public class ChatActivity extends AppCompatActivity {
 
     }
 
+    private void setupFilePickerLauncher() {
+        filePickerLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        Uri fileUri = result.getData().getData();
+                        if (fileUri != null) {
+                            uploadFile(fileUri);
+                        }
+                    }
+                }
+        );
+    }
+
     private void setupInputArea() {
         binding.sendButton.setOnClickListener(v -> sendMessage());
+        binding.chatOptionsButton.setOnClickListener(v -> showChatOptionsBottomSheet());
         
         binding.messageInput.setOnEditorActionListener((v, actionId, event) -> {
             sendMessage();
             return true;
         });
+        
+        updateAttachedFilesUI();
+    }
+    
+    private void showChatOptionsBottomSheet() {
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+        View bottomSheetView = getLayoutInflater().inflate(R.layout.bottom_sheet_chat_options, null);
+        bottomSheet.setContentView(bottomSheetView);
+        
+        // File upload option
+        bottomSheetView.findViewById(R.id.file_upload_option).setOnClickListener(v -> {
+            bottomSheet.dismiss();
+            openFilePicker();
+        });
+        
+        // Thinking toggle
+        Chip thinkingChip = bottomSheetView.findViewById(R.id.thinking_toggle_chip);
+        thinkingChip.setChecked(thinkingEnabled);
+        thinkingChip.setText(thinkingEnabled ? "ON" : "OFF");
+        thinkingChip.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            thinkingEnabled = isChecked;
+            thinkingChip.setText(isChecked ? "ON" : "OFF");
+        });
+        
+        // Web search toggle
+        Chip webSearchChip = bottomSheetView.findViewById(R.id.web_search_toggle_chip);
+        webSearchChip.setChecked(webSearchEnabled);
+        webSearchChip.setText(webSearchEnabled ? "ON" : "OFF");
+        webSearchChip.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            webSearchEnabled = isChecked;
+            webSearchChip.setText(isChecked ? "ON" : "OFF");
+        });
+        
+        bottomSheet.show();
+    }
+    
+    private void openFilePicker() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("*/*");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        filePickerLauncher.launch(Intent.createChooser(intent, "Select File"));
+    }
+    
+    private void uploadFile(Uri fileUri) {
+        fileUploadManager.uploadFile(fileUri, new FileUploadManager.FileUploadCallback() {
+            @Override
+            public void onUploadStart(String fileName) {
+                Toast.makeText(ChatActivity.this, "Uploading " + fileName + "...", Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onUploadProgress(String fileName, int progress) {
+                // Could show progress dialog here
+            }
+
+            @Override
+            public void onUploadSuccess(ChatMessage.AttachedFile attachedFile) {
+                pendingFiles.add(attachedFile);
+                updateAttachedFilesUI();
+                Toast.makeText(ChatActivity.this, "File uploaded successfully", Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onUploadError(String fileName, String error) {
+                Toast.makeText(ChatActivity.this, "Upload failed: " + error, Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+    
+    private void updateAttachedFilesUI() {
+        if (pendingFiles.isEmpty()) {
+            binding.attachedFilesContainer.setVisibility(View.GONE);
+        } else {
+            binding.attachedFilesContainer.setVisibility(View.VISIBLE);
+            binding.attachedFilesContainer.removeAllViews();
+            
+            for (ChatMessage.AttachedFile file : pendingFiles) {
+                View fileView = getLayoutInflater().inflate(R.layout.item_attached_file, binding.attachedFilesContainer, false);
+                
+                android.widget.TextView fileName = fileView.findViewById(R.id.file_name);
+                android.widget.TextView fileSize = fileView.findViewById(R.id.file_size);
+                android.widget.ImageView fileRemove = fileView.findViewById(R.id.file_remove);
+                
+                fileName.setText(file.getName());
+                fileSize.setText(file.getFormattedSize());
+                
+                fileRemove.setOnClickListener(v -> {
+                    pendingFiles.remove(file);
+                    updateAttachedFilesUI();
+                });
+                
+                binding.attachedFilesContainer.addView(fileView);
+            }
+        }
     }
 
     private void sendMessage() {
@@ -173,21 +298,30 @@ public class ChatActivity extends AppCompatActivity {
             return;
         }
 
-        // Add user message
+        // Add user message with attached files
         ChatMessage userMessage = new ChatMessage(
             UUID.randomUUID().toString(),
             messageText,
             ChatMessage.TYPE_USER,
             System.currentTimeMillis()
         );
+        
+        // Add attached files to the message
+        if (!pendingFiles.isEmpty()) {
+            userMessage.setAttachedFiles(new ArrayList<>(pendingFiles));
+        }
+        
         messages.add(userMessage);
         chatAdapter.notifyItemInserted(messages.size() - 1);
         
         // Save user message immediately
         messageStorage.addMessage(conversationId, userMessage);
         
-        // Clear input
+        // Clear input and attached files
         binding.messageInput.setText("");
+        List<ChatMessage.AttachedFile> messagePendingFiles = new ArrayList<>(pendingFiles);
+        pendingFiles.clear();
+        updateAttachedFilesUI();
         
         // Scroll to bottom
         binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
@@ -206,8 +340,9 @@ public class ChatActivity extends AppCompatActivity {
         // Show typing indicator
         showTypingIndicator();
         
-        // Send to API with agentic support
-        apiClient.sendMessage(conversationId, selectedModel, messageText, new AgenticQwenApiClient.AgenticChatCallback() {
+        // Send to API with agentic support including files and features
+        apiClient.sendMessage(conversationId, selectedModel, messageText, messagePendingFiles, 
+                            thinkingEnabled, webSearchEnabled, new AgenticQwenApiClient.AgenticChatCallback() {
             private StringBuilder streamingContent = new StringBuilder();
             
             @Override

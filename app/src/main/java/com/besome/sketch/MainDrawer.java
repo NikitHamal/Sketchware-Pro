@@ -84,11 +84,7 @@ public class MainDrawer extends NavigationView {
 
     private void initializeDrawerItems(@IdRes int id) {
         Activity activity = unwrap(getContext());
-        if (id == R.id.about_team) {
-            // About and team functionality removed
-        } else if (id == R.id.changelog) {
-            // Changelog functionality removed
-        } else if (id == R.id.program_info) {
+        if (id == R.id.program_info) {
             Intent intent = new Intent(activity, ProgramInfoActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
             activity.startActivityForResult(intent, 105);

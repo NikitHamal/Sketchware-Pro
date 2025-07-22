@@ -9,6 +9,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -25,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import org.json.JSONArray;
 
 import pro.sketchware.activities.ai.chat.context.ContextBuilder;
+import pro.sketchware.activities.ai.chat.models.ChatMessage;
 import pro.sketchware.activities.ai.chat.models.ConversationContext;
 import pro.sketchware.activities.ai.storage.ConversationContextStorage;
 import pro.sketchware.activities.ai.config.ApiConfig;
@@ -50,7 +52,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
         this.contextStorage = new ConversationContextStorage(context);
     }
 
-    private String createNewChatSync(String model) {
+    private String createNewChatSync(String model, String chatType) {
         try {
             URL url = new URL("https://chat.qwen.ai/api/v2/chats/new");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -74,7 +76,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
             models.put(model);
             requestBody.put("models", models);
             requestBody.put("chat_mode", "normal");
-            requestBody.put("chat_type", "t2t");
+            requestBody.put("chat_type", chatType);
             requestBody.put("timestamp", System.currentTimeMillis());
 
             // Send request
@@ -114,6 +116,13 @@ public class AgenticQwenApiClient extends QwenApiClient {
     }
 
     public void sendMessage(String conversationId, String model, String message, AgenticChatCallback callback) {
+        sendMessage(conversationId, model, message, null, false, false, callback);
+    }
+    
+    public void sendMessage(String conversationId, String model, String message, 
+                          List<ChatMessage.AttachedFile> attachedFiles, 
+                          boolean thinkingEnabled, boolean webSearchEnabled, 
+                          AgenticChatCallback callback) {
         executor.execute(() -> {
             try {
                 // Load or create conversation context
@@ -124,8 +133,9 @@ public class AgenticQwenApiClient extends QwenApiClient {
                 
                 Log.d(TAG, "Enhanced prompt: " + enhancedMessage);
                 
-                // Send message using parent class method with proper context
-                sendMessageWithContext(context, model, enhancedMessage, new ChatCallback() {
+                // Send message using enhanced method with files and features
+                sendMessageWithContext(context, model, enhancedMessage, attachedFiles, 
+                                     thinkingEnabled, webSearchEnabled, new ChatCallback() {
                     @Override
                     public void onResponse(String response) {
                         // Check if response contains an action
@@ -167,20 +177,29 @@ public class AgenticQwenApiClient extends QwenApiClient {
     }
 
     private void sendMessageWithContext(ConversationContext context, String model, String message, ChatCallback callback) {
+        sendMessageWithContext(context, model, message, null, false, false, callback);
+    }
+    
+    private void sendMessageWithContext(ConversationContext context, String model, String message, 
+                                      List<ChatMessage.AttachedFile> attachedFiles, 
+                                      boolean thinkingEnabled, boolean webSearchEnabled, 
+                                      ChatCallback callback) {
         String qwenChatId = context.getQwenChatId();
         
         if (qwenChatId == null) {
-            // Create new chat synchronously using parent method
+            // Create new chat synchronously using our method
             executor.execute(() -> {
                 try {
-                    String chatId = createNewChatSync(model);
+                    String chatType = webSearchEnabled ? "search" : "t2t";
+                    String chatId = createNewChatSync(model, chatType);
                     if (chatId != null) {
                         context.setQwenChatId(chatId);
                         contextStorage.saveContext(context);
-                                                    // Store the chatId in our map for direct use
-                            agenticChatIdMap.put(context.getConversationId(), chatId);
-                            // Send the message using our own implementation
-                            sendMessageDirectly(chatId, model, message, context, callback);
+                        // Store the chatId in our map for direct use
+                        agenticChatIdMap.put(context.getConversationId(), chatId);
+                        // Send the message using our own implementation
+                        sendMessageDirectly(chatId, model, message, attachedFiles, 
+                                           thinkingEnabled, webSearchEnabled, context, callback);
                     } else {
                         mainHandler.post(() -> callback.onError("Failed to create new chat"));
                     }
@@ -191,14 +210,19 @@ public class AgenticQwenApiClient extends QwenApiClient {
             });
                     } else {
                 // Use existing chat
-                sendMessageDirectly(qwenChatId, model, message, context, callback);
+                                            sendMessageDirectly(qwenChatId, model, message, attachedFiles, 
+                                               thinkingEnabled, webSearchEnabled, context, callback);
             }
     }
 
-            private void sendMessageDirectly(String chatId, String model, String message, ConversationContext context, ChatCallback callback) {
+            private void sendMessageDirectly(String chatId, String model, String message, 
+                                    List<ChatMessage.AttachedFile> attachedFiles, 
+                                    boolean thinkingEnabled, boolean webSearchEnabled, 
+                                    ConversationContext context, ChatCallback callback) {
             executor.execute(() -> {
                 try {
-                    String response = sendChatMessageSync(chatId, model, message, context);
+                                          String response = sendChatMessageSync(chatId, model, message, attachedFiles, 
+                                                           thinkingEnabled, webSearchEnabled, context);
                     if (response != null) {
                         // Save context with updated parent_id
                         contextStorage.saveContext(context);
@@ -213,7 +237,10 @@ public class AgenticQwenApiClient extends QwenApiClient {
             });
         }
 
-        private String sendChatMessageSync(String chatId, String model, String message, ConversationContext context) {
+        private String sendChatMessageSync(String chatId, String model, String message, 
+                                          List<ChatMessage.AttachedFile> attachedFiles, 
+                                          boolean thinkingEnabled, boolean webSearchEnabled, 
+                                          ConversationContext context) {
         try {
             URL url = new URL("https://chat.qwen.ai/api/v2/chat/completions?chat_id=" + chatId);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -245,24 +272,59 @@ public class AgenticQwenApiClient extends QwenApiClient {
             messageObj.put("role", "user");
             messageObj.put("content", message);
             messageObj.put("user_action", "chat");
-            messageObj.put("files", new JSONArray());
+            
+            // Add files array
+            JSONArray filesArray = new JSONArray();
+            if (attachedFiles != null) {
+                for (ChatMessage.AttachedFile file : attachedFiles) {
+                    JSONObject fileObj = new JSONObject();
+                    fileObj.put("type", "file");
+                    
+                    JSONObject fileData = new JSONObject();
+                    fileData.put("id", file.getId());
+                    fileData.put("filename", file.getName());
+                    fileData.put("url", file.getUrl());
+                    
+                    JSONObject meta = new JSONObject();
+                    meta.put("name", file.getName());
+                    meta.put("size", file.getSize());
+                    meta.put("content_type", file.getMimeType());
+                    fileData.put("meta", meta);
+                    
+                    fileObj.put("file", fileData);
+                    fileObj.put("id", file.getId());
+                    fileObj.put("url", file.getUrl());
+                    fileObj.put("name", file.getName());
+                    fileObj.put("size", file.getSize());
+                    fileObj.put("file_type", file.getMimeType());
+                    fileObj.put("showType", "file");
+                    fileObj.put("file_class", "document");
+                    
+                    filesArray.put(fileObj);
+                }
+            }
+            messageObj.put("files", filesArray);
+            
             messageObj.put("timestamp", System.currentTimeMillis() / 1000);
             JSONArray models = new JSONArray();
             models.put(model);
             messageObj.put("models", models);
-            messageObj.put("chat_type", "t2t");
+            
+            // Set chat type based on web search
+            String chatType = webSearchEnabled ? "search" : "t2t";
+            messageObj.put("chat_type", chatType);
             
             JSONObject featureConfig = new JSONObject();
-            featureConfig.put("thinking_enabled", false);
+            featureConfig.put("thinking_enabled", thinkingEnabled);
             featureConfig.put("output_schema", "phase");
             messageObj.put("feature_config", featureConfig);
             
             JSONObject extra = new JSONObject();
             JSONObject meta = new JSONObject();
-            meta.put("subChatType", "t2t");
+            meta.put("subChatType", chatType);
             extra.put("meta", meta);
             messageObj.put("extra", extra);
-            messageObj.put("sub_chat_type", "t2t");
+            messageObj.put("sub_chat_type", chatType);
             messageObj.put("parent_id", parentId);
 
             // Store this message in context for future reference

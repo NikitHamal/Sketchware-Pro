@@ -18,6 +18,15 @@
         android:visibility="gone"
         tools:visibility="visible">
 
+        <!-- User Attached Files -->
+        <LinearLayout
+            android:id="@+id/user_attached_files"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/user_message"
             android:layout_width="wrap_content"
