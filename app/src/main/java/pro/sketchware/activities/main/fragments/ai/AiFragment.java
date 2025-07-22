@@ -27,6 +27,7 @@ import pro.sketchware.databinding.FragmentAiBinding;
 import pro.sketchware.activities.ai.chat.ChatActivity;
 import pro.sketchware.activities.ai.storage.ConversationStorage;
 import pro.sketchware.activities.ai.storage.MessageStorage;
+import pro.sketchware.activities.ai.chat.utils.ChatLogger;
 import pro.sketchware.R;
 
 public class AiFragment extends Fragment {
@@ -132,6 +133,9 @@ public class AiFragment extends Fragment {
             if (id == R.id.action_rename) {
                 showRenameDialog(conversation);
                 return true;
+            } else if (id == R.id.action_export_logs) {
+                exportConversationLogs(conversation);
+                return true;
             } else if (id == R.id.action_delete) {
                 showDeleteDialog(conversation);
                 return true;
@@ -140,6 +144,18 @@ public class AiFragment extends Fragment {
         });
         
         popupMenu.show();
+    }
+
+    private void exportConversationLogs(Conversation conversation) {
+        ChatLogger chatLogger = ChatLogger.getInstance();
+        if (!chatLogger.hasLogs(conversation.getId())) {
+            Toast.makeText(requireContext(), 
+                "No logs available for this conversation", 
+                Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        chatLogger.exportLogs(requireContext(), conversation.getId(), conversation.getTitle());
     }
 
     private void showRenameDialog(Conversation conversation) {

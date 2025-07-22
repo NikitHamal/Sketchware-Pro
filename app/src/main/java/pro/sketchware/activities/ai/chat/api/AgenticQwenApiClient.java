@@ -135,7 +135,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
                 
                 // Send message using enhanced method with files and features
                 sendMessageWithContext(context, model, enhancedMessage, attachedFiles, 
-                                     thinkingEnabled, webSearchEnabled, new ChatCallback() {
+                                     thinkingEnabled, webSearchEnabled, new AgenticChatCallback() {
                     @Override
                     public void onResponse(String response) {
                         Log.d(TAG, "=== RESPONSE RECEIVED ===");
@@ -205,6 +205,21 @@ public class AgenticQwenApiClient extends QwenApiClient {
                     public void onStreamingResponse(String partialResponse) {
                         mainHandler.post(() -> callback.onStreamingResponse(partialResponse));
                     }
+
+                    @Override
+                    public void onActionExecuted(String actionResult, String projectId) {
+                        mainHandler.post(() -> callback.onActionExecuted(actionResult, projectId));
+                    }
+
+                    @Override
+                    public void onProjectCreated(String projectId, String projectName) {
+                        mainHandler.post(() -> callback.onProjectCreated(projectId, projectName));
+                    }
+
+                    @Override
+                    public void onFixProposal(String explanation, String actionJson, String projectId) {
+                        mainHandler.post(() -> callback.onFixProposal(explanation, actionJson, projectId));
+                    }
                 });
                 
             } catch (Exception e) {
@@ -214,14 +229,14 @@ public class AgenticQwenApiClient extends QwenApiClient {
         });
     }
 
-    private void sendMessageWithContext(ConversationContext context, String model, String message, ChatCallback callback) {
+    private void sendMessageWithContext(ConversationContext context, String model, String message, AgenticChatCallback callback) {
         sendMessageWithContext(context, model, message, null, false, false, callback);
     }
     
     private void sendMessageWithContext(ConversationContext context, String model, String message, 
                                       List<ChatMessage.AttachedFile> attachedFiles, 
                                       boolean thinkingEnabled, boolean webSearchEnabled, 
-                                      ChatCallback callback) {
+                                      AgenticChatCallback callback) {
         String qwenChatId = context.getQwenChatId();
         
         if (qwenChatId == null) {
@@ -256,7 +271,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
     private void sendMessageDirectly(String chatId, String model, String message, 
                                     List<ChatMessage.AttachedFile> attachedFiles, 
                                     boolean thinkingEnabled, boolean webSearchEnabled, 
-                                    ConversationContext context, ChatCallback callback) {
+                                    ConversationContext context, AgenticChatCallback callback) {
         executor.execute(() -> {
             try {
                 String response = sendChatMessageSync(chatId, model, message, attachedFiles, 
