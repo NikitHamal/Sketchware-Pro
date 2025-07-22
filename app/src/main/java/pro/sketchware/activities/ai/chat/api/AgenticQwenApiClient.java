@@ -631,10 +631,8 @@ public class AgenticQwenApiClient extends QwenApiClient {
                         context.addExecutedAction(actionName);
                         contextStorage.saveContext(context);
                         
-                        mainHandler.post(() -> {
-                            callback.onActionExecuted(result, projectId);
-                            callback.onProjectCreated(projectId, projectName);
-                        });
+                        // For project creation, only call onProjectCreated, not onActionExecuted
+                        mainHandler.post(() -> callback.onProjectCreated(projectId, projectName));
                         return;
                     }
                 }

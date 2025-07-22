@@ -50,6 +50,7 @@ import pro.sketchware.activities.ai.chat.views.ProjectItemView;
 public class ChatActivity extends AppCompatActivity {
     private static final String TAG = "ChatActivity";
     private ActivityChatBinding binding;
+    private boolean isProcessingProposal = false;
     private ChatAdapter chatAdapter;
     private List<ChatMessage> messages = new ArrayList<>();
     private AgenticQwenApiClient apiClient;
@@ -442,20 +443,46 @@ public class ChatActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     hideTypingIndicator();
                     
-                    // Show success message for action execution
-                    ChatMessage successMessage = new ChatMessage(
-                        UUID.randomUUID().toString(),
-                        "✅ Fix applied successfully! The file has been updated. Please rebuild your project to see if the errors are resolved.",
-                        ChatMessage.TYPE_AI,
-                        System.currentTimeMillis()
-                    );
-                    messages.add(successMessage);
-                    chatAdapter.notifyItemInserted(messages.size() - 1);
-                    messageStorage.saveMessages(conversationId, messages);
-                    binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+                    // Skip if we're processing a proposal (handled by proposal callback)
+                    if (isProcessingProposal) {
+                        isProcessingProposal = false; // Reset the flag
+                        return;
+                    }
                     
-                    // Show project card if we have a project ID
-                    if (projectId != null) {
+                    // Parse action result to determine if this is a file operation
+                    boolean isFileOperation = false;
+                    try {
+                        JSONObject result = new JSONObject(actionResult);
+                        String actionName = result.optString("action", "");
+                        
+                        // Show "Fix applied" message only for file operations
+                        isFileOperation = actionName.contains("file") || 
+                                        actionName.equals("fix_file_error") ||
+                                        actionName.equals("edit_file") ||
+                                        actionName.equals("create_file");
+                    } catch (JSONException e) {
+                        // If not JSON, check if it contains file-related keywords
+                        isFileOperation = actionResult.toLowerCase().contains("file") ||
+                                        actionResult.toLowerCase().contains("created") ||
+                                        actionResult.toLowerCase().contains("edited");
+                    }
+                    
+                    if (isFileOperation) {
+                        // Show success message for file operations
+                        ChatMessage successMessage = new ChatMessage(
+                            UUID.randomUUID().toString(),
+                            "✅ Fix applied successfully! The file has been updated. Please rebuild your project to see if the errors are resolved.",
+                            ChatMessage.TYPE_AI,
+                            System.currentTimeMillis()
+                        );
+                        messages.add(successMessage);
+                        chatAdapter.notifyItemInserted(messages.size() - 1);
+                        messageStorage.saveMessages(conversationId, messages);
+                        binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+                    }
+                    
+                    // Show project card only if it's not a project creation (project creation is handled separately)
+                    if (projectId != null && isFileOperation) {
                         showProjectCard(projectId);
                     }
                 });
@@ -635,6 +662,9 @@ public class ChatActivity extends AppCompatActivity {
             // Store proposalData for access in callbacks
             final JSONObject finalProposalData = proposalData;
             
+            // Set flag to prevent duplicate message from main callback
+            isProcessingProposal = true;
+            
             apiClient.executeApprovedAction(conversationId, actionJson, new AgenticQwenApiClient.AgenticChatCallback() {
                 @Override
                 public void onResponse(String response) {
@@ -650,6 +680,9 @@ public class ChatActivity extends AppCompatActivity {
                 public void onError(String error) {
                     runOnUiThread(() -> {
                         Log.e(TAG, "Action execution error: " + error);
+                        // Reset proposal processing flag on error
+                        isProcessingProposal = false;
+                        
                         // Show error message
                         ChatMessage errorMessage = new ChatMessage(
                             UUID.randomUUID().toString(),
@@ -682,7 +715,7 @@ public class ChatActivity extends AppCompatActivity {
                             Log.w(TAG, "Error parsing action result for affected files", e);
                         }
                         
-                        // Show success message
+                        // Show success message with affected files
                         ChatMessage successMessage = new ChatMessage(
                             UUID.randomUUID().toString(),
                             "✅ Fix applied successfully! The file has been updated. Please rebuild your project to see if the errors are resolved.",
