@@ -33,6 +33,7 @@ import pro.sketchware.activities.ai.storage.ConversationStorage;
 import pro.sketchware.activities.ai.storage.MessageStorage;
 import pro.sketchware.activities.main.fragments.ai.models.Conversation;
 import pro.sketchware.databinding.ActivityChatBinding;
+import pro.sketchware.R;
 
 import org.json.JSONException;
 import org.json.JSONObject;

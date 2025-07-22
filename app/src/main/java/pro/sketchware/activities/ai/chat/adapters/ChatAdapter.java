@@ -18,6 +18,7 @@ import pro.sketchware.activities.ai.chat.models.ChatMessage;
 import pro.sketchware.activities.ai.chat.views.ProjectItemView;
 import pro.sketchware.activities.ai.chat.views.FixProposalView;
 import pro.sketchware.databinding.ItemChatMessageBinding;
+import pro.sketchware.R;
 
 public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder> {
     private static final String TAG = "ChatAdapter";
@@ -51,7 +52,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
         if (viewType == ChatMessage.TYPE_PROPOSAL) {
             // Inflate the proposal layout directly
             android.view.View view = LayoutInflater.from(parent.getContext())
-                    .inflate(pro.sketchware.R.layout.item_chat_proposal, parent, false);
+                    .inflate(R.layout.item_chat_proposal, parent, false);
             return new ProposalViewHolder(view);
         } else {
             ItemChatMessageBinding binding = ItemChatMessageBinding.inflate(
@@ -114,11 +115,11 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
                     
                     for (ChatMessage.AttachedFile file : message.getAttachedFiles()) {
                         android.view.View fileView = android.view.LayoutInflater.from(binding.getRoot().getContext())
-                            .inflate(pro.sketchware.R.layout.item_attached_file, binding.userAttachedFiles, false);
+                            .inflate(R.layout.item_attached_file, binding.userAttachedFiles, false);
                         
-                        android.widget.TextView fileName = fileView.findViewById(pro.sketchware.R.id.file_name);
-                        android.widget.TextView fileSize = fileView.findViewById(pro.sketchware.R.id.file_size);
-                        android.widget.ImageView fileRemove = fileView.findViewById(pro.sketchware.R.id.file_remove);
+                        android.widget.TextView fileName = fileView.findViewById(R.id.file_name);
+                        android.widget.TextView fileSize = fileView.findViewById(R.id.file_size);
+                        android.widget.ImageView fileRemove = fileView.findViewById(R.id.file_remove);
                         
                         fileName.setText(file.getName());
                         fileSize.setText(file.getFormattedSize());
@@ -165,7 +166,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
         public ProposalViewHolder(android.view.View view) {
             super(view);
             this.proposalView = view;
-            this.proposalContainer = view.findViewById(pro.sketchware.R.id.proposalContainer);
+            this.proposalContainer = view.findViewById(R.id.proposalContainer);
         }
 
         @Override

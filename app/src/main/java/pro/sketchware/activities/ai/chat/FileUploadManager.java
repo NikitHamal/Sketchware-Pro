@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import pro.sketchware.activities.ai.chat.models.ChatMessage;
+import pro.sketchware.R;
 
 public class FileUploadManager {
     private static final String TAG = "FileUploadManager";
