@@ -31,6 +31,10 @@ public class UniversalActionManager {
         registerAction(new EditFileAction());
         registerAction(new ListDirectoryAction());
         
+        // Android development
+        registerAction(new CreateJavaFileAction());
+        registerAction(new CreateXMLResourceAction());
+        
         // Legacy compatibility
         registerAction(new LegacyFixFileErrorAction());
         

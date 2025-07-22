@@ -68,6 +68,27 @@ public class ContextBuilder {
         for (AgenticAction action : availableActions.values()) {
             prompt.append("- ").append(action.getActionName()).append(": ").append(action.getDescription()).append("\n");
         }
+        
+        // Add Universal Actions information
+        prompt.append("\nUNIVERSAL_ACTIONS:\n");
+        prompt.append("You also have access to powerful Universal Actions for file operations:\n");
+        prompt.append("- create_java_file: Create Java classes with proper package structure\n");
+        prompt.append("- create_xml_resource: Create Android XML resources (layouts, drawables, etc.)\n");
+        prompt.append("- read_file: Read file contents safely\n");
+        prompt.append("- edit_file: Edit existing files with backup support\n");
+        prompt.append("- list_directory: List directory contents with filtering\n");
+        prompt.append("- fix_file_error: Legacy action for backward compatibility\n");
+        prompt.append("\n");
+        
+        // Add Sketchware project structure guide
+        prompt.append("SKETCHWARE_PROJECT_STRUCTURE:\n");
+        prompt.append("Base path: /storage/emulated/0/.sketchware/data/<PROJECT_ID>/\n");
+        prompt.append("- files/java/<package_path>/: Java source files\n");
+        prompt.append("- files/resource/layout/: Layout XML files\n");
+        prompt.append("- files/resource/drawable/: Drawable resources\n");
+        prompt.append("- files/resource/values/: String, color, style resources\n");
+        prompt.append("- files/assets/: Asset files\n");
+        prompt.append("Package structure: Use dots in Java (com.my.app) and slashes in paths (com/my/app/)\n");
         prompt.append("\n");
 
         // Project context
@@ -97,10 +118,15 @@ public class ContextBuilder {
         prompt.append("When fixing compile errors:\n");
         prompt.append("1. Analyze the error carefully and identify the root cause\n");
         prompt.append("2. Explain the issue and your proposed solution clearly\n");
-        prompt.append("3. ALWAYS use fix_file_error action when you need to modify files\n");
+        prompt.append("3. Use appropriate actions based on the error type:\n");
+        prompt.append("   - Missing binding class: Use create_xml_resource for layout files\n");
+        prompt.append("   - Missing Java class: Use create_java_file with proper package\n");
+        prompt.append("   - Missing resources: Use create_xml_resource for drawables/values\n");
+        prompt.append("   - File modifications: Use edit_file with proper content\n");
         prompt.append("4. For empty XML files, provide complete valid XML content\n");
         prompt.append("5. Include both explanation AND action in your response\n");
-        prompt.append("6. Focus on minimal, targeted fixes rather than major restructuring\n\n");
+        prompt.append("6. Focus on minimal, targeted fixes rather than major restructuring\n");
+        prompt.append("7. Always use proper package structure and file paths\n\n");
 
         prompt.append("USER_MESSAGE: ").append(userMessage);
 

@@ -25,7 +25,8 @@ public class ReadFileAction extends BaseUniversalAction {
             
             String filePath = getStringParameter(parameters, "file_path", null);
             String encoding = getStringParameter(parameters, "encoding", "UTF-8");
-            int maxSize = (int) getStringParameter(parameters, "max_size", "1048576"); // 1MB default
+            String maxSizeStr = getStringParameter(parameters, "max_size", "1048576");
+            int maxSize = Integer.parseInt(maxSizeStr); // 1MB default
             
             if (!isValidProjectPath(filePath, projectId)) {
                 return createErrorResult("Invalid file path: " + filePath);

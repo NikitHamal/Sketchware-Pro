@@ -5,7 +5,9 @@ import android.content.Context;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -106,7 +108,15 @@ public class EditFileAction extends BaseUniversalAction {
             case "prepend":
                 String existingContent = "";
                 if (file.exists()) {
-                    existingContent = Files.readString(file.toPath());
+                    // Read existing content using BufferedReader for compatibility
+                    StringBuilder sb = new StringBuilder();
+                    try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            sb.append(line).append("\n");
+                        }
+                    }
+                    existingContent = sb.toString();
                 }
                 try (FileWriter writer = new FileWriter(file, false)) {
                     writer.write((content != null ? content : "") + existingContent);
