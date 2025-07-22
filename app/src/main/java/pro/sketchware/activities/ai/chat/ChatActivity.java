@@ -3,7 +3,12 @@ package pro.sketchware.activities.ai.chat;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.SpannableString;
+import android.text.Spanned;
 import android.text.TextUtils;
+import android.text.TextWatcher;
+import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -12,6 +17,7 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.google.android.material.bottomsheet.BottomSheetDialog;
@@ -27,6 +33,7 @@ import java.util.UUID;
 import org.json.JSONArray;
 
 import pro.sketchware.activities.ai.chat.adapters.ChatAdapter;
+import pro.sketchware.activities.ai.chat.adapters.ProjectSelectorAdapter;
 import pro.sketchware.activities.ai.chat.models.ChatMessage;
 import pro.sketchware.activities.ai.chat.models.QwenModel;
 import pro.sketchware.activities.ai.chat.api.QwenApiClient;
@@ -66,6 +73,12 @@ public class ChatActivity extends AppCompatActivity {
     private boolean thinkingEnabled = false;
     private boolean webSearchEnabled = false;
     private ActivityResultLauncher<Intent> filePickerLauncher;
+    
+    // Project selector functionality
+    private ProjectSelectorAdapter projectSelectorAdapter;
+    private List<HashMap<String, Object>> availableProjects = new ArrayList<>();
+    private String selectedProjectId = null;
+    private boolean isShowingProjectSelector = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -98,6 +111,7 @@ public class ChatActivity extends AppCompatActivity {
         setupToolbar();
         setupModelSelector();
         setupRecyclerView();
+        setupProjectSelector();
         setupInputArea();
         loadMessages();
         
@@ -195,6 +209,70 @@ public class ChatActivity extends AppCompatActivity {
         );
     }
 
+    private void setupProjectSelector() {
+        // Load available projects
+        loadAvailableProjects();
+        
+        // Setup project selector RecyclerView
+        projectSelectorAdapter = new ProjectSelectorAdapter(availableProjects, this::onProjectSelected);
+        binding.projectSelectorList.setLayoutManager(new LinearLayoutManager(this));
+        binding.projectSelectorList.setAdapter(projectSelectorAdapter);
+    }
+    
+    private void loadAvailableProjects() {
+        availableProjects.clear();
+        availableProjects.addAll(lC.a()); // Load all projects
+    }
+    
+    private void onProjectSelected(String projectId, String appName) {
+        selectedProjectId = projectId;
+        hideProjectSelector();
+        
+        // Insert @projectId into the text input
+        String currentText = binding.messageInput.getText().toString();
+        int cursorPosition = binding.messageInput.getSelectionStart();
+        
+        // Find the @ symbol position
+        int atPosition = currentText.lastIndexOf('@', cursorPosition - 1);
+        if (atPosition >= 0) {
+            // Replace @... with @projectId
+            String beforeAt = currentText.substring(0, atPosition);
+            String afterCursor = currentText.substring(cursorPosition);
+            String newText = beforeAt + "@" + projectId + " " + afterCursor;
+            
+            binding.messageInput.setText(newText);
+            
+            // Apply grey color to the @projectId part
+            int endPosition = atPosition + projectId.length() + 1;
+            applyProjectIdStyle(atPosition, endPosition);
+            
+            // Set cursor position after the inserted text
+            binding.messageInput.setSelection(endPosition + 1);
+        }
+    }
+    
+    private void applyProjectIdStyle(int start, int end) {
+        SpannableString spannableString = new SpannableString(binding.messageInput.getText());
+        ForegroundColorSpan greySpan = new ForegroundColorSpan(
+                ContextCompat.getColor(this, android.R.color.darker_gray));
+        spannableString.setSpan(greySpan, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        binding.messageInput.setText(spannableString);
+    }
+    
+    private void showProjectSelector() {
+        if (!isShowingProjectSelector && !availableProjects.isEmpty()) {
+            isShowingProjectSelector = true;
+            binding.projectSelectorPopup.setVisibility(View.VISIBLE);
+        }
+    }
+    
+    private void hideProjectSelector() {
+        if (isShowingProjectSelector) {
+            isShowingProjectSelector = false;
+            binding.projectSelectorPopup.setVisibility(View.GONE);
+        }
+    }
+
     private void setupInputArea() {
         binding.sendButton.setOnClickListener(v -> sendMessage());
         binding.chatOptionsButton.setOnClickListener(v -> showChatOptionsBottomSheet());
@@ -202,6 +280,47 @@ public class ChatActivity extends AppCompatActivity {
         binding.messageInput.setOnEditorActionListener((v, actionId, event) -> {
             sendMessage();
             return true;
+        });
+        
+        // Add text watcher for @ symbol detection
+        binding.messageInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (count > 0 && s.charAt(start + count - 1) == '@') {
+                    // User just typed @, show project selector
+                    loadAvailableProjects(); // Refresh project list
+                    showProjectSelector();
+                } else if (isShowingProjectSelector && (s.length() == 0 || 
+                    (start < s.length() && s.charAt(start) != '@'))) {
+                    // Hide project selector if @ is deleted or text becomes empty
+                    hideProjectSelector();
+                }
+            }
+            
+            @Override
+            public void afterTextChanged(Editable s) {
+                // Check if we should hide project selector
+                String text = s.toString();
+                int cursorPosition = binding.messageInput.getSelectionStart();
+                
+                if (isShowingProjectSelector) {
+                    // Find if there's still an @ near cursor
+                    boolean hasAtNearCursor = false;
+                    for (int i = Math.max(0, cursorPosition - 20); i < Math.min(text.length(), cursorPosition + 1); i++) {
+                        if (text.charAt(i) == '@') {
+                            hasAtNearCursor = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!hasAtNearCursor) {
+                        hideProjectSelector();
+                    }
+                }
+            }
         });
         
         updateAttachedFilesUI();
@@ -304,6 +423,9 @@ public class ChatActivity extends AppCompatActivity {
         if (TextUtils.isEmpty(messageText) || isTyping) {
             return;
         }
+        
+        // Extract project ID from @mentions and build enhanced message
+        String enhancedMessage = buildEnhancedMessage(messageText);
 
         // Add user message with attached files
         ChatMessage userMessage = new ChatMessage(
@@ -348,7 +470,7 @@ public class ChatActivity extends AppCompatActivity {
         showTypingIndicator();
         
         // Send to API with agentic support including files and features
-        apiClient.sendMessage(conversationId, selectedModel, messageText, messagePendingFiles, 
+        apiClient.sendMessage(conversationId, selectedModel, enhancedMessage, messagePendingFiles, 
                             thinkingEnabled, webSearchEnabled, new AgenticQwenApiClient.AgenticChatCallback() {
             private StringBuilder streamingContent = new StringBuilder();
             
@@ -848,5 +970,112 @@ public class ChatActivity extends AppCompatActivity {
             }
         }
         return title;
+    }
+    
+    /**
+     * Build enhanced message with project context when @projectId is mentioned
+     */
+    private String buildEnhancedMessage(String originalMessage) {
+        // Extract project IDs from @mentions
+        List<String> mentionedProjectIds = extractProjectIds(originalMessage);
+        
+        if (mentionedProjectIds.isEmpty()) {
+            return originalMessage;
+        }
+        
+        StringBuilder enhancedMessage = new StringBuilder();
+        
+        // Add project context for each mentioned project
+        for (String projectId : mentionedProjectIds) {
+            HashMap<String, Object> projectData = lC.b(projectId);
+            if (projectData != null) {
+                enhancedMessage.append("PROJECT_CONTEXT_").append(projectId).append(":\n");
+                enhancedMessage.append(buildDetailedProjectContext(projectId, projectData));
+                enhancedMessage.append("\n\n");
+            }
+        }
+        
+        // Add the original user message
+        enhancedMessage.append("USER_REQUEST: ").append(originalMessage);
+        
+        return enhancedMessage.toString();
+    }
+    
+    /**
+     * Extract project IDs from @mentions in the message
+     */
+    private List<String> extractProjectIds(String message) {
+        List<String> projectIds = new ArrayList<>();
+        
+        // Find all @projectId patterns
+        int index = 0;
+        while ((index = message.indexOf('@', index)) != -1) {
+            int endIndex = index + 1;
+            
+            // Find the end of the project ID (until space or end of string)
+            while (endIndex < message.length() && 
+                   Character.isDigit(message.charAt(endIndex))) {
+                endIndex++;
+            }
+            
+            if (endIndex > index + 1) {
+                String projectId = message.substring(index + 1, endIndex);
+                if (!projectIds.contains(projectId)) {
+                    projectIds.add(projectId);
+                }
+            }
+            
+            index = endIndex;
+        }
+        
+        return projectIds;
+    }
+    
+    /**
+     * Build detailed project context including settings and file structure
+     */
+    private String buildDetailedProjectContext(String projectId, HashMap<String, Object> projectData) {
+        StringBuilder context = new StringBuilder();
+        
+        // Basic project information
+        context.append("- Project Name: ").append(yB.c(projectData, "my_ws_name")).append("\n");
+        context.append("- App Name: ").append(yB.c(projectData, "my_app_name")).append("\n");
+        context.append("- Package Name: ").append(yB.c(projectData, "my_sc_pkg_name")).append("\n");
+        context.append("- Version Code: ").append(yB.c(projectData, "sc_ver_code")).append("\n");
+        context.append("- Version Name: ").append(yB.c(projectData, "sc_ver_name")).append("\n");
+        
+        // Project settings
+        try {
+            mod.hey.studios.project.ProjectSettings settings = new mod.hey.studios.project.ProjectSettings(projectId);
+            context.append("- Minimum SDK: ").append(settings.getMinSdkVersion()).append("\n");
+            context.append("- Target SDK: ").append(settings.getValue(mod.hey.studios.project.ProjectSettings.SETTING_TARGET_SDK_VERSION, "34")).append("\n");
+            context.append("- Application Class: ").append(settings.getValue(mod.hey.studios.project.ProjectSettings.SETTING_APPLICATION_CLASS, ".SketchApplication")).append("\n");
+            context.append("- View Binding Enabled: ").append(settings.getValue(mod.hey.studios.project.ProjectSettings.SETTING_ENABLE_VIEWBINDING, "false")).append("\n");
+            context.append("- Remove Old Methods: ").append(settings.getValue(mod.hey.studios.project.ProjectSettings.SETTING_DISABLE_OLD_METHODS, "false")).append("\n");
+            context.append("- Material Components: ").append(settings.getValue(mod.hey.studios.project.ProjectSettings.SETTING_ENABLE_BRIDGELESS_THEMES, "false")).append("\n");
+        } catch (Exception e) {
+            Log.w(TAG, "Could not load project settings for " + projectId, e);
+        }
+        
+        // Project file structure and paths
+        context.append("\nPROJECT_PATHS:\n");
+        String basePath = "/storage/emulated/0/.sketchware/data/" + projectId + "/";
+        context.append("- Base Path: ").append(basePath).append("\n");
+        context.append("- Java Files: ").append(basePath).append("files/java/").append(yB.c(projectData, "my_sc_pkg_name").replace(".", "/")).append("/\n");
+        context.append("- Layout Files: ").append(basePath).append("files/resource/layout/\n");
+        context.append("- Drawable Files: ").append(basePath).append("files/resource/drawable/\n");
+        context.append("- Values Files: ").append(basePath).append("files/resource/values/\n");
+        context.append("- Assets: ").append(basePath).append("files/assets/\n");
+        
+        // Available actions for this project
+        context.append("\nAVAILABLE_ACTIONS_FOR_PROJECT:\n");
+        context.append("- update_project_settings: Change project name, package name, SDK versions, etc.\n");
+        context.append("- create_java_file: Create Java classes in the project\n");
+        context.append("- create_xml_resource: Create layouts, drawables, values files\n");
+        context.append("- edit_file: Modify existing project files\n");
+        context.append("- read_file: Read project file contents\n");
+        context.append("- list_directory: List project directory contents\n");
+        
+        return context.toString();
     }
 }

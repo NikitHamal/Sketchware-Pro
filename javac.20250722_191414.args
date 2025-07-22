@@ -1,0 +1,5 @@
+-cp
+app/libs/a.a.a-notimportant-classes.jar:app/libs/base_libs.jar:app/libs/proguard-base-7.2.2.jar:app/libs/build-tools_apksigner_32.0.0.jar:app/libs/a.a.a-important-classes.jar:app/libs/android-svg.jar:app/libs/com.besome.sketch-classes.jar:app/libs/com.github.megatronking.stringfog-classes.jar
+-sourcepath
+app/src/main/java
+./app/src/main/java/pro/sketchware/activities/ai/chat/adapters/ChatAdapter.java

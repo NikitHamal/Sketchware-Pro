@@ -14,6 +14,7 @@ import a.a.a.lC;
 import a.a.a.yB;
 import pro.sketchware.activities.ai.chat.actions.CreateProjectAction;
 import pro.sketchware.activities.ai.chat.actions.FixFileErrorAction;
+import pro.sketchware.activities.ai.chat.actions.UpdateProjectSettingsAction;
 import pro.sketchware.activities.ai.chat.actions.UniversalActionManager;
 import pro.sketchware.activities.ai.chat.models.AgenticAction;
 import pro.sketchware.activities.ai.chat.models.ConversationContext;
@@ -34,6 +35,7 @@ public class ContextBuilder {
     private void registerActions() {
         registerAction(new CreateProjectAction());
         registerAction(new FixFileErrorAction());
+        registerAction(new UpdateProjectSettingsAction());
         // More actions will be added here in future phases
     }
 
@@ -105,13 +107,33 @@ public class ContextBuilder {
             prompt.append("\n\n");
         }
 
-        // Smart guidance for project creation
+        // Smart guidance for project creation and management
         prompt.append("PROJECT_CREATION_GUIDANCE:\n");
         prompt.append("When creating projects:\n");
         prompt.append("- If user doesn't specify project name, generate a descriptive one based on their request\n");
         prompt.append("- If user doesn't specify package name, auto-generate one like 'com.my.projectname'\n");
         prompt.append("- If user doesn't specify app name, use the project name\n");
-        prompt.append("- Always validate that names follow Android conventions\n\n");
+        prompt.append("- Always validate that names follow Android conventions\n");
+        prompt.append("- Set appropriate default settings: minSdk=21, targetSdk=34, viewBinding=true, oldMethods=false, materialComponents=false\n\n");
+        
+        prompt.append("PROJECT_MANAGEMENT_GUIDANCE:\n");
+        prompt.append("When user mentions @projectId in their message:\n");
+        prompt.append("- You get full project context including all settings and file paths\n");
+        prompt.append("- Use update_project_settings action to modify project properties\n");
+        prompt.append("- Available project settings to modify:\n");
+        prompt.append("  * project_name: Change project workspace name\n");
+        prompt.append("  * app_name: Change application display name\n");
+        prompt.append("  * package_name: Change package identifier (e.g. com.example.app)\n");
+        prompt.append("  * version_code: Integer version for updates\n");
+        prompt.append("  * version_name: String version for display (e.g. 1.0)\n");
+        prompt.append("  * minimum_sdk: Minimum Android SDK (default 21)\n");
+        prompt.append("  * target_sdk: Target Android SDK (default 34)\n");
+        prompt.append("  * application_class: Main application class (default .SketchApplication)\n");
+        prompt.append("  * enable_view_binding: Enable view binding (true/false)\n");
+        prompt.append("  * remove_old_methods: Remove deprecated methods (true/false)\n");
+        prompt.append("  * enable_material_components: Use material components (true/false)\n");
+        prompt.append("- When updating settings, explain what each change does\n");
+        prompt.append("- Always use the update_project_settings action with proper parameters\n\n");
         
         // Error fixing guidance
         prompt.append("ERROR_FIXING_GUIDANCE:\n");

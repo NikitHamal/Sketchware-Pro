@@ -42,9 +42,18 @@ public class CreateProjectAction implements AgenticAction {
     public String execute(Map<String, Object> parameters, String projectId, Context context) {
         try {
             // Extract parameters with defaults
-            String projectName = (String) parameters.getOrDefault("project_name", generateDefaultProjectName());
-            String appName = (String) parameters.getOrDefault("app_name", projectName);
-            String packageName = (String) parameters.getOrDefault("package_name", generateDefaultPackageName(projectName));
+            String projectName = (String) parameters.get("project_name");
+            if (projectName == null || projectName.trim().isEmpty()) {
+                projectName = generateDefaultProjectName();
+            }
+            String appName = (String) parameters.get("app_name");
+            if (appName == null || appName.trim().isEmpty()) {
+                appName = projectName;
+            }
+            String packageName = (String) parameters.get("package_name");
+            if (packageName == null || packageName.trim().isEmpty()) {
+                packageName = generateDefaultPackageName(projectName);
+            }
             
             // Validate parameters
             if (projectName == null || projectName.trim().isEmpty()) {
