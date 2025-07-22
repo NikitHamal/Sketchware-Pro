@@ -60,29 +60,63 @@ public class FixFileErrorAction implements AgenticAction {
         }
     }
     
+    private boolean isValidProjectPath(String filePath, String projectId) {
+        if (filePath == null) return false;
+        
+        // More lenient path validation - allow any path that looks like a project file
+        return filePath.contains("/storage/emulated/") || 
+               filePath.contains("/.sketchware/") ||
+               filePath.contains("/data/") ||
+               filePath.contains("/files/") ||
+               filePath.contains("/drawable/") ||
+               filePath.contains("/layout/") ||
+               filePath.contains("/values/") ||
+               filePath.contains("/res/");
+    }
+    
     private String createFile(File file, String content, String explanation) {
         try {
             // Create parent directories if they don't exist
             File parentDir = file.getParentFile();
             if (parentDir != null && !parentDir.exists()) {
-                if (!parentDir.mkdirs()) {
-                    return createErrorResult("Failed to create parent directories");
+                boolean created = parentDir.mkdirs();
+                Log.d(TAG, "Creating parent directories: " + parentDir.getAbsolutePath() + " - Success: " + created);
+                if (!created && !parentDir.exists()) {
+                    return createErrorResult("Failed to create parent directories: " + parentDir.getAbsolutePath());
                 }
             }
             
             // Check if file already exists
             if (file.exists()) {
-                return createErrorResult("File already exists: " + file.getName());
+                Log.w(TAG, "File already exists, will overwrite: " + file.getAbsolutePath());
             }
             
-            // Create the file
-            try (FileWriter writer = new FileWriter(file)) {
-                if (content != null) {
+            // Create the file and write content
+            try (FileWriter writer = new FileWriter(file, false)) { // false = overwrite existing file
+                if (content != null && !content.trim().isEmpty()) {
                     writer.write(content);
+                } else {
+                    // Write minimal valid content if none provided
+                    writer.write("");
                 }
+                writer.flush(); // Ensure content is written to disk
             }
             
-            Log.d(TAG, "Created file: " + file.getAbsolutePath());
+            // Force sync to ensure file is written to storage
+            try {
+                Runtime.getRuntime().exec("sync").waitFor();
+            } catch (Exception syncError) {
+                Log.w(TAG, "Sync command failed, continuing", syncError);
+            }
+            
+            // Verify file was created/updated with a small delay to allow filesystem operations
+            Thread.sleep(100);
+            if (file.exists()) {
+                Log.d(TAG, "Successfully created/updated file: " + file.getAbsolutePath() + " (size: " + file.length() + " bytes)");
+            } else {
+                Log.e(TAG, "File was not created: " + file.getAbsolutePath());
+                return createErrorResult("File was not created on disk");
+            }
             
             return createSuccessResult(
                 "create_file",
@@ -91,7 +125,7 @@ public class FixFileErrorAction implements AgenticAction {
                 explanation != null ? explanation : "File created successfully"
             );
             
-        } catch (IOException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error creating file: " + file.getAbsolutePath(), e);
             return createErrorResult("Failed to create file: " + e.getMessage());
         }
@@ -99,21 +133,52 @@ public class FixFileErrorAction implements AgenticAction {
     
     private String editFile(File file, String content, String explanation) {
         try {
-            // Backup original file
-            if (file.exists()) {
-                File backupFile = new File(file.getAbsolutePath() + ".backup");
-                Files.copy(file.toPath(), backupFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                Log.d(TAG, "Created backup: " + backupFile.getAbsolutePath());
-            }
-            
-            // Write new content
-            try (FileWriter writer = new FileWriter(file)) {
-                if (content != null) {
-                    writer.write(content);
+            // Create parent directories if needed
+            File parentDir = file.getParentFile();
+            if (parentDir != null && !parentDir.exists()) {
+                boolean created = parentDir.mkdirs();
+                Log.d(TAG, "Creating parent directories for edit: " + parentDir.getAbsolutePath() + " - Success: " + created);
+                if (!created && !parentDir.exists()) {
+                    return createErrorResult("Failed to create parent directories: " + parentDir.getAbsolutePath());
                 }
             }
             
-            Log.d(TAG, "Edited file: " + file.getAbsolutePath());
+            // Backup original file if it exists
+            if (file.exists()) {
+                File backupFile = new File(file.getAbsolutePath() + ".backup." + System.currentTimeMillis());
+                try {
+                    Files.copy(file.toPath(), backupFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    Log.d(TAG, "Created backup: " + backupFile.getAbsolutePath());
+                } catch (IOException backupError) {
+                    Log.w(TAG, "Failed to create backup, continuing with edit", backupError);
+                }
+            }
+            
+            // Write new content
+            try (FileWriter writer = new FileWriter(file, false)) { // false = overwrite
+                if (content != null) {
+                    writer.write(content);
+                } else {
+                    writer.write("");
+                }
+                writer.flush(); // Ensure content is written to disk
+            }
+            
+            // Force sync to ensure file is written to storage
+            try {
+                Runtime.getRuntime().exec("sync").waitFor();
+            } catch (Exception syncError) {
+                Log.w(TAG, "Sync command failed, continuing", syncError);
+            }
+            
+            // Verify file was updated with a small delay
+            Thread.sleep(100);
+            if (file.exists()) {
+                Log.d(TAG, "Successfully edited file: " + file.getAbsolutePath() + " (size: " + file.length() + " bytes)");
+            } else {
+                Log.e(TAG, "File disappeared after edit: " + file.getAbsolutePath());
+                return createErrorResult("File disappeared after edit");
+            }
             
             return createSuccessResult(
                 "edit_file",
@@ -122,7 +187,7 @@ public class FixFileErrorAction implements AgenticAction {
                 explanation != null ? explanation : "File edited successfully"
             );
             
-        } catch (IOException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error editing file: " + file.getAbsolutePath(), e);
             return createErrorResult("Failed to edit file: " + e.getMessage());
         }
@@ -180,14 +245,6 @@ public class FixFileErrorAction implements AgenticAction {
             Log.e(TAG, "Error creating directory: " + dir.getAbsolutePath(), e);
             return createErrorResult("Failed to create directory: " + e.getMessage());
         }
-    }
-    
-    private boolean isValidProjectPath(String filePath, String projectId) {
-        if (filePath == null || projectId == null) return false;
-        
-        // Check if path is within project directory
-        return filePath.contains("/data/" + projectId + "/") || 
-               filePath.contains("/.sketchware/data/" + projectId + "/");
     }
     
     private String createSuccessResult(String action, String filePath, String message, String explanation) {

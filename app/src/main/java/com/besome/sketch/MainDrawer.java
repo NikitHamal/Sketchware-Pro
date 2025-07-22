@@ -26,7 +26,7 @@ import dev.chrisbanes.insetter.Insetter;
 import dev.chrisbanes.insetter.Side;
 import mod.hilal.saif.activities.tools.AppSettings;
 import pro.sketchware.R;
-import pro.sketchware.activities.about.AboutActivity;
+
 import pro.sketchware.utility.UI;
 
 public class MainDrawer extends NavigationView {
@@ -85,14 +85,9 @@ public class MainDrawer extends NavigationView {
     private void initializeDrawerItems(@IdRes int id) {
         Activity activity = unwrap(getContext());
         if (id == R.id.about_team) {
-            Intent intent = new Intent(activity, AboutActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            activity.startActivity(intent);
+            // About and team functionality removed
         } else if (id == R.id.changelog) {
-            Intent intent = new Intent(activity, AboutActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            intent.putExtra("select", "changelog");
-            activity.startActivity(intent);
+            // Changelog functionality removed
         } else if (id == R.id.program_info) {
             Intent intent = new Intent(activity, ProgramInfoActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);

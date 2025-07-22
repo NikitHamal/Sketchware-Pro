@@ -8,7 +8,6 @@ import android.widget.TextView;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
-import com.google.android.material.chip.Chip;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -22,7 +21,6 @@ public class FixProposalView extends LinearLayout {
     private TextView codeDiffText;
     private MaterialButton acceptButton;
     private MaterialButton discardButton;
-    private Chip actionTypeChip;
     private MaterialCardView codeDiffCard;
     
     private OnProposalActionListener listener;
@@ -56,7 +54,6 @@ public class FixProposalView extends LinearLayout {
         codeDiffText = findViewById(R.id.codeDiffText);
         acceptButton = findViewById(R.id.acceptButton);
         discardButton = findViewById(R.id.discardButton);
-        actionTypeChip = findViewById(R.id.actionTypeChip);
         codeDiffCard = findViewById(R.id.codeDiffCard);
         
         acceptButton.setOnClickListener(v -> {
@@ -80,7 +77,6 @@ public class FixProposalView extends LinearLayout {
             explanationText.setText(explanation);
             
             // Extract and display file information
-            String action = actionData.optString("action", "unknown");
             String filePath = actionData.optString("file_path", "");
             String content = actionData.optString("content", "");
             
@@ -88,25 +84,6 @@ public class FixProposalView extends LinearLayout {
             if (!filePath.isEmpty()) {
                 String fileName = filePath.substring(filePath.lastIndexOf("/") + 1);
                 filePathText.setText(fileName + "\n" + filePath);
-            }
-            
-            // Update action type chip
-            switch (action) {
-                case "create_file":
-                    actionTypeChip.setText("Create File");
-                    break;
-                case "edit_file":
-                    actionTypeChip.setText("Edit File");
-                    break;
-                case "delete_file":
-                    actionTypeChip.setText("Delete File");
-                    break;
-                case "create_directory":
-                    actionTypeChip.setText("Create Directory");
-                    break;
-                default:
-                    actionTypeChip.setText("File Action");
-                    break;
             }
             
             // Show code preview if available

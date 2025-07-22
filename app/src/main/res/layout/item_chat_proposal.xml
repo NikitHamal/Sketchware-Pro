@@ -2,58 +2,13 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:paddingHorizontal="16dp"
-    android:paddingVertical="8dp">
-
-    <!-- AI Message Header -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="start|center_vertical"
-        android:layout_marginBottom="8dp">
-
-        <TextView
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:background="@drawable/ic_ai_fix"
-            android:backgroundTint="?attr/colorPrimary"
-            android:layout_marginEnd="12dp" />
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/tvSender"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="AI Assistant"
-                android:textSize="12sp"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:textStyle="bold" />
-
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/tvTime"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="10sp"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:layout_marginStart="8dp" />
-
-    </LinearLayout>
+    android:orientation="vertical">
 
     <!-- Proposal View Container -->
     <FrameLayout
         android:id="@+id/proposalContainer"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="44dp">
+        android:layout_height="wrap_content">
 
         <!-- This will contain the FixProposalView -->
         

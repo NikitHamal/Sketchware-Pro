@@ -3,10 +3,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="16dp"
-    android:layout_marginVertical="8dp"
     app:cardCornerRadius="12dp"
-    app:cardElevation="4dp"
+    app:cardElevation="0dp"
     app:strokeColor="?attr/colorOutline"
     app:strokeWidth="1dp">
 
@@ -15,39 +13,6 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="16dp">
-
-        <!-- Header -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="12dp">
-
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@drawable/ic_ai_fix"
-                android:layout_marginEnd="8dp"
-                android:tint="?attr/colorPrimary" />
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="AI Proposed Fix"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="?attr/colorOnSurface" />
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/actionTypeChip"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Edit File"
-                style="@style/Widget.Material3.Chip.Assist" />
-
-        </LinearLayout>
 
         <!-- File Information -->
         <LinearLayout
@@ -97,7 +62,7 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
             app:cardCornerRadius="8dp"
-            app:cardElevation="2dp"
+            app:cardElevation="0dp"
             app:strokeColor="?attr/colorOutline"
             app:strokeWidth="1dp">
 
@@ -140,7 +105,7 @@
                 android:id="@+id/acceptButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Accept &amp; Apply"
+                android:text="Accept"
                 style="@style/Widget.Material3.Button" />
 
         </LinearLayout>

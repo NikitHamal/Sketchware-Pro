@@ -137,21 +137,16 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
 
     public class ProposalViewHolder extends BaseViewHolder {
         private android.view.View proposalView;
-        private android.widget.TextView tvTime;
         private android.widget.FrameLayout proposalContainer;
 
         public ProposalViewHolder(android.view.View view) {
             super(view);
             this.proposalView = view;
-            this.tvTime = view.findViewById(pro.sketchware.R.id.tvTime);
             this.proposalContainer = view.findViewById(pro.sketchware.R.id.proposalContainer);
         }
 
         @Override
         public void bind(ChatMessage message) {
-            // Set timestamp
-            tvTime.setText(timeFormat.format(new Date(message.getTimestamp())));
-
             // Clear any existing proposal views
             proposalContainer.removeAllViews();
 

@@ -51,7 +51,7 @@ import mod.hilal.saif.activities.tools.ConfigActivity;
 import mod.jbk.util.LogUtil;
 import mod.tyron.backup.SingleCopyTask;
 import pro.sketchware.R;
-import pro.sketchware.activities.about.AboutActivity;
+
 import pro.sketchware.activities.main.fragments.projects.ProjectsFragment;
 import pro.sketchware.activities.main.fragments.projects_store.ProjectsStoreFragment;
 import pro.sketchware.activities.main.fragments.ai.AiFragment;
@@ -394,13 +394,10 @@ public class MainActivity extends BasePermissionAppCompatActivity {
                 There have been major changes since v6.3.0 fix1, \
                 and it's very important to know them all if you want your projects to still work.
                 
-                You can view all changes whenever you want at the About Sketchware Pro screen.""");
+                Please make sure to update your projects accordingly.""");
 
-        bottomSheetDialog.setPositiveButton("View changes", (dialog, which) -> {
+        bottomSheetDialog.setPositiveButton("Okay", (dialog, which) -> {
             ConfigActivity.setSetting(ConfigActivity.SETTING_CRITICAL_UPDATE_REMINDER, true);
-            Intent launcher = new Intent(this, AboutActivity.class);
-            launcher.putExtra("select", "changelog");
-            startActivity(launcher);
         });
         bottomSheetDialog.setCancelable(false);
         return bottomSheetDialog;
