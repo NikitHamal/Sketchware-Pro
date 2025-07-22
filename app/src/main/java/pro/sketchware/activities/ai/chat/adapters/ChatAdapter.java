@@ -10,8 +10,10 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import io.noties.markwon.Markwon;
 import pro.sketchware.activities.ai.chat.models.ChatMessage;
@@ -22,10 +24,13 @@ import pro.sketchware.R;
 
 public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder> {
     private static final String TAG = "ChatAdapter";
+    private static final int MAX_COLLAPSED_LENGTH = 225;
+    
     private List<ChatMessage> messages;
     private SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
     private Markwon markwon;
     private OnProposalActionListener proposalActionListener;
+    private Map<String, Boolean> expandedMessages = new HashMap<>();
 
     public interface OnProposalActionListener {
         void onAcceptProposal(ChatMessage message);
@@ -135,7 +140,8 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
                 binding.userMessageLayout.setVisibility(android.view.View.VISIBLE);
                 binding.aiMessageLayout.setVisibility(android.view.View.GONE);
                 
-                binding.userMessage.setText(message.getContent());
+                // Handle expandable user message
+                setupExpandableUserMessage(message);
                 binding.userMessageTime.setText(timeFormat.format(new Date(message.getTimestamp())));
                 
                 // Handle attached files
@@ -193,6 +199,42 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
                 } else {
                     binding.projectItemContainer.setVisibility(android.view.View.GONE);
                 }
+            }
+        }
+        
+        private void setupExpandableUserMessage(ChatMessage message) {
+            String content = message.getContent();
+            boolean isExpanded = expandedMessages.getOrDefault(message.getId(), false);
+            
+            if (content.length() > MAX_COLLAPSED_LENGTH && !isExpanded) {
+                // Show truncated message with "Read More"
+                String truncated = content.substring(0, MAX_COLLAPSED_LENGTH);
+                binding.userMessage.setText(truncated);
+                binding.userMessageExpandIndicator.setVisibility(android.view.View.VISIBLE);
+                binding.userMessageExpandIndicator.setText("...Read More");
+            } else {
+                // Show full message
+                binding.userMessage.setText(content);
+                if (content.length() > MAX_COLLAPSED_LENGTH && isExpanded) {
+                    // Show "Read Less" option
+                    binding.userMessageExpandIndicator.setVisibility(android.view.View.VISIBLE);
+                    binding.userMessageExpandIndicator.setText("Read Less");
+                } else {
+                    binding.userMessageExpandIndicator.setVisibility(android.view.View.GONE);
+                }
+            }
+            
+            // Set up click listeners for expansion/contraction
+            android.view.View.OnClickListener expandClickListener = v -> {
+                boolean currentlyExpanded = expandedMessages.getOrDefault(message.getId(), false);
+                expandedMessages.put(message.getId(), !currentlyExpanded);
+                notifyItemChanged(getAdapterPosition());
+            };
+            
+            binding.userMessageExpandIndicator.setOnClickListener(expandClickListener);
+            // Also make the message bubble clickable if truncated
+            if (content.length() > MAX_COLLAPSED_LENGTH) {
+                binding.userMessage.getParent().setOnClickListener(expandClickListener);
             }
         }
     }

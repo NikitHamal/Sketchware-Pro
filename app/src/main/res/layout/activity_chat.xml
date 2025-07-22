@@ -150,7 +150,7 @@
                     android:id="@+id/project_selector_list"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:maxHeight="300dp"
+                    android:maxHeight="180dp"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:paddingBottom="8dp" />

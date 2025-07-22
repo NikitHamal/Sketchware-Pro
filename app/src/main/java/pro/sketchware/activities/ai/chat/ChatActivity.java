@@ -221,7 +221,20 @@ public class ChatActivity extends AppCompatActivity {
     
     private void loadAvailableProjects() {
         availableProjects.clear();
-        availableProjects.addAll(lC.a()); // Load all projects
+        List<HashMap<String, Object>> allProjects = lC.a(); // Load all projects
+        
+        // Sort projects by ID (latest first - higher ID = newer project)
+        allProjects.sort((p1, p2) -> {
+            try {
+                int id1 = Integer.parseInt(yB.c(p1, "sc_id"));
+                int id2 = Integer.parseInt(yB.c(p2, "sc_id"));
+                return Integer.compare(id2, id1); // Descending order
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        });
+        
+        availableProjects.addAll(allProjects);
     }
     
     private void onProjectSelected(String projectId, String appName) {
@@ -251,12 +264,38 @@ public class ChatActivity extends AppCompatActivity {
         }
     }
     
+    private void applyProjectIdStyling(Editable text) {
+        // Remove any existing spans
+        ForegroundColorSpan[] spans = text.getSpans(0, text.length(), ForegroundColorSpan.class);
+        for (ForegroundColorSpan span : spans) {
+            text.removeSpan(span);
+        }
+        
+        // Find and style all @projectId mentions
+        String textStr = text.toString();
+        int index = 0;
+        while ((index = textStr.indexOf('@', index)) != -1) {
+            int endIndex = index + 1;
+            
+            // Find the end of the project ID (digits only)
+            while (endIndex < textStr.length() && Character.isDigit(textStr.charAt(endIndex))) {
+                endIndex++;
+            }
+            
+            // If we found at least one digit after @, apply grey styling
+            if (endIndex > index + 1) {
+                ForegroundColorSpan greySpan = new ForegroundColorSpan(
+                        ContextCompat.getColor(this, android.R.color.darker_gray));
+                text.setSpan(greySpan, index, endIndex, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            
+            index = endIndex;
+        }
+    }
+    
     private void applyProjectIdStyle(int start, int end) {
-        SpannableString spannableString = new SpannableString(binding.messageInput.getText());
-        ForegroundColorSpan greySpan = new ForegroundColorSpan(
-                ContextCompat.getColor(this, android.R.color.darker_gray));
-        spannableString.setSpan(greySpan, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        binding.messageInput.setText(spannableString);
+        // This method is kept for backwards compatibility but now uses the comprehensive styling
+        applyProjectIdStyling(binding.messageInput.getText());
     }
     
     private void showProjectSelector() {
@@ -282,7 +321,7 @@ public class ChatActivity extends AppCompatActivity {
             return true;
         });
         
-        // Add text watcher for @ symbol detection
+        // Add text watcher for @ symbol detection and project ID styling
         binding.messageInput.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -302,21 +341,32 @@ public class ChatActivity extends AppCompatActivity {
             
             @Override
             public void afterTextChanged(Editable s) {
-                // Check if we should hide project selector
+                // Check if we should hide project selector and apply styling
                 String text = s.toString();
                 int cursorPosition = binding.messageInput.getSelectionStart();
                 
+                // Apply grey styling to all @projectId mentions
+                applyProjectIdStyling(s);
+                
                 if (isShowingProjectSelector) {
-                    // Find if there's still an @ near cursor
-                    boolean hasAtNearCursor = false;
+                    // Find if there's still an @ near cursor that doesn't have a complete project ID
+                    boolean hasIncompleteAtNearCursor = false;
                     for (int i = Math.max(0, cursorPosition - 20); i < Math.min(text.length(), cursorPosition + 1); i++) {
                         if (text.charAt(i) == '@') {
-                            hasAtNearCursor = true;
-                            break;
+                            // Check if this @ is followed by incomplete digits
+                            int j = i + 1;
+                            while (j < text.length() && Character.isDigit(text.charAt(j))) {
+                                j++;
+                            }
+                            // If we're at cursor position or there's a space/end, it's incomplete
+                            if (j == cursorPosition || j == text.length() || text.charAt(j) == ' ') {
+                                hasIncompleteAtNearCursor = true;
+                                break;
+                            }
                         }
                     }
                     
-                    if (!hasAtNearCursor) {
+                    if (!hasIncompleteAtNearCursor) {
                         hideProjectSelector();
                     }
                 }

@@ -27,17 +27,42 @@
             android:layout_marginBottom="8dp"
             android:visibility="gone" />
 
-        <TextView
-            android:id="@+id/user_message"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginBottom="4dp"
             android:background="@drawable/chat_bubble_user"
-            android:padding="12dp"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnPrimary"
-            android:textIsSelectable="true"
-            tools:text="Hello, how are you doing today?" />
+            android:orientation="vertical"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:id="@+id/user_message"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="12dp"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOnPrimary"
+                android:textIsSelectable="true"
+                tools:text="Hello, how are you doing today?" />
+
+            <TextView
+                android:id="@+id/user_message_expand_indicator"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="8dp"
+                android:text="...Read More"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnPrimary"
+                android:textStyle="italic"
+                android:alpha="0.8"
+                android:visibility="gone"
+                android:clickable="true"
+                android:focusable="true" />
+
+        </LinearLayout>
 
         <TextView
             android:id="@+id/user_message_time"
