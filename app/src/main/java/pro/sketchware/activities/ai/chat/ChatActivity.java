@@ -460,14 +460,23 @@ public class ChatActivity extends AppCompatActivity {
 
             @Override
             public void onFixProposal(String explanation, String actionJson, String projectId) {
+                Log.d(TAG, "=== onFixProposal CALLED ===");
+                Log.d(TAG, "Explanation: " + explanation);
+                Log.d(TAG, "ActionJson: " + actionJson);
+                Log.d(TAG, "ProjectId: " + projectId);
+                
                 runOnUiThread(() -> {
+                    Log.d(TAG, "=== onFixProposal UI Thread ===");
                     hideTypingIndicator();
                     
                     try {
                         JSONObject actionData = new JSONObject(actionJson);
                         JSONObject parameters = actionData.getJSONObject("parameters");
                         
+                        Log.d(TAG, "Parsed parameters: " + parameters.toString());
+                        
                         // Create and show fix proposal view
+                        Log.d(TAG, "Calling showFixProposal");
                         showFixProposal(explanation, parameters, projectId);
                         
                     } catch (JSONException e) {
@@ -563,6 +572,11 @@ public class ChatActivity extends AppCompatActivity {
       }
 
     private void showFixProposal(String explanation, JSONObject actionData, String projectId) {
+        Log.d(TAG, "=== showFixProposal CALLED ===");
+        Log.d(TAG, "Explanation: " + explanation);
+        Log.d(TAG, "ActionData: " + actionData.toString());
+        Log.d(TAG, "ProjectId: " + projectId);
+        
         // Create proposal message with proper type
         ChatMessage proposalMessage = new ChatMessage(
             UUID.randomUUID().toString(),

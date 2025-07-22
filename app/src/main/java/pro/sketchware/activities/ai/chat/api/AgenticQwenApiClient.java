@@ -138,23 +138,61 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                      thinkingEnabled, webSearchEnabled, new ChatCallback() {
                     @Override
                     public void onResponse(String response) {
-                        // Check if response contains an action
-                        try {
-                            JSONObject responseJson = new JSONObject(response.trim());
-                            if ("action".equals(responseJson.optString("response_type"))) {
-                                // First show the explanation to the user
-                                String explanation = responseJson.optString("explanation", "I'm working on that for you...");
-                                mainHandler.post(() -> callback.onResponse(explanation));
-                                
-                                // Then execute the action
-                                executeAction(responseJson, context, callback);
-                                return;
+                        Log.d(TAG, "=== RESPONSE RECEIVED ===");
+                        Log.d(TAG, "Response content: " + response);
+                        Log.d(TAG, "Response length: " + response.length());
+                        
+                        // Check if response contains action(s)
+                        String trimmedResponse = response.trim();
+                        Log.d(TAG, "Trimmed response: " + trimmedResponse);
+                        
+                        // Handle multiple JSON objects in response
+                        if (trimmedResponse.startsWith("{") && trimmedResponse.contains("\"response_type\"")) {
+                            Log.d(TAG, "Response looks like JSON action(s)");
+                            
+                            // Split multiple JSON objects if they exist
+                            String[] jsonParts = trimmedResponse.split("(?<=})\\s*(?=\\{)");
+                            Log.d(TAG, "Found " + jsonParts.length + " JSON parts");
+                            
+                            boolean actionProcessed = false;
+                            
+                            for (String jsonPart : jsonParts) {
+                                try {
+                                    JSONObject responseJson = new JSONObject(jsonPart.trim());
+                                    Log.d(TAG, "Successfully parsed JSON part: " + jsonPart);
+                                    
+                                    String responseType = responseJson.optString("response_type");
+                                    Log.d(TAG, "Response type: '" + responseType + "'");
+                                    
+                                    if ("action".equals(responseType)) {
+                                        Log.d(TAG, "=== ACTION DETECTED ===");
+                                        
+                                        if (!actionProcessed) {
+                                            // First show the explanation to the user (only once)
+                                            String explanation = responseJson.optString("explanation", "I'm working on that for you...");
+                                            Log.d(TAG, "Explanation: " + explanation);
+                                            mainHandler.post(() -> callback.onResponse(explanation));
+                                            actionProcessed = true;
+                                        }
+                                        
+                                        // Execute each action
+                                        Log.d(TAG, "Executing action with JSON: " + responseJson.toString());
+                                        executeAction(responseJson, context, callback);
+                                    } else {
+                                        Log.d(TAG, "Not an action response, response_type is: " + responseType);
+                                    }
+                                } catch (JSONException e) {
+                                    Log.e(TAG, "JSON parsing failed for part: " + jsonPart, e);
+                                }
                             }
-                        } catch (JSONException e) {
-                            // Not JSON, treat as regular response
+                            
+                            if (actionProcessed) {
+                                return; // Don't send as regular response
+                            }
                         }
                         
                         // Regular response - only call this if no action was executed
+                        Log.d(TAG, "Sending regular response to callback");
                         mainHandler.post(() -> callback.onResponse(response));
                     }
 
@@ -464,10 +502,18 @@ public class AgenticQwenApiClient extends QwenApiClient {
     }
 
     private void executeAction(JSONObject actionJson, ConversationContext context, AgenticChatCallback callback) {
+        Log.d(TAG, "=== EXECUTE ACTION CALLED ===");
+        Log.d(TAG, "Action JSON: " + actionJson.toString());
+        Log.d(TAG, "Callback type: " + callback.getClass().getSimpleName());
+        
         try {
             String actionName = actionJson.getString("action");
             String explanation = actionJson.optString("explanation", "Executing action...");
             JSONObject parameters = actionJson.optJSONObject("parameters");
+            
+            Log.d(TAG, "Action name: " + actionName);
+            Log.d(TAG, "Explanation: " + explanation);
+            Log.d(TAG, "Parameters: " + (parameters != null ? parameters.toString() : "null"));
             
             Map<String, Object> paramMap = new HashMap<>();
             if (parameters != null) {
@@ -484,13 +530,21 @@ public class AgenticQwenApiClient extends QwenApiClient {
             
             // Check if this is a fix_file_error action - should show proposal first
             if ("fix_file_error".equals(actionName)) {
+                Log.d(TAG, "=== CREATING FIX PROPOSAL ===");
+                
                 // Create proposal JSON for user approval
                 JSONObject proposalJson = new JSONObject();
                 try {
                     proposalJson.put("action", actionName);
                     proposalJson.put("parameters", parameters);
                     
-                    mainHandler.post(() -> callback.onFixProposal(explanation, proposalJson.toString(), context.getCurrentProjectId()));
+                    Log.d(TAG, "Proposal JSON created: " + proposalJson.toString());
+                    Log.d(TAG, "Calling onFixProposal with explanation: " + explanation);
+                    
+                    mainHandler.post(() -> {
+                        Log.d(TAG, "=== CALLING onFixProposal ===");
+                        callback.onFixProposal(explanation, proposalJson.toString(), context.getCurrentProjectId());
+                    });
                 } catch (JSONException e) {
                     Log.e(TAG, "Error creating fix proposal", e);
                 }
