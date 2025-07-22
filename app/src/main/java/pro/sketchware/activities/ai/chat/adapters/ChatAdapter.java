@@ -188,12 +188,8 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
                     binding.projectItemContainer.removeAllViews();
                     
                     ProjectItemView projectView = new ProjectItemView(binding.getRoot().getContext());
-                    projectView.setProjectData(
-                        message.getProjectId(),
-                        message.getProjectName(),
-                        message.getAppName(),
-                        message.getPackageName()
-                    );
+                    // Use the new dynamic method that only needs project ID
+                    projectView.setProjectId(message.getProjectId());
                     
                     binding.projectItemContainer.addView(projectView);
                 } else {

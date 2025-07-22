@@ -698,10 +698,8 @@ public class ChatActivity extends AppCompatActivity {
                             );
                             
                             // Set project data for interactive display
+                            // Only set the project ID - the dynamic ProjectItemView will load all other data automatically
                             projectMessage.setProjectId(projectId);
-                            projectMessage.setProjectName(yB.c(projectData, "my_ws_name"));
-                            projectMessage.setAppName(yB.c(projectData, "my_app_name"));
-                            projectMessage.setPackageName(yB.c(projectData, "my_sc_pkg_name"));
                             
                             // Set a user-friendly message
                             String projectDisplayName = yB.c(projectData, "my_ws_name");
