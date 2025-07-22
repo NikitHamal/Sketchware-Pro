@@ -234,7 +234,10 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
             binding.userMessageExpandIndicator.setOnClickListener(expandClickListener);
             // Also make the message bubble clickable if truncated
             if (content.length() > MAX_COLLAPSED_LENGTH) {
-                binding.userMessage.getParent().setOnClickListener(expandClickListener);
+                // Cast parent to View since we know it's the LinearLayout container
+                if (binding.userMessage.getParent() instanceof android.view.View) {
+                    ((android.view.View) binding.userMessage.getParent()).setOnClickListener(expandClickListener);
+                }
             }
         }
     }
