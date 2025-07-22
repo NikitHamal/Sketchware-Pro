@@ -24,6 +24,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
+import org.json.JSONArray;
+
 import pro.sketchware.activities.ai.chat.adapters.ChatAdapter;
 import pro.sketchware.activities.ai.chat.models.ChatMessage;
 import pro.sketchware.activities.ai.chat.models.QwenModel;
@@ -630,6 +632,9 @@ public class ChatActivity extends AppCompatActivity {
             message.setContent("✅ Fix approved. Applying changes...");
             chatAdapter.notifyItemChanged(messages.indexOf(message));
             
+            // Store proposalData for access in callbacks
+            final JSONObject finalProposalData = proposalData;
+            
             apiClient.executeApprovedAction(conversationId, actionJson, new AgenticQwenApiClient.AgenticChatCallback() {
                 @Override
                 public void onResponse(String response) {
@@ -644,10 +649,11 @@ public class ChatActivity extends AppCompatActivity {
                 @Override
                 public void onError(String error) {
                     runOnUiThread(() -> {
+                        Log.e(TAG, "Action execution error: " + error);
                         // Show error message
                         ChatMessage errorMessage = new ChatMessage(
                             UUID.randomUUID().toString(),
-                            "❌ Error applying fix: " + error,
+                            "❌ Error applying fix: " + error + "\n\nPlease check the logs for more details.",
                             ChatMessage.TYPE_AI,
                             System.currentTimeMillis()
                         );
@@ -660,13 +666,43 @@ public class ChatActivity extends AppCompatActivity {
                 @Override
                 public void onActionExecuted(String actionResult, String projectId) {
                     runOnUiThread(() -> {
+                        // Parse action result to get affected files
+                        List<JSONObject> affectedFiles = new ArrayList<>();
+                        try {
+                            JSONObject result = new JSONObject(actionResult);
+                            if (result.optBoolean("success", false)) {
+                                // Create affected file data from the action
+                                JSONObject affectedFile = new JSONObject();
+                                affectedFile.put("file_path", finalProposalData.optString("file_path", ""));
+                                affectedFile.put("action", finalProposalData.optString("action", "edit_file"));
+                                affectedFile.put("content", finalProposalData.optString("content", ""));
+                                affectedFiles.add(affectedFile);
+                            }
+                        } catch (Exception e) {
+                            Log.w(TAG, "Error parsing action result for affected files", e);
+                        }
+                        
                         // Show success message
                         ChatMessage successMessage = new ChatMessage(
                             UUID.randomUUID().toString(),
                             "✅ Fix applied successfully! The file has been updated. Please rebuild your project to see if the errors are resolved.",
-                            ChatMessage.TYPE_AI,
+                            ChatMessage.TYPE_AI_SUCCESS,
                             System.currentTimeMillis()
                         );
+                        
+                        // Store affected files for display
+                        if (!affectedFiles.isEmpty()) {
+                            try {
+                                JSONArray affectedFilesArray = new JSONArray();
+                                for (JSONObject file : affectedFiles) {
+                                    affectedFilesArray.put(file);
+                                }
+                                successMessage.setAffectedFiles(affectedFilesArray.toString());
+                            } catch (Exception e) {
+                                Log.w(TAG, "Error storing affected files", e);
+                            }
+                        }
+                        
                         messages.add(successMessage);
                         chatAdapter.notifyItemInserted(messages.size() - 1);
                         messageStorage.saveMessages(conversationId, messages);

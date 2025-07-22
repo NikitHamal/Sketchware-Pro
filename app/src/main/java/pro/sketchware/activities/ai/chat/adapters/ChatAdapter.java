@@ -54,6 +54,11 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
             android.view.View view = LayoutInflater.from(parent.getContext())
                     .inflate(R.layout.item_chat_proposal, parent, false);
             return new ProposalViewHolder(view);
+        } else if (viewType == ChatMessage.TYPE_AI_SUCCESS) {
+            // Use the same layout as proposal but configure differently
+            android.view.View view = LayoutInflater.from(parent.getContext())
+                    .inflate(R.layout.item_chat_proposal, parent, false);
+            return new SuccessViewHolder(view);
         } else {
             ItemChatMessageBinding binding = ItemChatMessageBinding.inflate(
                     LayoutInflater.from(parent.getContext()), parent, false);
@@ -218,14 +223,14 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
                     // Set up proposal action listener - bridge between FixProposalView and ChatAdapter listeners
                     fixProposalView.setOnProposalActionListener(new FixProposalView.OnProposalActionListener() {
                         @Override
-                        public void onAccept(org.json.JSONObject proposalData) {
+                        public void onAccept(java.util.List<org.json.JSONObject> proposalDataList) {
                             if (proposalActionListener != null) {
                                 proposalActionListener.onAcceptProposal(message);
                             }
                         }
 
                         @Override
-                        public void onDiscard(org.json.JSONObject proposalData) {
+                        public void onDiscard(java.util.List<org.json.JSONObject> proposalDataList) {
                             if (proposalActionListener != null) {
                                 proposalActionListener.onDiscardProposal(message);
                             }
@@ -237,6 +242,53 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
                     
                 } catch (org.json.JSONException e) {
                     Log.e(TAG, "Error parsing proposal data", e);
+                }
+            }
+        }
+    }
+
+    // Success ViewHolder for showing success messages with affected files
+    public class SuccessViewHolder extends BaseViewHolder {
+        private final android.view.View successView;
+        private final android.view.ViewGroup proposalContainer;
+
+        public SuccessViewHolder(android.view.View view) {
+            super(view);
+            this.successView = view;
+            this.proposalContainer = view.findViewById(R.id.proposalContainer);
+        }
+
+        @Override
+        public void bind(ChatMessage message) {
+            // Clear any existing views
+            proposalContainer.removeAllViews();
+
+            if (message.isSuccessMessage()) {
+                try {
+                    // Create and configure success view
+                    FixProposalView successProposalView = new FixProposalView(successView.getContext());
+                    
+                    // Parse affected files if available
+                    java.util.List<org.json.JSONObject> affectedFiles = new java.util.ArrayList<>();
+                    if (message.hasAffectedFiles()) {
+                        org.json.JSONArray filesArray = new org.json.JSONArray(message.getAffectedFiles());
+                        for (int i = 0; i < filesArray.length(); i++) {
+                            affectedFiles.add(filesArray.getJSONObject(i));
+                        }
+                    }
+                    
+                    // Show success state with affected files
+                    successProposalView.showSuccessState(message.getContent(), affectedFiles);
+                    
+                    // Add to container
+                    proposalContainer.addView(successProposalView);
+                    
+                } catch (org.json.JSONException e) {
+                    Log.e(TAG, "Error parsing affected files for success message", e);
+                    // Fallback: show success message without files
+                    FixProposalView successProposalView = new FixProposalView(successView.getContext());
+                    successProposalView.showSuccessState(message.getContent(), null);
+                    proposalContainer.addView(successProposalView);
                 }
             }
         }

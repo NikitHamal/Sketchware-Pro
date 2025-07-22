@@ -7,6 +7,7 @@ public class ChatMessage {
     public static final int TYPE_USER = 1;
     public static final int TYPE_AI = 2;
     public static final int TYPE_PROPOSAL = 3;
+    public static final int TYPE_AI_SUCCESS = 4;
 
     private String id;
     private String content;
@@ -20,6 +21,7 @@ public class ChatMessage {
     private String explanation;
     private List<AttachedFile> attachedFiles;
     private String thinkingContent;
+    private String affectedFiles;
 
     public ChatMessage() {
         this.attachedFiles = new ArrayList<>();
@@ -164,6 +166,22 @@ public class ChatMessage {
 
     public boolean hasThinkingContent() {
         return thinkingContent != null && !thinkingContent.trim().isEmpty();
+    }
+
+    public String getAffectedFiles() {
+        return affectedFiles;
+    }
+
+    public void setAffectedFiles(String affectedFiles) {
+        this.affectedFiles = affectedFiles;
+    }
+
+    public boolean hasAffectedFiles() {
+        return affectedFiles != null && !affectedFiles.trim().isEmpty();
+    }
+
+    public boolean isSuccessMessage() {
+        return type == TYPE_AI_SUCCESS;
     }
 
     public static class AttachedFile {

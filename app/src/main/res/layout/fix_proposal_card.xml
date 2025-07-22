@@ -4,9 +4,10 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     app:cardCornerRadius="12dp"
-    app:cardElevation="0dp"
+    app:cardElevation="2dp"
     app:strokeColor="?attr/colorOutline"
-    app:strokeWidth="1dp">
+    app:strokeWidth="1dp"
+    android:layout_marginVertical="8dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -14,33 +15,29 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- File Information -->
+        <!-- Header with proposal info -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="12dp"
-            android:background="?attr/colorSurfaceVariant"
-            android:padding="12dp"
-            android:layout_marginHorizontal="4dp">
+            android:layout_marginBottom="12dp">
 
             <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:src="@drawable/ic_file"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_mtrl_bulb"
                 android:layout_marginEnd="8dp"
-                android:tint="?attr/colorOnSurfaceVariant" />
+                android:tint="?attr/colorPrimary" />
 
             <TextView
-                android:id="@+id/filePathText"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="default.xml"
-                android:textSize="14sp"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:fontFamily="monospace" />
+                android:text="Proposed Fix"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface" />
 
         </LinearLayout>
 
@@ -51,40 +48,19 @@
             android:layout_height="wrap_content"
             android:text="Explanation text will appear here"
             android:textSize="14sp"
-            android:textColor="?attr/colorOnSurface"
+            android:textColor="?attr/colorOnSurfaceVariant"
             android:layout_marginBottom="16dp"
             android:lineSpacingExtra="2dp" />
 
-        <!-- Code Diff Preview -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/codeDiffCard"
+        <!-- Files Container -->
+        <LinearLayout
+            android:id="@+id/filesContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="8dp"
-            app:cardElevation="0dp"
-            app:strokeColor="?attr/colorOutline"
-            app:strokeWidth="1dp">
-
-            <ScrollView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:maxHeight="200dp">
-
-                <TextView
-                    android:id="@+id/codeDiffText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="12dp"
-                    android:text="Code preview will appear here"
-                    android:textSize="12sp"
-                    android:fontFamily="monospace"
-                    android:textColor="?attr/colorOnSurface"
-                    android:background="?attr/colorSurface" />
-
-            </ScrollView>
-
-        </com.google.android.material.card.MaterialCardView>
+            android:orientation="vertical"
+            android:layout_marginBottom="16dp">
+            <!-- File items will be added here dynamically -->
+        </LinearLayout>
 
         <!-- Action Buttons -->
         <LinearLayout

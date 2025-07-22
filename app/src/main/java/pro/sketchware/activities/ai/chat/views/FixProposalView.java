@@ -7,28 +7,29 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.card.MaterialCardView;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import pro.sketchware.R;
 
 public class FixProposalView extends LinearLayout {
     
-    private TextView filePathText;
     private TextView explanationText;
-    private TextView codeDiffText;
+    private LinearLayout filesContainer;
     private MaterialButton acceptButton;
     private MaterialButton discardButton;
-    private MaterialCardView codeDiffCard;
     
     private OnProposalActionListener listener;
-    private JSONObject proposalData;
+    private List<JSONObject> proposalDataList;
     
     public interface OnProposalActionListener {
-        void onAccept(JSONObject proposalData);
-        void onDiscard(JSONObject proposalData);
+        void onAccept(List<JSONObject> proposalDataList);
+        void onDiscard(List<JSONObject> proposalDataList);
     }
     
     public FixProposalView(Context context) {
@@ -49,54 +50,59 @@ public class FixProposalView extends LinearLayout {
     private void init() {
         LayoutInflater.from(getContext()).inflate(R.layout.fix_proposal_card, this, true);
         
-        filePathText = findViewById(R.id.filePathText);
         explanationText = findViewById(R.id.explanationText);
-        codeDiffText = findViewById(R.id.codeDiffText);
+        filesContainer = findViewById(R.id.filesContainer);
         acceptButton = findViewById(R.id.acceptButton);
         discardButton = findViewById(R.id.discardButton);
-        codeDiffCard = findViewById(R.id.codeDiffCard);
+        
+        proposalDataList = new ArrayList<>();
         
         acceptButton.setOnClickListener(v -> {
-            if (listener != null && proposalData != null) {
-                listener.onAccept(proposalData);
+            if (listener != null && proposalDataList != null && !proposalDataList.isEmpty()) {
+                listener.onAccept(proposalDataList);
             }
         });
         
         discardButton.setOnClickListener(v -> {
-            if (listener != null && proposalData != null) {
-                listener.onDiscard(proposalData);
+            if (listener != null && proposalDataList != null && !proposalDataList.isEmpty()) {
+                listener.onDiscard(proposalDataList);
             }
         });
     }
     
     public void setProposal(String explanation, JSONObject actionData) {
-        this.proposalData = actionData;
-        
         try {
             // Set explanation
             explanationText.setText(explanation);
             
-            // Extract and display file information
-            String filePath = actionData.optString("file_path", "");
-            String content = actionData.optString("content", "");
+            // Clear existing proposal data and views
+            proposalDataList.clear();
+            filesContainer.removeAllViews();
             
-            // Update file path
-            if (!filePath.isEmpty()) {
-                String fileName = filePath.substring(filePath.lastIndexOf("/") + 1);
-                filePathText.setText(fileName + "\n" + filePath);
-            }
-            
-            // Show code preview if available
-            if (!content.isEmpty()) {
-                codeDiffText.setText(content);
-                codeDiffCard.setVisibility(VISIBLE);
+            // Handle single action or multiple actions
+            if (actionData.has("actions")) {
+                // Multiple actions case
+                JSONArray actions = actionData.getJSONArray("actions");
+                for (int i = 0; i < actions.length(); i++) {
+                    JSONObject action = actions.getJSONObject(i);
+                    proposalDataList.add(action);
+                    addFileChangeView(action);
+                }
             } else {
-                codeDiffCard.setVisibility(GONE);
+                // Single action case
+                proposalDataList.add(actionData);
+                addFileChangeView(actionData);
             }
             
         } catch (Exception e) {
             explanationText.setText("Error parsing proposal: " + e.getMessage());
         }
+    }
+    
+    private void addFileChangeView(JSONObject fileData) {
+        FileChangeView fileChangeView = new FileChangeView(getContext());
+        fileChangeView.setFileData(fileData);
+        filesContainer.addView(fileChangeView);
     }
     
     public void setOnProposalActionListener(OnProposalActionListener listener) {
@@ -107,9 +113,20 @@ public class FixProposalView extends LinearLayout {
         setVisibility(GONE);
     }
     
-    public void showSuccessState(String message) {
+    public void showSuccessState(String message, List<JSONObject> affectedFiles) {
         explanationText.setText(message);
         acceptButton.setVisibility(GONE);
         discardButton.setText("Close");
+        
+        // Clear and show affected files in collapsed state
+        if (affectedFiles != null && !affectedFiles.isEmpty()) {
+            filesContainer.removeAllViews();
+            for (JSONObject fileData : affectedFiles) {
+                FileChangeView fileChangeView = new FileChangeView(getContext());
+                fileChangeView.setFileData(fileData);
+                fileChangeView.setExpanded(false); // Start collapsed
+                filesContainer.addView(fileChangeView);
+            }
+        }
     }
 }

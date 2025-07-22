@@ -30,6 +30,7 @@ public class FixFileErrorAction implements AgenticAction {
             String explanation = (String) parameters.get("explanation");
             
             Log.d(TAG, "Extracted - action: " + action + ", filePath: " + filePath + ", content length: " + (content != null ? content.length() : "null"));
+            Log.d(TAG, "Content preview (first 200 chars): " + (content != null && content.length() > 0 ? content.substring(0, Math.min(200, content.length())) : "null/empty"));
             
             if (action == null || filePath == null) {
                 Log.e(TAG, "Missing required parameters - action: " + action + ", filePath: " + filePath);
@@ -175,13 +176,18 @@ public class FixFileErrorAction implements AgenticAction {
             }
             
             // Write new content
+            Log.d(TAG, "About to write content to file: " + file.getAbsolutePath());
+            Log.d(TAG, "Content length: " + (content != null ? content.length() : "null"));
             try (FileWriter writer = new FileWriter(file, false)) { // false = overwrite
                 if (content != null) {
                     writer.write(content);
+                    Log.d(TAG, "Content written successfully");
                 } else {
                     writer.write("");
+                    Log.d(TAG, "Empty content written");
                 }
                 writer.flush(); // Ensure content is written to disk
+                Log.d(TAG, "File writer flushed");
             }
             
             // Force sync to ensure file is written to storage
