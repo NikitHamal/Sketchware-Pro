@@ -1,9 +1,11 @@
 package pro.sketchware.activities.ai.chat;
 
 import android.content.Context;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.OpenableColumns;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
 
@@ -189,9 +191,9 @@ public class FileUploadManager {
     private String getFileName(Uri uri) {
         String fileName = "file_" + System.currentTimeMillis();
         try {
-            android.database.Cursor cursor = context.getContentResolver().query(uri, null, null, null, null);
+            Cursor cursor = context.getContentResolver().query(uri, null, null, null, null);
             if (cursor != null && cursor.moveToFirst()) {
-                int nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
                 if (nameIndex >= 0) {
                     fileName = cursor.getString(nameIndex);
                 }
@@ -214,9 +216,9 @@ public class FileUploadManager {
     
     private long getFileSize(Uri uri) {
         try {
-            android.database.Cursor cursor = context.getContentResolver().query(uri, null, null, null, null);
+            Cursor cursor = context.getContentResolver().query(uri, null, null, null, null);
             if (cursor != null && cursor.moveToFirst()) {
-                int sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE);
+                int sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE);
                 if (sizeIndex >= 0) {
                     long size = cursor.getLong(sizeIndex);
                     cursor.close();
