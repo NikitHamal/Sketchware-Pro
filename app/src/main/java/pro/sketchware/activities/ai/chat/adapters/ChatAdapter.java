@@ -161,10 +161,10 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
                 
                 // Handle thinking content
                 if (message.hasThinkingContent()) {
-                    binding.thinkingContentLayout.setVisibility(android.view.View.VISIBLE);
-                    setupThinkingContent(binding.thinkingContentLayout, message.getThinkingContent());
+                    binding.thinkingContentLayout.getRoot().setVisibility(android.view.View.VISIBLE);
+                    setupThinkingContent(binding.thinkingContentLayout.getRoot(), message.getThinkingContent());
                 } else {
-                    binding.thinkingContentLayout.setVisibility(android.view.View.GONE);
+                    binding.thinkingContentLayout.getRoot().setVisibility(android.view.View.GONE);
                 }
                 
                 // Use Markwon to render markdown in AI messages
