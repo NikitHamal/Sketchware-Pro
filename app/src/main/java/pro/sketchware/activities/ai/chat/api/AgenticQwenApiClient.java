@@ -420,8 +420,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                         
                                     // Check if finished
                                     if (delta.has("status") && "finished".equals(delta.getString("status"))) {
-                                            break;
-                                        }
+                                        break;
                                     }
                                 }
                             }
