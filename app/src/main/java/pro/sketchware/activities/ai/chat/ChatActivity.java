@@ -585,10 +585,19 @@ public class ChatActivity extends AppCompatActivity {
 
     private void handleProposalAccepted(ChatMessage message) {
         try {
-            JSONObject actionData = new JSONObject(message.getProposalData());
+            JSONObject proposalData = new JSONObject(message.getProposalData());
+            Log.d("ChatActivity", "Proposal data: " + proposalData.toString());
+            
+            // Extract the action and parameters from the proposal
+            String actionName = proposalData.getString("action");
+            JSONObject parameters = proposalData.getJSONObject("parameters");
+            
+            Log.d("ChatActivity", "Action name: " + actionName);
+            Log.d("ChatActivity", "Parameters: " + parameters.toString());
+            
             JSONObject actionJson = new JSONObject();
-            actionJson.put("action", "fix_file_error");
-            actionJson.put("parameters", actionData);
+            actionJson.put("action", actionName);
+            actionJson.put("parameters", parameters);
             
             // Hide the proposal by changing its type to AI message
             message.setType(ChatMessage.TYPE_AI);
@@ -657,6 +666,16 @@ public class ChatActivity extends AppCompatActivity {
             
         } catch (JSONException e) {
             Log.e(TAG, "Error creating action JSON", e);
+            // Show error message to user
+            ChatMessage errorMessage = new ChatMessage(
+                UUID.randomUUID().toString(),
+                "❌ Error processing proposal: " + e.getMessage(),
+                ChatMessage.TYPE_AI,
+                System.currentTimeMillis()
+            );
+            messages.add(errorMessage);
+            chatAdapter.notifyItemInserted(messages.size() - 1);
+            messageStorage.saveMessages(conversationId, messages);
         }
     }
 

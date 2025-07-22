@@ -21,21 +21,29 @@ public class FixFileErrorAction implements AgenticAction {
     @Override
     public String execute(Map<String, Object> parameters, String projectId, Context context) {
         try {
+            Log.d(TAG, "FixFileErrorAction.execute called with parameters: " + parameters.toString());
+            Log.d(TAG, "ProjectId: " + projectId);
+            
             String action = (String) parameters.get("action");
             String filePath = (String) parameters.get("file_path");
             String content = (String) parameters.get("content");
             String explanation = (String) parameters.get("explanation");
             
+            Log.d(TAG, "Extracted - action: " + action + ", filePath: " + filePath + ", content length: " + (content != null ? content.length() : "null"));
+            
             if (action == null || filePath == null) {
+                Log.e(TAG, "Missing required parameters - action: " + action + ", filePath: " + filePath);
                 return createErrorResult("Missing required parameters: action or file_path");
             }
             
             // Validate file path is within project
             if (!isValidProjectPath(filePath, projectId)) {
+                Log.e(TAG, "Invalid project path: " + filePath + " for project: " + projectId);
                 return createErrorResult("File path is not within the project directory");
             }
             
             File file = new File(filePath);
+            Log.d(TAG, "Working with file: " + file.getAbsolutePath());
             
             switch (action.toLowerCase()) {
                 case "create_file":
@@ -61,17 +69,29 @@ public class FixFileErrorAction implements AgenticAction {
     }
     
     private boolean isValidProjectPath(String filePath, String projectId) {
-        if (filePath == null) return false;
+        if (filePath == null) {
+            Log.d(TAG, "Path validation failed: filePath is null");
+            return false;
+        }
+        
+        Log.d(TAG, "Validating path: " + filePath + " for project: " + projectId);
         
         // More lenient path validation - allow any path that looks like a project file
-        return filePath.contains("/storage/emulated/") || 
+        boolean isValid = filePath.contains("/storage/emulated/") || 
                filePath.contains("/.sketchware/") ||
                filePath.contains("/data/") ||
                filePath.contains("/files/") ||
                filePath.contains("/drawable/") ||
                filePath.contains("/layout/") ||
                filePath.contains("/values/") ||
-               filePath.contains("/res/");
+               filePath.contains("/res/") ||
+               filePath.contains("/java/") ||
+               filePath.contains("/main/") ||
+               filePath.contains("/app/") ||
+               filePath.startsWith("/");  // Allow absolute paths
+        
+        Log.d(TAG, "Path validation result: " + isValid);
+        return isValid;
     }
     
     private String createFile(File file, String content, String explanation) {

@@ -489,10 +489,14 @@ public class AgenticQwenApiClient extends QwenApiClient {
     public void executeApprovedAction(String conversationId, JSONObject actionData, AgenticChatCallback callback) {
         executor.execute(() -> {
             try {
+                Log.d(TAG, "executeApprovedAction called with: " + actionData.toString());
                 ConversationContext context = contextStorage.loadContext(conversationId);
                 
                 String actionName = actionData.getString("action");
                 JSONObject parameters = actionData.getJSONObject("parameters");
+                
+                Log.d(TAG, "Action name: " + actionName);
+                Log.d(TAG, "Parameters: " + parameters.toString());
                 
                 Map<String, Object> paramMap = new HashMap<>();
                 parameters.keys().forEachRemaining(key -> {
@@ -504,7 +508,9 @@ public class AgenticQwenApiClient extends QwenApiClient {
                 });
                 
                 // Execute the approved action
+                Log.d(TAG, "About to execute action: " + actionName + " with paramMap: " + paramMap);
                 String result = contextBuilder.executeAction(actionName, paramMap, context.getCurrentProjectId());
+                Log.d(TAG, "Action execution result: " + result);
                 
                 // Update context
                 context.addExecutedAction(actionName);
