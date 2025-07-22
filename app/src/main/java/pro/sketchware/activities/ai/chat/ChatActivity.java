@@ -87,6 +87,8 @@ public class ChatActivity extends AppCompatActivity {
         conversationStorage = new ConversationStorage(this);
         messageStorage = new MessageStorage(this);
         fileUploadManager = new FileUploadManager(this);
+        // Set auth token for file uploads - this should come from your authentication system
+        fileUploadManager.setAuthToken("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU0MTY4MjJ9.jmyaxu5mrr1M1rvtRtpGi2DKyp6RM8xRZ1nEx-rHRgQ");
         
         setupFilePickerLauncher();
         setupToolbar();
@@ -355,7 +357,30 @@ public class ChatActivity extends AppCompatActivity {
                     if (!messages.isEmpty()) {
                         ChatMessage lastMessage = messages.get(messages.size() - 1);
                         if (lastMessage.getType() == ChatMessage.TYPE_AI) {
-                            lastMessage.setContent(response);
+                            String content = response;
+                            String thinkingContent = null;
+                            
+                            // Try to parse as JSON response with thinking content
+                            try {
+                                JSONObject responseObj = new JSONObject(response);
+                                if (responseObj.has("content")) {
+                                    content = responseObj.getString("content");
+                                }
+                                if (responseObj.has("thinking_content")) {
+                                    thinkingContent = responseObj.getString("thinking_content");
+                                }
+                            } catch (JSONException e) {
+                                // If it's not JSON, use the response as-is
+                                content = response;
+                            }
+                            
+                            lastMessage.setContent(content);
+                            
+                            // Set thinking content if available
+                            if (thinkingContent != null && !thinkingContent.trim().isEmpty()) {
+                                lastMessage.setThinkingContent(thinkingContent);
+                            }
+                            
                             chatAdapter.notifyItemChanged(messages.size() - 1);
                             
                             // Save final AI message
@@ -588,16 +613,13 @@ public class ChatActivity extends AppCompatActivity {
             JSONObject proposalData = new JSONObject(message.getProposalData());
             Log.d("ChatActivity", "Proposal data: " + proposalData.toString());
             
-            // Extract the action and parameters from the proposal
-            String actionName = proposalData.getString("action");
-            JSONObject parameters = proposalData.getJSONObject("parameters");
-            
-            Log.d("ChatActivity", "Action name: " + actionName);
-            Log.d("ChatActivity", "Parameters: " + parameters.toString());
-            
+            // The proposal data is actually just the parameters, not the full action structure
+            // We need to recreate the action structure for execution
             JSONObject actionJson = new JSONObject();
-            actionJson.put("action", actionName);
-            actionJson.put("parameters", parameters);
+            actionJson.put("action", "fix_file_error");
+            actionJson.put("parameters", proposalData);
+            
+            Log.d("ChatActivity", "Reconstructed action: " + actionJson.toString());
             
             // Hide the proposal by changing its type to AI message
             message.setType(ChatMessage.TYPE_AI);

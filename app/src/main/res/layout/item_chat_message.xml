@@ -60,6 +60,14 @@
         android:visibility="gone"
         tools:visibility="visible">
 
+        <!-- Thinking Content Container -->
+        <include
+            android:id="@+id/thinking_content_layout"
+            layout="@layout/item_thinking_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/ai_message"
             android:layout_width="match_parent"

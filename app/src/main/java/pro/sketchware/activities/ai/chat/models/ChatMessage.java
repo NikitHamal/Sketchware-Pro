@@ -19,6 +19,7 @@ public class ChatMessage {
     private String proposalData;
     private String explanation;
     private List<AttachedFile> attachedFiles;
+    private String thinkingContent;
 
     public ChatMessage() {
         this.attachedFiles = new ArrayList<>();
@@ -151,6 +152,18 @@ public class ChatMessage {
 
     public boolean hasAttachedFiles() {
         return attachedFiles != null && !attachedFiles.isEmpty();
+    }
+
+    public String getThinkingContent() {
+        return thinkingContent;
+    }
+
+    public void setThinkingContent(String thinkingContent) {
+        this.thinkingContent = thinkingContent;
+    }
+
+    public boolean hasThinkingContent() {
+        return thinkingContent != null && !thinkingContent.trim().isEmpty();
     }
 
     public static class AttachedFile {

@@ -81,6 +81,31 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
             }
         }
     }
+    
+    private void setupThinkingContent(android.view.View thinkingLayout, String thinkingContent) {
+        android.widget.TextView contentView = thinkingLayout.findViewById(R.id.thinking_content);
+        android.widget.TextView statusView = thinkingLayout.findViewById(R.id.thinking_status);
+        android.widget.LinearLayout headerView = thinkingLayout.findViewById(R.id.thinking_header);
+        android.widget.LinearLayout contentContainer = thinkingLayout.findViewById(R.id.thinking_content_container);
+        android.widget.ImageView expandIcon = thinkingLayout.findViewById(R.id.thinking_expand_icon);
+        
+        // Set thinking content
+        contentView.setText(thinkingContent);
+        statusView.setText("Thoughts");
+        
+        // Set up toggle functionality
+        headerView.setOnClickListener(v -> {
+            boolean isVisible = contentContainer.getVisibility() == android.view.View.VISIBLE;
+            contentContainer.setVisibility(isVisible ? android.view.View.GONE : android.view.View.VISIBLE);
+            
+            // Rotate arrow icon
+            expandIcon.setRotation(isVisible ? 0f : 180f);
+        });
+        
+        // Initially collapsed
+        contentContainer.setVisibility(android.view.View.GONE);
+        expandIcon.setRotation(0f);
+    }
 
     // Abstract base class for all view holders
     public abstract class BaseViewHolder extends RecyclerView.ViewHolder {
@@ -133,6 +158,14 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
             } else {
                 binding.userMessageLayout.setVisibility(android.view.View.GONE);
                 binding.aiMessageLayout.setVisibility(android.view.View.VISIBLE);
+                
+                // Handle thinking content
+                if (message.hasThinkingContent()) {
+                    binding.thinkingContentLayout.setVisibility(android.view.View.VISIBLE);
+                    setupThinkingContent(binding.thinkingContentLayout, message.getThinkingContent());
+                } else {
+                    binding.thinkingContentLayout.setVisibility(android.view.View.GONE);
+                }
                 
                 // Use Markwon to render markdown in AI messages
                 markwon.setMarkdown(binding.aiMessage, message.getContent());

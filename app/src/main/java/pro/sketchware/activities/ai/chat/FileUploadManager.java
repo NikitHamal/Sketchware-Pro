@@ -35,6 +35,7 @@ public class FileUploadManager {
     private final Context context;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private String authToken;
     
     public interface FileUploadCallback {
         void onUploadStart(String fileName);
@@ -45,6 +46,10 @@ public class FileUploadManager {
     
     public FileUploadManager(Context context) {
         this.context = context;
+    }
+    
+    public void setAuthToken(String authToken) {
+        this.authToken = authToken;
     }
     
     public void uploadFile(Uri fileUri, FileUploadCallback callback) {
@@ -185,7 +190,10 @@ public class FileUploadManager {
     }
     
     private String getAuthToken() {
-        // This should return the actual auth token - for now using placeholder
+        if (authToken != null && !authToken.isEmpty()) {
+            return authToken;
+        }
+        // Fallback token - this should be set properly via setAuthToken()
         return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU0MTY4MjJ9.jmyaxu5mrr1M1rvtRtpGi2DKyp6RM8xRZ1nEx-rHRgQ";
     }
     

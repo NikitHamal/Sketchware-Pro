@@ -363,6 +363,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
 
     private String readStreamingResponseInternal(InputStream inputStream, ConversationContext context) throws IOException {
         StringBuilder fullResponse = new StringBuilder();
+        StringBuilder thinkingContent = new StringBuilder();
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
         String line;
         
@@ -390,14 +391,35 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                 JSONObject choice = choices.getJSONObject(0);
                                 if (choice.has("delta")) {
                                     JSONObject delta = choice.getJSONObject("delta");
-                                    if (delta.has("content")) {
+                                    
+                                    // Handle different phases (web_search, answer, etc.)
+                                    String phase = delta.optString("phase", "answer");
+                                    String role = delta.optString("role", "assistant");
+                                    
+                                    // Handle thinking content
+                                    if ("thinking".equals(phase) && delta.has("content")) {
+                                        String content = delta.getString("content");
+                                        if (!content.isEmpty()) {
+                                            thinkingContent.append(content);
+                                        }
+                                    }
+                                    
+                                    // Only append content from answer phase with assistant role
+                                    if ("answer".equals(phase) && "assistant".equals(role) && delta.has("content")) {
                                         String content = delta.getString("content");
                                         if (!content.isEmpty()) {
                                             fullResponse.append(content);
                                         }
+                                    }
+                                    
+                                    // Handle web search phase display
+                                    if ("web_search".equals(phase) && "function".equals(role)) {
+                                        // You could show web search status here if needed
+                                        Log.d(TAG, "Web search in progress...");
+                                    }
                                         
-                                        // Check if finished
-                                        if (delta.has("status") && "finished".equals(delta.getString("status"))) {
+                                    // Check if finished
+                                    if (delta.has("status") && "finished".equals(delta.getString("status"))) {
                                             break;
                                         }
                                     }
@@ -411,7 +433,18 @@ public class AgenticQwenApiClient extends QwenApiClient {
             }
         }
         
-        return fullResponse.toString().trim();
+        // Create response object that includes both content and thinking
+        try {
+            JSONObject responseObj = new JSONObject();
+            responseObj.put("content", fullResponse.toString().trim());
+            if (thinkingContent.length() > 0) {
+                responseObj.put("thinking_content", thinkingContent.toString().trim());
+            }
+            return responseObj.toString();
+        } catch (Exception e) {
+            Log.e(TAG, "Error creating response object", e);
+            return fullResponse.toString().trim();
+        }
     }
 
     private void executeAction(JSONObject actionJson, ConversationContext context, AgenticChatCallback callback) {
