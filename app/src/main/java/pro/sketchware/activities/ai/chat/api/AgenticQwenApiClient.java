@@ -432,17 +432,34 @@ public class AgenticQwenApiClient extends QwenApiClient {
             }
         }
         
-        // Create response object that includes both content and thinking
+        String responseText = fullResponse.toString().trim();
+        
+        // Check if the response is an action - if so, return it directly without wrapping
         try {
-            JSONObject responseObj = new JSONObject();
-            responseObj.put("content", fullResponse.toString().trim());
-            if (thinkingContent.length() > 0) {
-                responseObj.put("thinking_content", thinkingContent.toString().trim());
+            JSONObject possibleAction = new JSONObject(responseText);
+            if (possibleAction.has("response_type") && "action".equals(possibleAction.getString("response_type"))) {
+                Log.d(TAG, "Detected action in response, returning as-is: " + possibleAction.toString());
+                // Return the action as-is so the upper level can detect and process it
+                return responseText;
             }
-            return responseObj.toString();
-        } catch (Exception e) {
-            Log.e(TAG, "Error creating response object", e);
-            return fullResponse.toString().trim();
+        } catch (JSONException e) {
+            // Not a JSON action, continue with normal response processing
+        }
+        
+        // For regular responses, only wrap in content/thinking structure if there's thinking content
+        if (thinkingContent.length() > 0) {
+            try {
+                JSONObject responseObj = new JSONObject();
+                responseObj.put("content", responseText);
+                responseObj.put("thinking_content", thinkingContent.toString().trim());
+                return responseObj.toString();
+            } catch (Exception e) {
+                Log.e(TAG, "Error creating response object", e);
+                return responseText;
+            }
+        } else {
+            // No thinking content, return response directly
+            return responseText;
         }
     }
 
