@@ -19,7 +19,7 @@ import pro.sketchware.activities.ai.chat.views.ProjectItemView;
 import pro.sketchware.activities.ai.chat.views.FixProposalView;
 import pro.sketchware.databinding.ItemChatMessageBinding;
 
-public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageViewHolder> {
+public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder> {
     private static final String TAG = "ChatAdapter";
     private List<ChatMessage> messages;
     private SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
@@ -47,7 +47,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageVie
 
     @NonNull
     @Override
-    public ChatMessageViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+    public BaseViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         if (viewType == ChatMessage.TYPE_PROPOSAL) {
             // Inflate the proposal layout directly
             android.view.View view = LayoutInflater.from(parent.getContext())
@@ -61,13 +61,9 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageVie
     }
 
     @Override
-    public void onBindViewHolder(@NonNull ChatMessageViewHolder holder, int position) {
+    public void onBindViewHolder(@NonNull BaseViewHolder holder, int position) {
         ChatMessage message = messages.get(position);
-        if (holder instanceof ProposalViewHolder) {
-            ((ProposalViewHolder) holder).bind(message);
-        } else {
-            holder.bind(message);
-        }
+        holder.bind(message);
     }
 
     @Override
@@ -85,7 +81,16 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageVie
         }
     }
 
-    public class ChatMessageViewHolder extends RecyclerView.ViewHolder {
+    // Abstract base class for all view holders
+    public abstract class BaseViewHolder extends RecyclerView.ViewHolder {
+        public BaseViewHolder(@NonNull android.view.View itemView) {
+            super(itemView);
+        }
+        
+        public abstract void bind(ChatMessage message);
+    }
+
+    public class ChatMessageViewHolder extends BaseViewHolder {
         private ItemChatMessageBinding binding;
 
         public ChatMessageViewHolder(ItemChatMessageBinding binding) {
@@ -93,6 +98,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageVie
             this.binding = binding;
         }
 
+        @Override
         public void bind(ChatMessage message) {
             if (message.isUserMessage()) {
                 binding.userMessageLayout.setVisibility(android.view.View.VISIBLE);
@@ -129,7 +135,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageVie
         }
     }
 
-    public class ProposalViewHolder extends RecyclerView.ViewHolder {
+    public class ProposalViewHolder extends BaseViewHolder {
         private android.view.View proposalView;
         private android.widget.TextView tvTime;
         private android.widget.FrameLayout proposalContainer;
