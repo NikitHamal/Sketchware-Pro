@@ -41,7 +41,7 @@ import org.json.JSONObject;
 import a.a.a.lC;
 import a.a.a.yB;
 import pro.sketchware.activities.ai.chat.FileUploadManager;
-import pro.sketchware.activities.ai.chat.utils.ChatLogger;
+
 import pro.sketchware.activities.ai.chat.views.FixProposalView;
 import pro.sketchware.activities.ai.chat.views.ProjectItemView;
 
@@ -63,7 +63,6 @@ public class ChatActivity extends AppCompatActivity {
     private boolean thinkingEnabled = false;
     private boolean webSearchEnabled = false;
     private ActivityResultLauncher<Intent> filePickerLauncher;
-    private ChatLogger chatLogger;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,9 +90,6 @@ public class ChatActivity extends AppCompatActivity {
         fileUploadManager = new FileUploadManager(this);
         // Set auth token for file uploads - this should come from your authentication system
         fileUploadManager.setAuthToken("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU0MTY4MjJ9.jmyaxu5mrr1M1rvtRtpGi2DKyp6RM8xRZ1nEx-rHRgQ");
-        
-        // Initialize ChatLogger
-        chatLogger = ChatLogger.getInstance();
         
         setupFilePickerLauncher();
         setupToolbar();
@@ -465,22 +461,16 @@ public class ChatActivity extends AppCompatActivity {
 
             @Override
             public void onFixProposal(String explanation, String actionJson, String projectId) {
-                chatLogger.logMessage(conversationId, "onFixProposal", "CALLED - Explanation: " + explanation);
-                chatLogger.logMessage(conversationId, "onFixProposal", "ActionJson: " + actionJson);
-                chatLogger.logMessage(conversationId, "onFixProposal", "ProjectId: " + projectId);
+
                 
                 runOnUiThread(() -> {
-                    chatLogger.logMessage(conversationId, "onFixProposal", "UI Thread started");
                     hideTypingIndicator();
                     
                     try {
                         JSONObject actionData = new JSONObject(actionJson);
                         JSONObject parameters = actionData.getJSONObject("parameters");
                         
-                        chatLogger.logMessage(conversationId, "onFixProposal", "Parsed parameters: " + parameters.toString());
-                        
                         // Create and show fix proposal view
-                        chatLogger.logMessage(conversationId, "onFixProposal", "Calling showFixProposal");
                         showFixProposal(explanation, parameters, projectId);
                         
                     } catch (JSONException e) {
@@ -576,9 +566,6 @@ public class ChatActivity extends AppCompatActivity {
       }
 
     private void showFixProposal(String explanation, JSONObject actionData, String projectId) {
-        chatLogger.logMessage(conversationId, "showFixProposal", "CALLED - Explanation: " + explanation);
-        chatLogger.logMessage(conversationId, "showFixProposal", "ActionData: " + actionData.toString());
-        chatLogger.logMessage(conversationId, "showFixProposal", "ProjectId: " + projectId);
         
         // Create proposal message with proper type
         ChatMessage proposalMessage = new ChatMessage(

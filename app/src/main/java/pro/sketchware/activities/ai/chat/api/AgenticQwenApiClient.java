@@ -138,51 +138,34 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                      thinkingEnabled, webSearchEnabled, new AgenticChatCallback() {
                     @Override
                     public void onResponse(String response) {
-                        Log.d(TAG, "=== RESPONSE RECEIVED ===");
-                        Log.d(TAG, "Response content: " + response);
-                        Log.d(TAG, "Response length: " + response.length());
-                        
                         // Check if response contains action(s)
                         String trimmedResponse = response.trim();
-                        Log.d(TAG, "Trimmed response: " + trimmedResponse);
                         
                         // Handle multiple JSON objects in response
                         if (trimmedResponse.startsWith("{") && trimmedResponse.contains("\"response_type\"")) {
-                            Log.d(TAG, "Response looks like JSON action(s)");
-                            
                             // Split multiple JSON objects if they exist
                             String[] jsonParts = trimmedResponse.split("(?<=})\\s*(?=\\{)");
-                            Log.d(TAG, "Found " + jsonParts.length + " JSON parts");
                             
                             boolean actionProcessed = false;
                             
                             for (String jsonPart : jsonParts) {
                                 try {
                                     JSONObject responseJson = new JSONObject(jsonPart.trim());
-                                    Log.d(TAG, "Successfully parsed JSON part: " + jsonPart);
-                                    
                                     String responseType = responseJson.optString("response_type");
-                                    Log.d(TAG, "Response type: '" + responseType + "'");
                                     
                                     if ("action".equals(responseType)) {
-                                        Log.d(TAG, "=== ACTION DETECTED ===");
-                                        
                                         if (!actionProcessed) {
                                             // First show the explanation to the user (only once)
                                             String explanation = responseJson.optString("explanation", "I'm working on that for you...");
-                                            Log.d(TAG, "Explanation: " + explanation);
                                             mainHandler.post(() -> callback.onResponse(explanation));
                                             actionProcessed = true;
                                         }
                                         
                                         // Execute each action
-                                        Log.d(TAG, "Executing action with JSON: " + responseJson.toString());
                                         executeAction(responseJson, context, callback);
-                                    } else {
-                                        Log.d(TAG, "Not an action response, response_type is: " + responseType);
                                     }
                                 } catch (JSONException e) {
-                                    Log.e(TAG, "JSON parsing failed for part: " + jsonPart, e);
+                                    // JSON parsing failed, treat as regular response
                                 }
                             }
                             
@@ -192,7 +175,6 @@ public class AgenticQwenApiClient extends QwenApiClient {
                         }
                         
                         // Regular response - only call this if no action was executed
-                        Log.d(TAG, "Sending regular response to callback");
                         mainHandler.post(() -> callback.onResponse(response));
                     }
 
@@ -417,6 +399,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
     private String readStreamingResponseInternal(InputStream inputStream, ConversationContext context) throws IOException {
         StringBuilder fullResponse = new StringBuilder();
         StringBuilder thinkingContent = new StringBuilder();
+        StringBuilder debugInfo = new StringBuilder();
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
         String line;
         
@@ -449,6 +432,9 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                     String phase = delta.optString("phase", "answer");
                                     String role = delta.optString("role", "assistant");
                                     
+                                    // Collect debug info
+                                    debugInfo.append("[").append(phase).append(":").append(role).append("] ");
+                                    
                                     // Handle thinking content
                                     if ("thinking".equals(phase) && delta.has("content")) {
                                         String content = delta.getString("content");
@@ -457,8 +443,8 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                         }
                                     }
                                     
-                                    // Only append content from answer phase with assistant role
-                                    if ("answer".equals(phase) && "assistant".equals(role) && delta.has("content")) {
+                                    // Append content from assistant role (any phase except thinking)
+                                    if ("assistant".equals(role) && delta.has("content") && !"thinking".equals(phase)) {
                                         String content = delta.getString("content");
                                         if (!content.isEmpty()) {
                                             fullResponse.append(content);
@@ -491,12 +477,20 @@ public class AgenticQwenApiClient extends QwenApiClient {
         try {
             JSONObject possibleAction = new JSONObject(responseText);
             if (possibleAction.has("response_type") && "action".equals(possibleAction.getString("response_type"))) {
-                Log.d(TAG, "Detected action in response, returning as-is: " + possibleAction.toString());
                 // Return the action as-is so the upper level can detect and process it
                 return responseText;
             }
         } catch (JSONException e) {
             // Not a JSON action, continue with normal response processing
+        }
+        
+        // If response is empty, return a debug message to help identify the issue
+        if (responseText.isEmpty() && thinkingContent.length() == 0) {
+            String debugMessage = "🔍 DEBUG: No content received. Phases/Roles seen: " + debugInfo.toString().trim();
+            if (debugMessage.length() > 200) {
+                debugMessage = debugMessage.substring(0, 200) + "...";
+            }
+            return debugMessage;
         }
         
         // For regular responses, only wrap in content/thinking structure if there's thinking content
@@ -557,7 +551,6 @@ public class AgenticQwenApiClient extends QwenApiClient {
                     Log.d(TAG, "Calling onFixProposal with explanation: " + explanation);
                     
                     mainHandler.post(() -> {
-                        Log.d(TAG, "=== CALLING onFixProposal ===");
                         callback.onFixProposal(explanation, proposalJson.toString(), context.getCurrentProjectId());
                     });
                 } catch (JSONException e) {
