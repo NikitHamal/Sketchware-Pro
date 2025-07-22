@@ -14,6 +14,7 @@ import a.a.a.lC;
 import a.a.a.yB;
 import pro.sketchware.activities.ai.chat.actions.CreateProjectAction;
 import pro.sketchware.activities.ai.chat.actions.FixFileErrorAction;
+import pro.sketchware.activities.ai.chat.actions.UniversalActionManager;
 import pro.sketchware.activities.ai.chat.models.AgenticAction;
 import pro.sketchware.activities.ai.chat.models.ConversationContext;
 
@@ -21,10 +22,12 @@ public class ContextBuilder {
     private static final String TAG = "ContextBuilder";
     private final Context context;
     private final Map<String, AgenticAction> availableActions;
+    private final UniversalActionManager universalActionManager;
 
     public ContextBuilder(Context context) {
         this.context = context;
         this.availableActions = new HashMap<>();
+        this.universalActionManager = new UniversalActionManager(context);
         registerActions();
     }
 
@@ -124,10 +127,17 @@ public class ContextBuilder {
     }
 
     public String executeAction(String actionName, Map<String, Object> parameters, String projectId) {
+        // First try universal actions
+        if (universalActionManager.hasAction(actionName)) {
+            return universalActionManager.executeAction(actionName, parameters, projectId);
+        }
+        
+        // Fallback to legacy actions
         AgenticAction action = availableActions.get(actionName);
         if (action != null && action.canExecute(projectId, context)) {
             return action.execute(parameters, projectId, context);
         }
+        
         return "Error: Action '" + actionName + "' not found or cannot be executed";
     }
 

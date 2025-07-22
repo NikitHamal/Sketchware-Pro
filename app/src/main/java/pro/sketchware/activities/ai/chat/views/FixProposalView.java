@@ -116,16 +116,18 @@ public class FixProposalView extends LinearLayout {
     public void showSuccessState(String message, List<JSONObject> affectedFiles) {
         explanationText.setText(message);
         acceptButton.setVisibility(GONE);
-        discardButton.setText("Close");
+        discardButton.setVisibility(GONE);
         
-        // Clear and show affected files in collapsed state
+        // Always show affected files in collapsed state - don't clear existing files
         if (affectedFiles != null && !affectedFiles.isEmpty()) {
-            filesContainer.removeAllViews();
-            for (JSONObject fileData : affectedFiles) {
-                FileChangeView fileChangeView = new FileChangeView(getContext());
-                fileChangeView.setFileData(fileData);
-                fileChangeView.setExpanded(false); // Start collapsed
-                filesContainer.addView(fileChangeView);
+            // Only add files if container is empty (avoid duplicates)
+            if (filesContainer.getChildCount() == 0) {
+                for (JSONObject fileData : affectedFiles) {
+                    FileChangeView fileChangeView = new FileChangeView(getContext());
+                    fileChangeView.setFileData(fileData);
+                    fileChangeView.setExpanded(false); // Start collapsed
+                    filesContainer.addView(fileChangeView);
+                }
             }
         }
     }

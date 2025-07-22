@@ -2,6 +2,7 @@ package pro.sketchware.activities.ai.chat.views;
 
 import android.animation.ObjectAnimator;
 import android.content.Context;
+import android.graphics.Color;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.BackgroundColorSpan;
@@ -9,14 +10,12 @@ import android.text.style.ForegroundColorSpan;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.core.content.ContextCompat;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import pro.sketchware.R;
@@ -84,9 +83,9 @@ public class FileChangeView extends LinearLayout {
             DiffInfo diffInfo = calculateDiffInfo(content, action);
             updateDiffIndicators(diffInfo);
             
-            // Set code content with syntax highlighting
+            // Set code content with diff highlighting
             if (!content.isEmpty()) {
-                codeDiffText.setText(highlightCode(content, action));
+                codeDiffText.setText(highlightDiff(content));
             } else {
                 codeDiffText.setText("No content preview available");
             }
@@ -139,26 +138,39 @@ public class FileChangeView extends LinearLayout {
             return info;
         }
         
-        // For simplicity, estimate diff based on action and content
+        // Calculate actual diff based on content and action
         switch (action.toLowerCase()) {
             case "create_file":
-                // All lines are additions
+                // All lines are additions for new files
                 info.addedLines = content.split("\n").length;
                 info.removedLines = 0;
                 break;
                 
             case "delete_file":
-                // All lines are removals (estimate)
+                // All lines are removals - try to get actual count if possible
                 info.addedLines = 0;
-                info.removedLines = 20; // Estimate
+                info.removedLines = 0; // Will be set to 0 since we don't know original content
                 break;
                 
             case "edit_file":
             default:
-                // Estimate based on content size
-                int lines = content.split("\n").length;
-                info.addedLines = Math.max(1, lines / 2);
-                info.removedLines = Math.max(0, lines / 4);
+                // For edits, count lines with diff markers or assume all are additions if no markers
+                String[] lines = content.split("\n");
+                for (String line : lines) {
+                    if (line.startsWith("+")) {
+                        info.addedLines++;
+                    } else if (line.startsWith("-")) {
+                        info.removedLines++;
+                    } else if (!line.startsWith(" ") && !line.startsWith("@@")) {
+                        // Lines without diff markers are treated as additions in new content
+                        info.addedLines++;
+                    }
+                }
+                
+                // If no diff markers found, treat all lines as additions
+                if (info.addedLines == 0 && info.removedLines == 0) {
+                    info.addedLines = lines.length;
+                }
                 break;
         }
         
@@ -166,6 +178,7 @@ public class FileChangeView extends LinearLayout {
     }
     
     private void updateDiffIndicators(DiffInfo diffInfo) {
+        // Only show added lines indicator if there are actual additions
         if (diffInfo.addedLines > 0) {
             addedLinesText.setText("+" + diffInfo.addedLines);
             addedLinesText.setVisibility(View.VISIBLE);
@@ -173,6 +186,7 @@ public class FileChangeView extends LinearLayout {
             addedLinesText.setVisibility(View.GONE);
         }
         
+        // Only show removed lines indicator if there are actual removals
         if (diffInfo.removedLines > 0) {
             removedLinesText.setText("-" + diffInfo.removedLines);
             removedLinesText.setVisibility(View.VISIBLE);
@@ -181,65 +195,16 @@ public class FileChangeView extends LinearLayout {
         }
     }
     
-    private SpannableString highlightCode(String content, String action) {
+    private SpannableString highlightDiff(String content) {
         SpannableString spannable = new SpannableString(content);
         
-        // Simple syntax highlighting for XML and Java
-        if (content.contains("<?xml") || content.contains("<")) {
-            highlightXml(spannable);
-        } else if (content.contains("class ") || content.contains("public ") || content.contains("import ")) {
-            highlightJava(spannable);
-        }
+        // Define colors for diff highlighting
+        int addedBgColor = Color.parseColor("#E8F5E8"); // Light green background
+        int addedTextColor = Color.parseColor("#155724"); // Dark green text
+        int removedBgColor = Color.parseColor("#FFEBEE"); // Light red background
+        int removedTextColor = Color.parseColor("#721C24"); // Dark red text
         
-        // Highlight diff-style changes
-        highlightDiffStyle(spannable, action);
-        
-        return spannable;
-    }
-    
-    private void highlightXml(SpannableString spannable) {
-        String text = spannable.toString();
-        int xmlTagColor = ContextCompat.getColor(getContext(), android.R.color.holo_blue_dark);
-        
-        // Simple XML tag highlighting
-        int start = 0;
-        while ((start = text.indexOf('<', start)) != -1) {
-            int end = text.indexOf('>', start);
-            if (end != -1) {
-                spannable.setSpan(new ForegroundColorSpan(xmlTagColor), start, end + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                start = end + 1;
-            } else {
-                break;
-            }
-        }
-    }
-    
-    private void highlightJava(SpannableString spannable) {
-        String text = spannable.toString();
-        int keywordColor = ContextCompat.getColor(getContext(), android.R.color.holo_purple);
-        
-        // Highlight common Java keywords
-        String[] keywords = {"public", "private", "class", "import", "static", "void", "return", "if", "else", "for", "while"};
-        for (String keyword : keywords) {
-            int start = 0;
-            while ((start = text.indexOf(keyword, start)) != -1) {
-                int end = start + keyword.length();
-                // Check if it's a whole word
-                if ((start == 0 || !Character.isLetterOrDigit(text.charAt(start - 1))) &&
-                    (end == text.length() || !Character.isLetterOrDigit(text.charAt(end)))) {
-                    spannable.setSpan(new ForegroundColorSpan(keywordColor), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                }
-                start = end;
-            }
-        }
-    }
-    
-    private void highlightDiffStyle(SpannableString spannable, String action) {
-        int addedColor = ContextCompat.getColor(getContext(), android.R.color.holo_green_light);
-        int removedColor = ContextCompat.getColor(getContext(), android.R.color.holo_red_light);
-        
-        String text = spannable.toString();
-        String[] lines = text.split("\n");
+        String[] lines = content.split("\n");
         int currentIndex = 0;
         
         for (String line : lines) {
@@ -247,13 +212,19 @@ public class FileChangeView extends LinearLayout {
             int lineEnd = currentIndex + line.length();
             
             if (line.startsWith("+")) {
-                spannable.setSpan(new BackgroundColorSpan(addedColor), lineStart, lineEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                // Added line - green background and text
+                spannable.setSpan(new BackgroundColorSpan(addedBgColor), lineStart, lineEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                spannable.setSpan(new ForegroundColorSpan(addedTextColor), lineStart, lineEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             } else if (line.startsWith("-")) {
-                spannable.setSpan(new BackgroundColorSpan(removedColor), lineStart, lineEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                // Removed line - red background and text
+                spannable.setSpan(new BackgroundColorSpan(removedBgColor), lineStart, lineEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                spannable.setSpan(new ForegroundColorSpan(removedTextColor), lineStart, lineEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             }
             
             currentIndex = lineEnd + 1; // +1 for the newline character
         }
+        
+        return spannable;
     }
     
     private void toggleExpanded() {
