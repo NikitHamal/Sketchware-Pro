@@ -968,10 +968,10 @@ public class ChatActivity extends AppCompatActivity {
                                     JSONArray results = result.optJSONArray("results");
                                     if (results != null) {
                                         for (int i = 0; i < results.length(); i++) {
-                                            JSONObject actionResult = results.getJSONObject(i);
-                                            if (actionResult.optBoolean("success", false)) {
-                                                String subActionName = actionResult.optString("action", "");
-                                                JSONObject actionData = actionResult.optJSONObject("data");
+                                            JSONObject subActionResult = results.getJSONObject(i);
+                                            if (subActionResult.optBoolean("success", false)) {
+                                                String subActionName = subActionResult.optString("action", "");
+                                                JSONObject actionData = subActionResult.optJSONObject("data");
                                                 
                                                 JSONObject affectedFile = createAffectedFileData(subActionName, actionData, null);
                                                 if (affectedFile != null) {

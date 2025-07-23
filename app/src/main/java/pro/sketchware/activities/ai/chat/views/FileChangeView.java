@@ -164,8 +164,8 @@ public class FileChangeView extends LinearLayout {
             case "edit_file":
             default:
                 // For edits, count lines with diff markers or analyze content changes
-                String[] lines = content.split("\n");
-                for (String line : lines) {
+                String[] editLines = content.split("\n");
+                for (String line : editLines) {
                     if (line.startsWith("+")) {
                         info.addedLines++;
                     } else if (line.startsWith("-")) {
@@ -178,7 +178,7 @@ public class FileChangeView extends LinearLayout {
                 
                 // If no diff markers found, analyze content as new additions
                 if (info.addedLines == 0 && info.removedLines == 0) {
-                    for (String line : lines) {
+                    for (String line : editLines) {
                         if (!line.trim().isEmpty()) {
                             info.addedLines++;
                         }
