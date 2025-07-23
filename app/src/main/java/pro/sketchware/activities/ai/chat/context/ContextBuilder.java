@@ -61,9 +61,13 @@ public class ContextBuilder {
         prompt.append("    \"param1\": \"value1\",\n");
         prompt.append("    \"param2\": \"value2\"\n");
         prompt.append("  },\n");
-        prompt.append("  \"explanation\": \"I'll create that project for you right away!\"\n");
+        prompt.append("  \"explanation\": \"I'll create that for you. Please review the proposed changes and click Accept to apply them.\"\n");
         prompt.append("}\n");
-        prompt.append("IMPORTANT: Always include a helpful explanation that will be shown to the user.\n\n");
+        prompt.append("IMPORTANT NOTES:\n");
+        prompt.append("- File operations (create_java_file, create_xml_resource, edit_file) require user approval\n");
+        prompt.append("- Never claim to have completed file operations - they will be shown as proposals first\n");
+        prompt.append("- Use phrases like 'I'll create...', 'I'll add...', 'Let me prepare...' instead of 'I've created...'\n");
+        prompt.append("- Always include a helpful explanation that will be shown to the user\n\n");
 
         // Available actions
         prompt.append("AVAILABLE_ACTIONS:\n");
@@ -135,20 +139,22 @@ public class ContextBuilder {
         prompt.append("- When updating settings, explain what each change does\n");
         prompt.append("- Always use the update_project_settings action with proper parameters\n\n");
         
-        // Error fixing guidance
-        prompt.append("ERROR_FIXING_GUIDANCE:\n");
-        prompt.append("When fixing compile errors:\n");
-        prompt.append("1. Analyze the error carefully and identify the root cause\n");
-        prompt.append("2. Explain the issue and your proposed solution clearly\n");
-        prompt.append("3. Use appropriate actions based on the error type:\n");
-        prompt.append("   - Missing binding class: Use create_xml_resource for layout files\n");
-        prompt.append("   - Missing Java class: Use create_java_file with proper package\n");
-        prompt.append("   - Missing resources: Use create_xml_resource for drawables/values\n");
-        prompt.append("   - File modifications: Use edit_file with proper content\n");
-        prompt.append("4. For empty XML files, provide complete valid XML content\n");
-        prompt.append("5. Include both explanation AND action in your response\n");
-        prompt.append("6. Focus on minimal, targeted fixes rather than major restructuring\n");
-        prompt.append("7. Always use proper package structure and file paths\n\n");
+        // File operations guidance
+        prompt.append("FILE_OPERATIONS_GUIDANCE:\n");
+        prompt.append("When working with files:\n");
+        prompt.append("1. Analyze the request carefully and identify what files need to be created/modified\n");
+        prompt.append("2. Explain what you'll create/modify and why\n");
+        prompt.append("3. Use appropriate actions based on the file type:\n");
+        prompt.append("   - Java classes: Use create_java_file with proper package structure\n");
+        prompt.append("   - Layout files: Use create_xml_resource with resource_type='layout'\n");
+        prompt.append("   - Drawable resources: Use create_xml_resource with resource_type='drawable'\n");
+        prompt.append("   - Values (strings, colors): Use create_xml_resource with resource_type='values'\n");
+        prompt.append("   - File modifications: Use edit_file with complete updated content\n");
+        prompt.append("4. For XML files, provide complete valid XML content\n");
+        prompt.append("5. For Java files, include proper imports and method implementations\n");
+        prompt.append("6. Remember: All file operations will be shown as proposals for user approval\n");
+        prompt.append("7. Use future tense ('I'll create...') not past tense ('I've created...')\n");
+        prompt.append("8. Always use proper package structure and file paths\n\n");
 
         prompt.append("USER_MESSAGE: ").append(userMessage);
 

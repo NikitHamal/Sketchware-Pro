@@ -833,7 +833,7 @@ public class ChatActivity extends AppCompatActivity {
         // Create proposal message with proper type
         ChatMessage proposalMessage = new ChatMessage(
             UUID.randomUUID().toString(),
-            "AI has proposed a fix for your compile error:",
+            "AI has proposed changes to your project:",
             ChatMessage.TYPE_PROPOSAL,
             System.currentTimeMillis()
         );
@@ -890,7 +890,7 @@ public class ChatActivity extends AppCompatActivity {
             
             // Hide the proposal by changing its type to AI message
             message.setType(ChatMessage.TYPE_AI);
-            message.setContent("✅ Fix approved. Applying changes...");
+            message.setContent("✅ Changes approved. Applying changes...");
             chatAdapter.notifyItemChanged(messages.indexOf(message));
             
             // Store proposalData for access in callbacks
@@ -920,7 +920,7 @@ public class ChatActivity extends AppCompatActivity {
                         // Show error message
                         ChatMessage errorMessage = new ChatMessage(
                             UUID.randomUUID().toString(),
-                            "❌ Error applying fix: " + error + "\n\nPlease check the logs for more details.",
+                            "❌ Error applying changes: " + error + "\n\nPlease check the logs for more details.",
                             ChatMessage.TYPE_AI,
                             System.currentTimeMillis()
                         );
@@ -938,11 +938,31 @@ public class ChatActivity extends AppCompatActivity {
                         try {
                             JSONObject result = new JSONObject(actionResult);
                             if (result.optBoolean("success", false)) {
-                                // Create affected file data from the action
+                                String actionName = result.optString("action", "");
+                                JSONObject actionData = result.optJSONObject("data");
+                                
+                                // Create affected file data based on action type
                                 JSONObject affectedFile = new JSONObject();
-                                affectedFile.put("file_path", finalProposalData.optString("file_path", ""));
-                                affectedFile.put("action", finalProposalData.optString("action", "edit_file"));
-                                affectedFile.put("content", finalProposalData.optString("content", ""));
+                                
+                                if ("create_java_file".equals(actionName) && actionData != null) {
+                                    affectedFile.put("file_path", actionData.optString("file_path", ""));
+                                    affectedFile.put("action", "create_file");
+                                    affectedFile.put("content", "// Java class created: " + actionData.optString("class_name", ""));
+                                } else if ("create_xml_resource".equals(actionName) && actionData != null) {
+                                    affectedFile.put("file_path", actionData.optString("file_path", ""));
+                                    affectedFile.put("action", "create_file");
+                                    affectedFile.put("content", "<!-- XML resource created -->");
+                                } else if ("edit_file".equals(actionName)) {
+                                    affectedFile.put("file_path", finalProposalData.optString("file_path", ""));
+                                    affectedFile.put("action", "edit_file");
+                                    affectedFile.put("content", finalProposalData.optString("content", ""));
+                                } else {
+                                    // Fallback for other actions
+                                    affectedFile.put("file_path", finalProposalData.optString("file_path", "Unknown file"));
+                                    affectedFile.put("action", actionName);
+                                    affectedFile.put("content", finalProposalData.optString("content", ""));
+                                }
+                                
                                 affectedFiles.add(affectedFile);
                             }
                         } catch (Exception e) {
@@ -950,9 +970,24 @@ public class ChatActivity extends AppCompatActivity {
                         }
                         
                         // Show success message with affected files
+                        String successText = "✅ Changes applied successfully!";
+                        try {
+                            JSONObject result = new JSONObject(actionResult);
+                            String actionName = result.optString("action", "");
+                            if ("create_java_file".equals(actionName)) {
+                                successText = "✅ Java file created successfully!";
+                            } else if ("create_xml_resource".equals(actionName)) {
+                                successText = "✅ XML resource created successfully!";
+                            } else if ("edit_file".equals(actionName)) {
+                                successText = "✅ File updated successfully!";
+                            }
+                        } catch (Exception e) {
+                            // Use default message
+                        }
+                        
                         ChatMessage successMessage = new ChatMessage(
                             UUID.randomUUID().toString(),
-                            "✅ Fix applied successfully! The file has been updated. Please rebuild your project to see if the errors are resolved.",
+                            successText,
                             ChatMessage.TYPE_AI_SUCCESS,
                             System.currentTimeMillis()
                         );
@@ -998,7 +1033,7 @@ public class ChatActivity extends AppCompatActivity {
             // Show error message to user
             ChatMessage errorMessage = new ChatMessage(
                 UUID.randomUUID().toString(),
-                "❌ Error processing proposal: " + e.getMessage(),
+                "❌ Error processing proposed changes: " + e.getMessage(),
                 ChatMessage.TYPE_AI,
                 System.currentTimeMillis()
             );
@@ -1011,7 +1046,7 @@ public class ChatActivity extends AppCompatActivity {
     private void handleProposalDiscarded(ChatMessage message) {
         // Change proposal to AI message showing discard
         message.setType(ChatMessage.TYPE_AI);
-        message.setContent("❌ Fix proposal discarded. The file will not be modified.");
+        message.setContent("❌ Proposed changes discarded. No files will be modified.");
         chatAdapter.notifyItemChanged(messages.indexOf(message));
         messageStorage.saveMessages(conversationId, messages);
     }

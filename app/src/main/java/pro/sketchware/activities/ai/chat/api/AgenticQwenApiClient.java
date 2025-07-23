@@ -638,6 +638,18 @@ public class AgenticQwenApiClient extends QwenApiClient {
         public String getSnippet() { return snippet; }
     }
 
+    /**
+     * Check if an action is file-related and requires user approval
+     */
+    private boolean isFileRelatedAction(String actionName) {
+        return actionName.equals("create_java_file") ||
+               actionName.equals("create_xml_resource") ||
+               actionName.equals("edit_file") ||
+               actionName.equals("delete_file") ||
+               actionName.equals("fix_file_error") ||
+               actionName.equals("create_file");
+    }
+
     private void executeAction(JSONObject actionJson, ConversationContext context, AgenticChatCallback callback) {
         Log.d(TAG, "=== EXECUTE ACTION CALLED ===");
         Log.d(TAG, "Action JSON: " + actionJson.toString());
@@ -665,9 +677,9 @@ public class AgenticQwenApiClient extends QwenApiClient {
             
             Log.d(TAG, "Executing action: " + actionName + " with params: " + paramMap);
             
-            // Check if this is a fix_file_error action - should show proposal first
-            if ("fix_file_error".equals(actionName)) {
-                Log.d(TAG, "=== CREATING FIX PROPOSAL ===");
+            // Check if this is a file-related action that requires user approval
+            if (isFileRelatedAction(actionName)) {
+                Log.d(TAG, "=== CREATING FILE OPERATION PROPOSAL ===");
                 
                 // Create proposal JSON for user approval
                 JSONObject proposalJson = new JSONObject();
@@ -682,7 +694,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
                         callback.onFixProposal(explanation, proposalJson.toString(), context.getCurrentProjectId());
                     });
                 } catch (JSONException e) {
-                    Log.e(TAG, "Error creating fix proposal", e);
+                    Log.e(TAG, "Error creating file operation proposal", e);
                 }
                 return;
             }
