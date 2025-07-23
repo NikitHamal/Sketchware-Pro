@@ -272,7 +272,7 @@ public class OldResourceIdMapper {
             case 2131165449 -> R.drawable.collage_48;
             case 2131165450 -> R.drawable.collage_96;
             case 2131165451 -> R.drawable.collect_48;
-            case 2131165452 -> R.drawable.color_about_96;
+            case 2131165452 -> R.drawable.ic_storage_black_24dp;
             case 2131165453 -> R.drawable.color_ad_free_96;
             case 2131165454 -> R.drawable.color_ban_96;
             case 2131165455 -> R.drawable.color_cancel_96;
@@ -1343,7 +1343,7 @@ public class OldResourceIdMapper {
             case 2131166531 -> R.drawable.ic_mtrl_switch;
             case 2131166532 -> R.drawable.ic_mtrl_sync;
             case 2131166533 -> R.drawable.ic_mtrl_tabs;
-            case 2131166534 -> R.drawable.ic_mtrl_team;
+            case 2131166534 -> R.drawable.ic_group;
             case 2131166535 -> R.drawable.ic_mtrl_terminal;
             case 2131166536 -> R.drawable.ic_mtrl_time;
             case 2131166537 -> R.drawable.ic_mtrl_timer;

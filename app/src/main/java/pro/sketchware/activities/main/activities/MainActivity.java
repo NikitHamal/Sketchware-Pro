@@ -51,9 +51,10 @@ import mod.hilal.saif.activities.tools.ConfigActivity;
 import mod.jbk.util.LogUtil;
 import mod.tyron.backup.SingleCopyTask;
 import pro.sketchware.R;
-import pro.sketchware.activities.about.AboutActivity;
+
 import pro.sketchware.activities.main.fragments.projects.ProjectsFragment;
 import pro.sketchware.activities.main.fragments.projects_store.ProjectsStoreFragment;
+import pro.sketchware.activities.main.fragments.ai.AiFragment;
 import pro.sketchware.databinding.MainBinding;
 import pro.sketchware.lib.base.BottomSheetDialogView;
 import pro.sketchware.utility.FileUtil;
@@ -63,6 +64,7 @@ import pro.sketchware.utility.UI;
 public class MainActivity extends BasePermissionAppCompatActivity {
     private static final String PROJECTS_FRAGMENT_TAG = "projects_fragment";
     private static final String PROJECTS_STORE_FRAGMENT_TAG = "projects_store_fragment";
+    private static final String AI_FRAGMENT_TAG = "ai_fragment";
     private ActionBarDrawerToggle drawerToggle;
     private DB u;
     private Snackbar storageAccessDenied;
@@ -76,6 +78,7 @@ public class MainActivity extends BasePermissionAppCompatActivity {
     };
     private ProjectsFragment projectsFragment;
     private ProjectsStoreFragment projectsStoreFragment;
+    private AiFragment aiFragment;
     private Fragment activeFragment;
     @IdRes
     private int currentNavItemId = R.id.item_projects;
@@ -273,6 +276,9 @@ public class MainActivity extends BasePermissionAppCompatActivity {
             } else if (id == R.id.item_sketchub) {
                 navigateToSketchubFragment();
                 return true;
+            } else if (id == R.id.item_ai) {
+                navigateToAiFragment();
+                return true;
             }
             return false;
         });
@@ -280,12 +286,15 @@ public class MainActivity extends BasePermissionAppCompatActivity {
         if (savedInstanceState != null) {
             projectsFragment = (ProjectsFragment) getSupportFragmentManager().findFragmentByTag(PROJECTS_FRAGMENT_TAG);
             projectsStoreFragment = (ProjectsStoreFragment) getSupportFragmentManager().findFragmentByTag(PROJECTS_STORE_FRAGMENT_TAG);
+            aiFragment = (AiFragment) getSupportFragmentManager().findFragmentByTag(AI_FRAGMENT_TAG);
             currentNavItemId = savedInstanceState.getInt("selected_tab_id");
             Fragment current = getFragmentForNavId(currentNavItemId);
             if (current instanceof ProjectsFragment) {
                 navigateToProjectsFragment();
             } else if (current instanceof ProjectsStoreFragment) {
                 navigateToSketchubFragment();
+            } else if (current instanceof AiFragment) {
+                navigateToAiFragment();
             }
 
             return;
@@ -299,6 +308,8 @@ public class MainActivity extends BasePermissionAppCompatActivity {
             return projectsFragment;
         } else if (navItemId == R.id.item_sketchub) {
             return projectsStoreFragment;
+        } else if (navItemId == R.id.item_ai) {
+            return aiFragment;
         }
         throw new IllegalArgumentException();
     }
@@ -353,6 +364,28 @@ public class MainActivity extends BasePermissionAppCompatActivity {
         currentNavItemId = R.id.item_sketchub;
     }
 
+    private void navigateToAiFragment() {
+        if (aiFragment == null) {
+            aiFragment = new AiFragment();
+        }
+
+        boolean shouldShow = true;
+        FragmentManager fm = getSupportFragmentManager();
+        FragmentTransaction transaction = fm.beginTransaction();
+
+        binding.createNewProject.hide();
+        if (activeFragment != null) transaction.hide(activeFragment);
+        if (fm.findFragmentByTag(AI_FRAGMENT_TAG) == null) {
+            shouldShow = false;
+            transaction.add(binding.container.getId(), aiFragment, AI_FRAGMENT_TAG);
+        }
+        if (shouldShow) transaction.show(aiFragment);
+        transaction.commit();
+
+        activeFragment = aiFragment;
+        currentNavItemId = R.id.item_ai;
+    }
+
     @NonNull
     private BottomSheetDialogView getBottomSheetDialogView() {
         BottomSheetDialogView bottomSheetDialog = new BottomSheetDialogView(this);
@@ -361,13 +394,10 @@ public class MainActivity extends BasePermissionAppCompatActivity {
                 There have been major changes since v6.3.0 fix1, \
                 and it's very important to know them all if you want your projects to still work.
                 
-                You can view all changes whenever you want at the About Sketchware Pro screen.""");
+                Please make sure to update your projects accordingly.""");
 
-        bottomSheetDialog.setPositiveButton("View changes", (dialog, which) -> {
+        bottomSheetDialog.setPositiveButton("Okay", (dialog, which) -> {
             ConfigActivity.setSetting(ConfigActivity.SETTING_CRITICAL_UPDATE_REMINDER, true);
-            Intent launcher = new Intent(this, AboutActivity.class);
-            launcher.putExtra("select", "changelog");
-            startActivity(launcher);
         });
         bottomSheetDialog.setCancelable(false);
         return bottomSheetDialog;
@@ -446,7 +476,7 @@ public class MainActivity extends BasePermissionAppCompatActivity {
     private void showNoticeNeedStorageAccess() {
         MaterialAlertDialogBuilder dialog = new MaterialAlertDialogBuilder(this);
         dialog.setTitle(Helper.getResString(R.string.common_message_permission_title_storage));
-        dialog.setIcon(R.drawable.color_about_96);
+        dialog.setIcon(R.drawable.ic_storage_black_24dp);
         dialog.setMessage(Helper.getResString(R.string.common_message_permission_need_load_project));
         dialog.setPositiveButton(Helper.getResString(R.string.common_word_ok), (v, which) -> {
             v.dismiss();
