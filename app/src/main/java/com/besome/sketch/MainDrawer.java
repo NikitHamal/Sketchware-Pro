@@ -57,29 +57,11 @@ public class MainDrawer extends NavigationView {
         addHeaderView(headerView);
         inflateMenu(R.menu.main_drawer_menu);
         setNavigationItemSelectedListener(item -> {
-            initializeSocialLinks(item.getItemId());
             initializeDrawerItems(item.getItemId());
 
             // Return false to prevent selection
             return false;
         });
-    }
-
-    private void initializeSocialLinks(@IdRes int id) {
-        if (!mB.a()) {
-            @StringRes int url = -1;
-            if (id == R.id.social_discord) {
-                url = R.string.link_discord_invite;
-            } else if (id == R.id.social_telegram) {
-                url = R.string.link_telegram_invite;
-            } else if (id == R.id.social_github) {
-                url = R.string.link_github_url;
-            }
-
-            if (url != -1) {
-                openUrl(getContext().getString(url));
-            }
-        }
     }
 
     private void initializeDrawerItems(@IdRes int id) {
