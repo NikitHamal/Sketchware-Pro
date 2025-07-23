@@ -159,7 +159,8 @@ public class FileUploadManager {
             
             // Build proper OSS authorization signature
             String authorization = buildOssAuthorization(accessKeyId, accessKeySecret, "PUT", 
-                                                       "/" + filePath, getCurrentDateISO(), region);
+                                                       "/" + filePath, getCurrentDateISO(), region, 
+                                                       bucketName, endpoint, filePath);
             conn.setRequestProperty("authorization", authorization);
             
             conn.setDoOutput(true);
@@ -207,7 +208,8 @@ public class FileUploadManager {
     }
     
     private String buildOssAuthorization(String accessKeyId, String accessKeySecret, 
-                                       String method, String canonicalUri, String date, String region) throws Exception {
+                                       String method, String canonicalUri, String date, String region,
+                                       String bucketName, String endpoint, String filePath) throws Exception {
         // Build OSS v4 signature based on the reference API
         String dateOnly = date.substring(0, 8); // Extract YYYYMMDD from date
         String credential = accessKeyId + "/" + dateOnly + "/" + region + "/oss/aliyun_v4_request";
@@ -218,7 +220,7 @@ public class FileUploadManager {
                                 "x-oss-content-sha256:UNSIGNED-PAYLOAD" + "\n" +
                                 "x-oss-date:" + date + "\n";
         String signedHeaders = "host;x-oss-content-sha256;x-oss-date";
-        String canonicalRequest = method + "\n" + "/" + filePath + "\n" + "\n" + 
+        String canonicalRequest = method + "\n" + canonicalUri + "\n" + "\n" + 
                                 canonicalHeaders + "\n" + signedHeaders + "\nUNSIGNED-PAYLOAD";
         
         // Create string to sign
