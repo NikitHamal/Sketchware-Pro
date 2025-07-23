@@ -196,18 +196,34 @@ public class FileChangeView extends LinearLayout {
     }
     
     private SpannableString highlightDiff(String content) {
-        SpannableString spannable = new SpannableString(content);
-        
-        // Define colors for diff highlighting
-        int addedBgColor = Color.parseColor("#E8F5E8"); // Light green background
-        int addedTextColor = Color.parseColor("#155724"); // Dark green text
-        int removedBgColor = Color.parseColor("#FFEBEE"); // Light red background
-        int removedTextColor = Color.parseColor("#721C24"); // Dark red text
-        
+        // Filter to show only changed lines (additions and deletions)
         String[] lines = content.split("\n");
-        int currentIndex = 0;
+        StringBuilder changedLinesOnly = new StringBuilder();
         
         for (String line : lines) {
+            // Only include lines that start with + or - (actual changes)
+            if (line.startsWith("+") || line.startsWith("-")) {
+                if (changedLinesOnly.length() > 0) {
+                    changedLinesOnly.append("\n");
+                }
+                changedLinesOnly.append(line);
+            }
+        }
+        
+        // If no diff markers found, show all content as additions
+        String diffContent = changedLinesOnly.length() > 0 ? changedLinesOnly.toString() : content;
+        SpannableString spannable = new SpannableString(diffContent);
+        
+        // Define colors for diff highlighting with stronger theme
+        int addedBgColor = Color.parseColor("#D4F6D4"); // Brighter green background
+        int addedTextColor = Color.parseColor("#0F5132"); // Darker green text
+        int removedBgColor = Color.parseColor("#F8D7DA"); // Brighter red background
+        int removedTextColor = Color.parseColor("#842029"); // Darker red text
+        
+        String[] diffLines = diffContent.split("\n");
+        int currentIndex = 0;
+        
+        for (String line : diffLines) {
             int lineStart = currentIndex;
             int lineEnd = currentIndex + line.length();
             
@@ -219,6 +235,10 @@ public class FileChangeView extends LinearLayout {
                 // Removed line - red background and text
                 spannable.setSpan(new BackgroundColorSpan(removedBgColor), lineStart, lineEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 spannable.setSpan(new ForegroundColorSpan(removedTextColor), lineStart, lineEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            } else if (changedLinesOnly.length() == 0) {
+                // If no diff markers were found, treat all lines as additions
+                spannable.setSpan(new BackgroundColorSpan(addedBgColor), lineStart, lineEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                spannable.setSpan(new ForegroundColorSpan(addedTextColor), lineStart, lineEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             }
             
             currentIndex = lineEnd + 1; // +1 for the newline character

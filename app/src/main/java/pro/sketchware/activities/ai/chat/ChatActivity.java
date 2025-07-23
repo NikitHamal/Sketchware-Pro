@@ -285,7 +285,11 @@ public class ChatActivity extends AppCompatActivity {
             }
         });
         
-        availableProjects.addAll(allProjects);
+        // Limit to 3 projects for compact display
+        int maxProjects = Math.min(3, allProjects.size());
+        for (int i = 0; i < maxProjects; i++) {
+            availableProjects.add(allProjects.get(i));
+        }
     }
     
     private void onProjectSelected(String projectId, String appName) {

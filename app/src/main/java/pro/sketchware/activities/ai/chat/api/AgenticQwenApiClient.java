@@ -411,6 +411,12 @@ public class AgenticQwenApiClient extends QwenApiClient {
             JSONObject featureConfig = new JSONObject();
             featureConfig.put("thinking_enabled", thinkingEnabled);
             featureConfig.put("output_schema", "phase");
+            if (thinkingEnabled) {
+                featureConfig.put("thinking_budget", 38912); // Based on reference API
+            }
+            if (webSearchEnabled) {
+                featureConfig.put("search_version", "v2"); // Based on reference API
+            }
             messageObj.put("feature_config", featureConfig);
             
             JSONObject extra = new JSONObject();
@@ -504,8 +510,25 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                         }
                                     }
                                     
-                                    // Handle web search results
-                                    if ("web_search".equals(phase) && "function".equals(role) && delta.has("extra")) {
+                                    // Handle web search results - check both function role and assistant role
+                                    if ("web_search".equals(phase) && delta.has("extra")) {
+                                        JSONObject extra = delta.getJSONObject("extra");
+                                        if (extra.has("web_search_info")) {
+                                            JSONArray searchInfo = extra.getJSONArray("web_search_info");
+                                            for (int i = 0; i < searchInfo.length(); i++) {
+                                                JSONObject searchResult = searchInfo.getJSONObject(i);
+                                                WebSearchResult result = new WebSearchResult(
+                                                    searchResult.optString("url", ""),
+                                                    searchResult.optString("title", ""),
+                                                    searchResult.optString("snippet", "")
+                                                );
+                                                webSearchResults.add(result);
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Also handle web search results from function calls
+                                    if ("function".equals(role) && delta.has("extra")) {
                                         JSONObject extra = delta.getJSONObject("extra");
                                         if (extra.has("web_search_info")) {
                                             JSONArray searchInfo = extra.getJSONArray("web_search_info");
@@ -564,9 +587,10 @@ public class AgenticQwenApiClient extends QwenApiClient {
             return debugMessage;
         }
         
-        // If we only have thinking but no answer, return thinking as the response
+        // If we only have thinking but no answer, still provide thinking content but warn
         if (!hasAnswerPhase && thinkingContent.length() > 0) {
-            responseText = thinkingContent.toString().trim();
+            Log.w(TAG, "Only thinking phase received, no answer phase. This might indicate an API issue.");
+            // Don't replace responseText with thinking content - keep them separate
         }
         
         // Build response with structured data

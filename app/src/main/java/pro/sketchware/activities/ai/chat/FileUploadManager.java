@@ -197,15 +197,70 @@ public class FileUploadManager {
     
     private String buildOssAuthorization(String accessKeyId, String accessKeySecret, 
                                        String method, String canonicalUri, String date, String region) throws Exception {
-        // Simplified OSS v4 signature - this is a basic implementation
-        // In production, you should use the official Alibaba Cloud SDK
-        String credential = accessKeyId + "/20250723/" + region + "/oss/aliyun_v4_request";
+        // Build OSS v4 signature based on the reference API
+        String dateOnly = date.substring(0, 8); // Extract YYYYMMDD from date
+        String credential = accessKeyId + "/" + dateOnly + "/" + region + "/oss/aliyun_v4_request";
         
-        // For demo purposes, create a placeholder signature
-        // Real implementation would require proper HMAC-SHA256 signing
-        String signature = "placeholder_signature_" + System.currentTimeMillis();
+        // Create canonical request
+        String canonicalHeaders = "host:" + "qwen-webui-prod.oss-accelerate.aliyuncs.com" + "\n" +
+                                "x-oss-content-sha256:UNSIGNED-PAYLOAD" + "\n" +
+                                "x-oss-date:" + date + "\n";
+        String signedHeaders = "host;x-oss-content-sha256;x-oss-date";
+        String canonicalRequest = method + "\n" + canonicalUri + "\n" + "\n" + 
+                                canonicalHeaders + "\n" + signedHeaders + "\nUNSIGNED-PAYLOAD";
         
-        return "OSS4-HMAC-SHA256 Credential=" + credential + ",Signature=" + signature;
+        // Create string to sign
+        String algorithm = "OSS4-HMAC-SHA256";
+        String credentialScope = dateOnly + "/" + region + "/oss/aliyun_v4_request";
+        String stringToSign = algorithm + "\n" + date + "\n" + credentialScope + "\n" + 
+                            sha256Hash(canonicalRequest);
+        
+        // Calculate signature
+        byte[] signingKey = getSigningKey(accessKeySecret, dateOnly, region, "oss");
+        String signature = hmacSha256Hex(signingKey, stringToSign);
+        
+        return algorithm + " Credential=" + credential + ",Signature=" + signature;
+    }
+    
+    private String sha256Hash(String data) throws Exception {
+        java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(data.getBytes(StandardCharsets.UTF_8));
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : hash) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) {
+                hexString.append('0');
+            }
+            hexString.append(hex);
+        }
+        return hexString.toString();
+    }
+    
+    private byte[] getSigningKey(String secretKey, String date, String region, String service) throws Exception {
+        byte[] kDate = hmacSha256(("OSS4" + secretKey).getBytes(StandardCharsets.UTF_8), date);
+        byte[] kRegion = hmacSha256(kDate, region);
+        byte[] kService = hmacSha256(kRegion, service);
+        return hmacSha256(kService, "aliyun_v4_request");
+    }
+    
+    private byte[] hmacSha256(byte[] key, String data) throws Exception {
+        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        javax.crypto.spec.SecretKeySpec keySpec = new javax.crypto.spec.SecretKeySpec(key, "HmacSHA256");
+        mac.init(keySpec);
+        return mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+    }
+    
+    private String hmacSha256Hex(byte[] key, String data) throws Exception {
+        byte[] hash = hmacSha256(key, data);
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : hash) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) {
+                hexString.append('0');
+            }
+            hexString.append(hex);
+        }
+        return hexString.toString();
     }
     
     private String getCurrentDateISO() {
