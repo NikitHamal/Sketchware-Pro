@@ -208,7 +208,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
                             // Group file-related actions together
                             List<JSONObject> fileActions = new ArrayList<>();
                             List<JSONObject> otherActions = new ArrayList<>();
-                            String overallExplanation = "";
+                            String explanationBuilder = "";
                             
                             for (String jsonPart : jsonParts) {
                                 try {
@@ -217,8 +217,8 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                     
                                     if ("action".equals(responseType)) {
                                         String actionName = responseJson.optString("action");
-                                        if (overallExplanation.isEmpty()) {
-                                            overallExplanation = responseJson.optString("explanation", "I'm working on that for you...");
+                                        if (explanationBuilder.isEmpty()) {
+                                            explanationBuilder = responseJson.optString("explanation", "I'm working on that for you...");
                                         }
                                         
                                         if (isFileRelatedAction(actionName)) {
@@ -231,6 +231,9 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                     // JSON parsing failed, treat as regular response
                                 }
                             }
+                            
+                            // Make final variables for lambda usage
+                            final String overallExplanation = explanationBuilder;
                             
                             // Process grouped file actions as a single proposal
                             if (!fileActions.isEmpty()) {
@@ -727,10 +730,13 @@ public class AgenticQwenApiClient extends QwenApiClient {
             groupedProposal.put("grouped_actions", actionsArray);
             groupedProposal.put("action_count", fileActions.size());
             
-            String finalExplanation = combinedExplanation.toString();
-            if (finalExplanation.isEmpty()) {
-                finalExplanation = "I'll make the following changes to your project:";
+            String explanationText = combinedExplanation.toString();
+            if (explanationText.isEmpty()) {
+                explanationText = "I'll make the following changes to your project:";
             }
+            
+            // Make final for lambda usage
+            final String finalExplanation = explanationText;
             
             Log.d(TAG, "Grouped proposal created: " + groupedProposal.toString());
             Log.d(TAG, "Combined explanation: " + finalExplanation);
