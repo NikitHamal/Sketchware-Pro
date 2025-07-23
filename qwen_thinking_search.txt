@@ -1,0 +1,363 @@
+New:
+
+curl 'https://chat.qwen.ai/api/v2/chats/new' \
+  -H 'Accept-Language: en-US,en;q=0.9' \
+  -H 'Connection: keep-alive' \
+  -H 'Cookie: _gcl_au=1.1.1766988768.1752579263; _bl_uid=nXm6qd3q4zpg6tgm02909kvmFUpm; acw_tc=0a03e54317532565292955177e493bd17cb6ab0297793d17257e4afc7bf42b; x-ap=ap-southeast-1; token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU4NDg1NDh9.pb0IybY9tQkriqMUOos72FKtZM3G4p1_aDzwqqh5zX4; tfstk=g26ZgsaVhdo2fDL9s99qzj0MwtJ9pKzS_tTXmijDfFYgWt92meSq51sfmKy2-dAA1ET6uKSAzka7F8sOXKpgPzw7wJZtXLHiIn0Xxpxv3h4mOM1lXKp0RbHESRSOW-xr1Gv0YpxXDjvDjhm3Yn-yoKYMi2cHqevDnIDmx2xJqhDDmKqFxeKXnEbDskRHJnxt_a_0zhdgx9OWGMnuVCYljekmEV-9sUeJ5xDfIIBvrGVxnxXebCBHdIJMEK5c2sJDLrlvo9LVIsSUJfYGB9IW5ta-GFjCtBX99mZ9o1jCLQ63qX8fw9W26TzI3E55A9RFOgWqkHXCttBYHjAMvH87Yko6Tuw5pVSFyjhv6C-ePkcoMjdMvH87YklxMCyeYUZnZ; isg=BP7-CDNoGikWBk775LCGxejTTxZAP8K5TbnYJKgHacE8S5klEs5CyL4txkkhzbrR; ssxmod_itna=eq0xcDgCGQYDq4e9igDmhxnD3q7u40dGM9Deq7tdGcD8Ox0PGOzojD5DU2Yz2Ak52qqGRmgKD/KQCqDy7xA3DTx+ajQq5nxvqq35mCxteqDPLwwweCngAOnBKmgY8nUTXUZgw0=KqeDIDY=IDAtD0qDi+DDgDA=DjwDD7qe4DxDADB=bFeDLDi3eVQTDtw0=ieGwDAY4BOhwDYEKwGnxwDDS4QTIieDf9DG2DD=IRWRbqCwTDOxgCKe589bS3Th0BR3VRYIjSYq4SgIA5H8D8+lxm9YUqocQdabWwpEGsERk7wUgILQCFBQ/GD+xe7r5l05oQKiAGxgkVuDhi+YiDD; ssxmod_itna2=eq0xcDgCGQYDq4e9igDmhxnD3q7u40dGM9Deq7tdGcD8Ox0PGOzojD5DU2Yz2Ak52qqGRmxeGIDgDn6Pq+Ee03t1Q6TnxtwxGXxT5W12cxqQj6SG+THGZOQ412fzxk4BtN=FjAO01cDxOPy4S2vsrri5BxIH1iD8Bj01z27Wt4g1aEyaODFW2DAq26osz+i53rvxinaO+Si+6/er3aMigjTNVlTQiWMbqOmq4D' \
+  -H 'Origin: https://chat.qwen.ai' \
+  -H 'Referer: https://chat.qwen.ai/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-origin' \
+  -H 'User-Agent: Mozilla/5.0 (Linux; Android 12; itel A662LM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Mobile Safari/537.36' \
+  -H 'accept: application/json' \
+  -H 'authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU4NDg1NDh9.pb0IybY9tQkriqMUOos72FKtZM3G4p1_aDzwqqh5zX4' \
+  -H $'bx-ua: 231\u0021E3/3FAmU8Mz+joZDE+3YnMEjUq/YvqY2leOxacSC80vTPuB9lMZY9mRWFzrwLEV0PmcfY4rL2JFHeKTCyUQdACIzKZBlsbAyXt6Iz8TQ7ck9CIZgeOBOVaRK66GQqw/G9pMRBb28c0I6pXxeCmhbzzfCtEk+xPyXnSGpo+LsaU/+OPHDQCrVM2z4ya7TrTguCmR87np6YdSH3DIn3jhgnFcEQHlSogvwTYlxfUid3koX0QD3yk8jHFx4EMK5QlFHH3v+++3+qAS+oPts+DQWqi++68uR+K6y+8ix9NvuqCz++I4A+4mYN/A46wSw+KgU++my9k3+2XgETIrb8AIWYA++78Ej+yzIk464F3uHo+4oSn28DfRCb7bb4RdlvedIjC5f8MUt1jGNx1IaH10EiLcJPTR6LPJWUj+1hA2bQgJ5wThA3dmWf7dsh4bWmR1rcU3OV14ljhHOENSBKjzoqihnuxql9adxbf7qHFc6ERi7pfFSMd/92mFibzH2549YNTjfOFvgo+FS1/uN+QpL0WxeXRvcFOwCFuku+u1WTAzJmXLU2obdBrZmsVL+GISL5RDin6H1n6RnV2iLE0SOZlAQT/ccm2CtJ9AhpCquek0adxkY3+TOhSPkW/r2RN+U5SbMBBFWpRqQGE0G8uG8gdRiGM+DhV5nzxB+VDkJpZTnF2C/bS8Lkogquz3Mv9hboXZORvx7WxTEhU3rXpCaVGNHzWIPFXp5shUkyscUlWQq9ZgzkhuFHR8vAwNqWLDCiab6sVoOIP1C9gwo+jAGoxgtAXU0xOWuURnWGG7aemef+Fu4s7FfkGO9kMIal6ScRRKJq+YgiTC6oj6rhJYPEgY9xX+JNv2Cp9TratLC5/7bQCpgO4+BFqW25tBh61NeNVNMS9JTFLysevVVQcfxugYJCGMv6wJ1FYvUgqX/Ag4Y4evHRbWKHp88RhqHXOYNPuBenD1xlAMyNTEOvVCDdCxeDHOzMR7cRSlKUiyGcgA7Kg/Xb9gfN/cu6ve82uefIrQg1b1zfpYgl9lExsVQv6dJPUduyTT3sUwzjlkVPkIxZ0Se5PweURQwVPEAtHYlbPAKjTEmDZ65nvieN96Z/hGl8sTm5YpgeHmDZKK4Qi/4LYK5KIpTEgONMcOqQTWReopT00zJiYw7jcNchb8t9GOTdU0RQLAZnDV8YszRmcd8gSTXrCueqrqdxxmjm1OLnNdSOjczQeyG1h/FRUXgsog9WEp1ggdbuFm3xGcHPcYaA95f6szELKvjRGPEu1gdlUYxBPQ3sWMBE152VWjWNd8SVFUrmWDizlmc0QzlmnzXa2CpNJJMMibqYd3bZ2aOENvhhXgjuRgDv5K46hVP/N2xaM/GYJgPfP1D+JnS7LPhnIUCSoTvrKwabbVOisan8s7AGz1Xse5ocJiEsXhsqSQqTaDNTWLvHxkgQYmOIRuKAeAdyUx0SfwgawTqNMC/mnbGQi/RUKwg69RqfJBYFI3SChkgl9xX9mp+ni1XrPFGSonRl4V4LuUsE7XIs5U4EDAhSJfzh+5KhRk=' \
+  -H 'bx-umidtoken: T2gAJllnldFiRL-u8mC_CoRJu4UkeSmmDyAGdRWHSDDtxGpwCLykAm6gn7JppTggooY=' \
+  -H 'bx-v: 2.5.31' \
+  -H 'content-type: application/json' \
+  -H 'sec-ch-ua: "Chromium";v="107", "Not=A?Brand";v="24"' \
+  -H 'sec-ch-ua-mobile: ?1' \
+  -H 'sec-ch-ua-platform: "Android"' \
+  -H 'source: h5' \
+  -H 'timezone: Wed Jul 23 2025 13:27:44 GMT+0545' \
+  -H 'x-request-id: de6e8cbc-c553-4c27-8b50-24a155d5e2be' \
+  --data-raw '{"title":"New Chat","models":["qwen3-235b-a22b"],"chat_mode":"normal","chat_type":"t2t","timestamp":1753256564527}' \
+  --compressed
+  
+  
+Reponse: 
+{"success":true,"request_id":"de6e8cbc-c553-4c27-8b50-24a155d5e2be","data":{"id":"0d545d84-b9d5-424d-a014-9898d6bb8286"}}
+
+Completion (Thinking)
+
+curl 'https://chat.qwen.ai/api/v2/chat/completions?chat_id=0d545d84-b9d5-424d-a014-9898d6bb8286' \
+  -H 'Accept: */*' \
+  -H 'Accept-Language: en-US,en;q=0.9' \
+  -H 'Connection: keep-alive' \
+  -H 'Cookie: _gcl_au=1.1.1766988768.1752579263; _bl_uid=nXm6qd3q4zpg6tgm02909kvmFUpm; acw_tc=0a03e54317532565292955177e493bd17cb6ab0297793d17257e4afc7bf42b; x-ap=ap-southeast-1; token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU4NDg1NDh9.pb0IybY9tQkriqMUOos72FKtZM3G4p1_aDzwqqh5zX4; tfstk=gnWrW74FdLoEniTJZt9E7X0k69JJnpz_E9TBxMjHVUYuy99exESEP_sCxpyeowLk-yKkmxb9qvAu9bxEnEtMxv4dqpSDAhAoqvcomH-NRk3Htvcm2t7ZdYa8wMDedp4_5Rw120ppKPZtwwyoyHxKtJTHZivJAxxagyw12gncMMfF2RiFvWSkZebHZKYDbEcoZpbHixxpoYxnEH000ELDx2DnEnxDAhcH-wv30iYvxpxl-BqVmhnd5w4w2QqchCOCD8FXZFjkuvDiz3dkWRLSKvX299LGqWHnKt-ywtvXTLvML6jOTpv48XLhHeWlTizxZUXRHGT5dPhBri1DiTdxAuLhZi621tqige1O39RRQrMe81sf3I5f4igpmt1cp9eKtQxv0FZ400O4fR6xzi7t9XdJan8_mfcK9Qxv0FZ40XhpNc-25ocG.; isg=BGFhTKh5rbD9SgEyDyHR7LOycC97DtUA5jjXrcM2XmjFKob8CV-10RVsiQAJ3G04; ssxmod_itna=eq0xcDgCGQYDq4e9igDmhxnD3q7u40dGM9Deq7tdGcD8Ox0PGOzojD5DU2Yz2Ak52qqGRiBKD/KQCqDy7xA3DTx+ajQq5nxvqq35mCxteqDPLwwweCngAOnBKmgY8nUTXUZgw0uWKeDIDY=IDAtD0qDi+DDgDA=DjwDD7qewDD3DzwmPx03Dm4rN2eGuYCqexBYD3+DzFBYDbf2YK10YDGUD2moexGf=D7QDiwoQpmnDyBeiFiUIx2xI=+URWYQUj3K++oLt3fvkGtlAxAo25YS/RG5iiPTbplW7O4BHflK9AkUg3qvPtu5eiQGAqyi5l05xQKYikoDxzusKYeTex4D; ssxmod_itna2=eq0xcDgCGQYDq4e9igDmhxnD3q7u40dGM9Deq7tdGcD8Ox0PGOzojD5DU2Yz2Ak52qqGRiDeGIDgDn6Pq+Ee03t1Q6TnxtwxGXxT5W12cxqQj6SGQOIUDMu7eS+a=MAe01z8j7ruGMfxempCdjHsVOH5gxIH1iD8BjDzz27Wt4oza6yaODFW2eAqR6Osz+i536iNinaO+SDx3b9TeEm6AIutZlww2GDWd6niOAmDD' \
+  -H 'Origin: https://chat.qwen.ai' \
+  -H 'Referer: https://chat.qwen.ai/c/0d545d84-b9d5-424d-a014-9898d6bb8286' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-origin' \
+  -H 'User-Agent: Mozilla/5.0 (Linux; Android 12; itel A662LM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Mobile Safari/537.36' \
+  -H 'authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU4NDg1NDh9.pb0IybY9tQkriqMUOos72FKtZM3G4p1_aDzwqqh5zX4' \
+  -H $'bx-ua: 231\u0021Wm+3UAmUThk+joMEE+3xZLEjUq/YvqY2leOxacSC80vTPuB9lMZY9mRWFzrwLEV0PmcfY4rL2JFHeKTCyUQdACIzKZBlsbAyXt6Iz8TQ7ck9CIZgeOBOVaRK66GQqw/G9pMRBb28c0I6pXxeCmhbzzfCtEk+xPyXnSGpo+LsaU/+OPHDQCrVM2z4ya7TrTguCmtI4PaQZoQMmy/5GbXWVmzJJZr5/TqZm3kpylnW3koX0QD3yk8jHFx4EMK5QlFHH3v+++3+qAS+oPts+DQWqi++68uR+K6y+8ix9NvuqCz++I4A+4mYN/A46wSw+KgU++my9k3+2XgETIrb8AIWYA++78Ej+yzIE46J4jTCo+4oSn28DfRCb7bb4RdlvedIjC5f8MUt1jGNx1IaH10EiLcJno0RohtbR6j3h5QvAAeMuHBQfbGZ7wirmVmCiCFFTbwzSrh7scV/R/TpckDy3ojStlhhRmmLWqStrnsL2N2ViCV9p7lXLaXhjPcuZ5LCNFwQed1Q50W3bJfDqcdvn60HuTofDzopz43UNQZg9k2BHVdY0fik/V3nUxuAIKm3tIY5KDO6MYuRhKQWnKuDg3a6rXKHY2qVPmUavF1zS/892IDyesT4F70J8dJYr1LNDQ73zGmiWR/MLSh9M30NLnsXBL0AUNOB+SZMlPxcBhP7iIY+mguqVmDhAkIsk/VztmwWYG8/wPefEKiVHSm3+YJga1bZujwhyQjzLbDo6n7fFM1b++WtP3ixJsJvXMpYadqCpJT9RmUPJBpRTosLy9xv8awNKS44+BQ3KC98AdgcVWFDkr2MOu+/ZHNQw1ENh9d370sDejnLV0tlboFXk3uQbr6cYsMWi90bG9Rh7HBHXiq2HO2rl82TU92L3KYQ/DDZHeB1MwsKo2jQRAUVo6Xn7vilCp5z8tCfqj88t3CjYPW5d+AlWAuuKRVs0r3DUF+h1E5I1RzHJS7UFFT5eYEaPwLaj+aBWg4He8SFznUxb4aydQhn7T39mMSg0PKxB3PA2nuL73qDeFasJaz2cP0KiwYMUieVYuVPcuXCYa9QBtI6R1AEZVyqH+htH4mGJGJgLDUCBf8uSTQhPdTnHDFtM3l6n1GWl1F0IEv40fCvGpq9KVLU0CMR/9ZiqS8idrdr2nPPX36BPJI1prmICriTiZxz5am/8Ilawu+v4Kc6eswTFIB7kikOhQLVGJvpx9h+rs+29nbRWdarUFAX4Uf2+zxQAyE5g4K6bCkuvpjtUz7Qd+pFch/Qzw1SgTVTZISlyP5fmADLoAlaHNSKxX9b/anysfpDxSLDjNessGvaoFPSK450r2cb5sYaYbTWKudlycKpynWweB2otgVUNa9EnzD6TvshUb6zqgniF+wbcGAPaG/9rp3cfZm/iYcErbvVHU+r9SJ+6WoWLfH7YYgk9IPlzDiyvLpYjlWsiMyzUak7yO7jUUOncAL0QLOZwLqwsEjLD5DeAUwpR9K1jsB4RNkCsZg+E6gk/Ax7EoqA15OYa+MHSJObtpbFmZsIemo8MyvYNwfw1IqAbKnPFK6Fq/1hWgz+KXTwmwBexckPQQzE+9vpxBiSE+==' \
+  -H 'bx-umidtoken: T2gAJllnldFiRL-u8mC_CoRJu4UkeSmmDyAGdRWHSDDtxGpwCLykAm6gn7JppTggooY=' \
+  -H 'bx-v: 2.5.31' \
+  -H 'content-type: application/json' \
+  -H 'sec-ch-ua: "Chromium";v="107", "Not=A?Brand";v="24"' \
+  -H 'sec-ch-ua-mobile: ?1' \
+  -H 'sec-ch-ua-platform: "Android"' \
+  -H 'source: h5' \
+  -H 'timezone: Wed Jul 23 2025 13:27:47 GMT+0545' \
+  -H 'x-accel-buffering: no' \
+  -H 'x-request-id: 0e9aad1b-ea16-4a27-bac2-97318c45be59' \
+  --data-raw '{"stream":true,"incremental_output":true,"chat_id":"0d545d84-b9d5-424d-a014-9898d6bb8286","chat_mode":"normal","model":"qwen3-235b-a22b","parent_id":null,"messages":[{"fid":"05547502-6015-4a8f-aabd-f868ffa10a32","parentId":null,"childrenIds":["1ffed4a0-91a4-4a31-a303-58aad7c174f4"],"role":"user","content":"Hi","user_action":"chat","files":[],"timestamp":1753256564,"models":["qwen3-235b-a22b"],"chat_type":"t2t","feature_config":{"thinking_enabled":true,"output_schema":"phase","thinking_budget":38912},"extra":{"meta":{"subChatType":"t2t"}},"sub_chat_type":"t2t","parent_id":null}],"timestamp":1753256567}' \
+  --compressed
+  
+
+Reponse: 
+data: {"response.created":{"chat_id": "0d545d84-b9d5-424d-a014-9898d6bb8286", "parent_id": "6ee054fe-c13d-4aea-ac38-e6113987b809", "response_id":"8e454e00-9ba3-4ba9-b024-f895446674da"}} 
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "Okay", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": ", the user", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " just", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " said \"Hi\". That's", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " pretty open-ended. I", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " should respond in a friendly and", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " welcoming way. Let", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " me make sure to ask how", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " I can assist them to", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " get the conversation going", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": ". Keeping it simple and", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " approachable.", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "", "phase": "think", "status": "finished"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "Hello! How can", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " I assist you today?", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " 😊", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"content": "", "role": "assistant", "status": "finished", "phase": "answer"}}]}
+
+
+completion (thinking)
+curl 'https://chat.qwen.ai/api/v2/chat/completions?chat_id=0d545d84-b9d5-424d-a014-9898d6bb8286' \
+  -H 'Accept: */*' \
+  -H 'Accept-Language: en-US,en;q=0.9' \
+  -H 'Connection: keep-alive' \
+  -H 'Cookie: _gcl_au=1.1.1766988768.1752579263; _bl_uid=nXm6qd3q4zpg6tgm02909kvmFUpm; acw_tc=0a03e54317532565292955177e493bd17cb6ab0297793d17257e4afc7bf42b; x-ap=ap-southeast-1; token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU4NDg1NDh9.pb0IybY9tQkriqMUOos72FKtZM3G4p1_aDzwqqh5zX4; tfstk=g7onSP405kzd_PdTWcZBR-KUhvLT9kZ7dbI8wuFy75PsvbLQwVqr3j48zegKs7VaU0QUaJylQ-NMF9R7Lc2aE-o88eZzbRPTK_WF4Q_arb2UU_yrqVsohYipdupQAvZ74IdvD0DIdu1Rdujxx5PahASzag8TbKTkSmAvDnHE6WqYRInJ2zB7s8rzLyPF7d2YLJrzzJkwI8yRTaSEadvgEJ5PT7PzbRy0UuPrayWwI8NaLuzraA-T5NFQTWnwZ5a690r6Gcw3-SkUtjkrbR1YtvP106UbKyYKL5jP4cgo1yJzZh50Nclu0y06swMmo8k4l2dclyGIADas8If8YuVLkDh2sGPKzxi0bmR1qy0Zpczx2CS794kZlgyh7ZlImgNvjYQ5Pyy_ISd4Wu4K9TWgQdvGuH4UCRo9Idb5Pyy_ISpMIaE08RwZX; isg=BN_f9hqzyxavQM_8XZt3ykFYbjFpRDPmVCKZY3EsfQ7XAPKCbRWNN8XWx87Ypgte; ssxmod_itna=eq0xcDgCGQYDq4e9igDmhxnD3q7u40dGM9Deq7tdGcD8Ox0PGOzojD5DU2Yz2Ak52qqGtCqDsqKUxGkjDWPGED23FIhqSGuhhmqiUD5+xG+c2hr4tS7jlgQa=z/CknfOk9BMQmxxGoDE6eDcxDzDDbeDY5D6xG1eDDkex4Dix0kmmYDFxGWKREpDCIGk7YD5xire0u4KxibdKrAxKxDnZvpdOYDW6xDwxD8dOom+/yKvDR4O7nRGBGRelCCmED7kaaQGlKF1mxxZCuu+q=D==/Dw6DnXP+EF33mpSSb//Rm7Pv/RrKtd7INYi7Dx4UhtBhNQDxRG7SDYbD4lIVQiYfY4eD; ssxmod_itna2=eq0xcDgCGQYDq4e9igDmhxnD3q7u40dGM9Deq7tdGcD8Ox0PGOzojD5DU2Yz2Ak52qqGtD4iTGCDS9+x2Ux7pP2+x=qUtionxDstGt02DA1Yl=y4CC55zCguBWVp89QhhKuGgcBwaVt41=vqO6GhihT8d0HQe3chhphHGhiKmcAaxKqsW7O57KgmWOOKtiD+dWKw2ifEGpTbK8DeL=0jz6a6tgcDHhGxc9wHYjgDq7B0eAd0iDj25MPtK5lI+gGqxLjctMeuhccuYDbEoaUBgjTNViiKYQi5pLexGGTb4D' \
+  -H 'Origin: https://chat.qwen.ai' \
+  -H 'Referer: https://chat.qwen.ai/c/0d545d84-b9d5-424d-a014-9898d6bb8286' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-origin' \
+  -H 'User-Agent: Mozilla/5.0 (Linux; Android 12; itel A662LM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Mobile Safari/537.36' \
+  -H 'authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU4NDg1NDh9.pb0IybY9tQkriqMUOos72FKtZM3G4p1_aDzwqqh5zX4' \
+  -H $'bx-ua: 231\u0021NS/3Y+mUQnz+jmkAE+3xZLEjUq/YvqY2leOxacSC80vTPuB9lMZY9mRWFzrwLEV0PmcfY4rL2JFHeKTCyUQdACIzKZBlsbAyXt6Iz8TQ7ck9CIZgeOBOVaRK66GQqw/G9pMRBb28c0I6pXxeCmhbzzfCtEk+xPyXnSGpo+LsaU/+OPHDQCrVM2z4ya7TrTguCmtI4PaQZoQMmy/5GbXWVmzJJZr5/TqZm3kpylnW3ko10QD3yE3oHFx4EMK5QlFCCUD+++3+qiG+oPts+DQWqi++68uR+K6y+8ix9NvuqCz++I4A+4mYN/A46wSw+KgU++my9k3+2XgETIrb8AIWYA++78E+PsUz+/Y/9k3+YCK83IrL4QWlYiY56fE++yKRD+mB9uO+Yq9m3ItW++o0qi++6byqjOwvoIBDj+TiyRv5QnYvtQQjrWwV8ESIqhvvX6PDIlgFDFLHMrZ7XpsS2eOuSCXS3mDWotQfGCD0pW+rEyXvbW0cj9zwnThfSnbITm/3WHbZyFgpCkf5/5llqAFyUfSwYGyygvwiHELL3lX0TSO5FBCOS32Yo0sTfeE4Cy/sAT5G4j/jKXbdHwKXrTPqB4O6kdova5+oQzekffW4qhhqjJSkLm5xVUBCmnfbGY5iQjmqBUB0unxcfhmXwpB7kWcWdquFspOw4rGR6B/1Z6KBElNVS171ARsk40hT7UxBPtesOq7TOG1nWKYtjwZbI6SJD0f1UDZXm1RXC27hNYvd4Jvy4Bx15jWLV002TdfTfsJaZYLSOdH3cjw+ZTfcHNUTKNwynJuCPNZc9Ia9558+XlbcLvk8DbO0DdTEHUp/PUcYeKE81U/ZVinD+rklaiw1QfbXUTsfvZqpcHqj6zTVUclqweXkkpN2CluFJv6lsuISrv0H/9ZgRZzgam6ZSuF3aENHoflq9M7Nt239EJeYEQ6SmgPJYnXDSQ7DkBS0NOVCSbP0d01tYvDi4jCbpIhLFaRn/4jYhDc31zsKh87xfAS5haD3EXx6I/VjyVYX5alC6LSkdJ544aAybvRAv06G428Q2mFawXzi9aC6XKXoib5VIPkl4E6EnSoD+v/MtC5h6omDBYo2MISDh2jHH+be09ZuZFxmluls7EJbrcFdJBzk3Q5zwSlf2s6tg4ZKR6RwkFhRlo7z/p+gTF6CALjN8uxuUMosm4PWyzVfZDToLbIBSj659IxySkKxETW5CtsYC/+fQI7xrChg6w5Gx6kYHlobLTpOE31Kf4I5RZHAJjCe5ukPwDQd/njx3Rh9ltXTWwuCt+Jsky5eu/RS19clgqKl0hBOvcK1zRNsh4PjJKBnXtzT8QSw9PzSoIYCg5vIrEQVdxuoJrCirqR5dc+1eYS7XL86U0k2hzFmvQHl83VmLujcPd/xX0PxLdrPGMQMVP7FqGIEUTndJkMt4JAspyjpbShhmjnDhXh6iZKhdYeN8g0x4zVP9z0hyOw1HStz9t3Epcc8YjimKoTvUZdJFVEyul9wGpNbJnbCxDsyylya0fUJ7ufVR6rzB8jrjsXzdqJGrIHOc0oKTZBhMEVqkk+taFKRl6QYMhjkmmyrSmDI4+Ci/LRmIdrMEUq6GmIMiGynNyzqLZ3u3ORdes/hdHV19Ct2RF6ybzY+211OK5PhOyZxtd8mDCbb3BtZoJ8fhc5ogkdm9B0HVA==' \
+  -H 'bx-umidtoken: T2gAJllnldFiRL-u8mC_CoRJu4UkeSmmDyAGdRWHSDDtxGpwCLykAm6gn7JppTggooY=' \
+  -H 'bx-v: 2.5.31' \
+  -H 'content-type: application/json' \
+  -H 'sec-ch-ua: "Chromium";v="107", "Not=A?Brand";v="24"' \
+  -H 'sec-ch-ua-mobile: ?1' \
+  -H 'sec-ch-ua-platform: "Android"' \
+  -H 'source: h5' \
+  -H 'timezone: Wed Jul 23 2025 13:28:04 GMT+0545' \
+  -H 'x-accel-buffering: no' \
+  -H 'x-request-id: 5233c5ed-5bba-43b2-93be-8fe785f5f266' \
+  --data-raw '{"stream":true,"incremental_output":true,"chat_id":"0d545d84-b9d5-424d-a014-9898d6bb8286","chat_mode":"normal","model":"qwen3-235b-a22b","parent_id":"8e454e00-9ba3-4ba9-b024-f895446674da","messages":[{"fid":"049cb58d-810a-40d3-b828-e953e03654f9","parentId":"8e454e00-9ba3-4ba9-b024-f895446674da","childrenIds":["3a35f868-ccba-4e9c-855d-1a6f9991900f"],"role":"user","content":"How are you?","user_action":"chat","files":[],"timestamp":1753256584,"models":["qwen3-235b-a22b"],"chat_type":"t2t","feature_config":{"thinking_enabled":true,"output_schema":"phase","thinking_budget":38912},"extra":{"meta":{"subChatType":"t2t"}},"sub_chat_type":"t2t","parent_id":"8e454e00-9ba3-4ba9-b024-f895446674da"}],"timestamp":1753256584}' \
+  --compressed
+  
+Response:
+data: {"response.created":{"chat_id": "0d545d84-b9d5-424d-a014-9898d6bb8286", "parent_id": "5535b0a8-f6c5-4ddb-9791-0fd30b690c2c", "response_id":"366424b2-7b60-4d9c-bb41-7eb7160982dc"}} 
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "Okay, the", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " user asked", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " \"How are", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " you?\" after I greeted", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " them. I need to respond", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " appropriately. Since I'm an", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " AI, I don't have", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " feelings, but I should acknowledge", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " their question politely. Let", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " me make sure my response", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " is friendly and offers", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " help. Maybe say", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " something like, \"I'm", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " just a language model, so", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " I don't have feelings,", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " but I'm here to help", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " you!\" That should", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " work. Keep it simple and", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " positive.", "phase": "think", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "", "phase": "think", "status": "finished"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "I'm just a language model", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": ", so I don't have", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " feelings, but I'm here", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " to help you! 😊", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " What can I assist you with", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " today?", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"content": "", "role": "assistant", "status": "finished", "phase": "answer"}}]}
+
+
+ completion (web search)
+ curl 'https://chat.qwen.ai/api/v2/chat/completions?chat_id=0d545d84-b9d5-424d-a014-9898d6bb8286' \
+  -H 'Accept: */*' \
+  -H 'Accept-Language: en-US,en;q=0.9' \
+  -H 'Connection: keep-alive' \
+  -H 'Cookie: _gcl_au=1.1.1766988768.1752579263; _bl_uid=nXm6qd3q4zpg6tgm02909kvmFUpm; acw_tc=0a03e54317532565292955177e493bd17cb6ab0297793d17257e4afc7bf42b; x-ap=ap-southeast-1; token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU4NDg1NDh9.pb0IybY9tQkriqMUOos72FKtZM3G4p1_aDzwqqh5zX4; tfstk=gZGqSbtZ1S7NZ4ZYnbNNYOj0pfPYd5-BifZ_SV0gloqDDfNaSuuNcxgsS5RaqcE0jhU0r_mLo12DBt4NZua3S1xto5uu5y2co1XcrPzEfFIgI1XlkboF1stvHVfa15xBABOIkZFTsHTdHcRcDP41jCZgszVY5_4eUhOIkqQoeVDZkB_ZWd-TIlmgn7qu8uXgoRmgE_4Tqs4GiPjkzuEuSGfGiz4u5yXgjcVMzz43qlVgnc2kzPKTyDiMYreDrbwQC4Q56-Znou5GtiubnuRLo1ftTRhTxqvOs1czu-huNRP0t5kiJAPgahWTjbEZiAuy2tqmMb3QcftdCo0SE8cYeNTYjx0SaJGk-TrspblaHX-5_lkIPbyrFg-VXzcSEfh96O20yzrBzU7bUeOIwiurvOBTH-zzAUXhBOe0yzrBzUWOB-RzzkTlK; isg=BIKCb1cEXt36ZEL3wMzCkVTn04rkU4ZtIe3UKMybp_WrHzeZ9-KefJxZykXGcf4F; ssxmod_itna=eq0xcDgCGQYDq4e9igDmhxnD3q7u40dGM9Deq7tdGcD8Ox0PGOzojD5DU2Yz2Ak52qqyCngKD/KQCqDy7xA3DTx+ajQq5nxvqq35mCxteqDPLwwwe3znQSQFN+K1MnLEVtTOiD74i8QxAtD0qDi+DDgDA=DjwDD7qe4DxDADB=bteDLDi34yjbDtq0=YeGwDAY4BOhwDYEewDnV+DDSSLbIYeDf9DG2DD=Ifn2iMkwTDOhQtbOiCYOopLQP4wdL+xmyRfwQYAvkCKlvxAE05GjPz/6i36Ri1mnFOfyH+lIt+dsEwxvPtu54YIkGP10qsnhuhwsD+eGDUcNqe4o+DxD; ssxmod_itna2=eq0xcDgCGQYDq4e9igDmhxnD3q7u40dGM9Deq7tdGcD8Ox0PGOzojD5DU2Yz2Ak52qqyCnxeGIDgDn6Pq+1q032+po8K5e+tY5D/CQcxUA=iepi0715ezCg6NVtcgl7kZg7ZC9lju1GC3ea55eFQg2IGe80FYjGCdnua+6aQqnhzrRYFw=iKYY5N8hpaC2wxSoSmpt0btAoeL=GxgpPIVEIqz+q4ARaNshG8V/YeeYMjxMMXshqHRUiU6+BDdCjUtjCQA+Z6Ch0=aEnBuzwtv9r5ChuNwXnTeEmDD' \
+  -H 'Origin: https://chat.qwen.ai' \
+  -H 'Referer: https://chat.qwen.ai/c/0d545d84-b9d5-424d-a014-9898d6bb8286' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-origin' \
+  -H 'User-Agent: Mozilla/5.0 (Linux; Android 12; itel A662LM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Mobile Safari/537.36' \
+  -H 'authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU4NDg1NDh9.pb0IybY9tQkriqMUOos72FKtZM3G4p1_aDzwqqh5zX4' \
+  -H $'bx-ua: 231\u0021tdG78kmUl5S+j3eEE+3xZLEjUq/YvqY2leOxacSC80vTPuB9lMZY9mRWFzrwLEV0PmcfY4rL2JFHeKTCyUQdACIzKZBlsbAyXt6Iz8TQ7ck9CIZgeOBOVaRK66GQqw/G9pMRBb28c0I6pXxeCmhbzzfCtEk+xPyXnSGpo+LsaU/+OPHDQCrVM2z4ya7TrTguCmtI4PaQZoQMmy/5GbXWVmzJJZr5/TqZm3kpylnW3ko10QD3yE3oHFx4EMK5QlFCCcBj+++j+yzx+7Y0AAR+KtA43IeW+MZWqAoC6Ktm+wYn3jj09AjVqCF21ltWNlZWqA++6+/j+hWE5nj055voqCS++jsc+DNWvV4+fO/j+KFU+m6O9OWXqySqQItd++mUcj++KU/+2iFW3+j09x3jYavRWUQWaeFWqA++6wSj+KFf+8pa9qShqCz++InN+4IUVk+06hcQ+KgU+++69k3+qAFmjOV0/IBDj+TiyRv5QnYvtQQjrWwV8ESIqhvvX6PDIlgFDFLHMrZ7XpsS2eOuSCXS3mDWotQfGCD0pW+rEyXvbW0cj9zwnThfSnbITm/3WHbZyFgpCkf5/5llqAFyUfSwYC/V67/26gKK895aKrmuqrKpip4dsz+cydyzSBjJk8a6Y4RmmReJD/hOeGwsPOWH7KjKsdH4LcQ/DnWQFikEcNFgTCAXqCE7wbR0bpTR7zTbcxikE616hh6HvXtXhmT8anUWTZci0xMGWjhLwH3OhMlH/C5ZOnrDi/RqB3LlmdQBmviK9fBBfw396UUDNS57vZpItDQJeRUj01VZ/n+u0X03ExqVYcyipV7rmSXaXxl8LLzRRay/bNzYqO0K7AIYzEO1qcSascM0GC1mblnWKhW/egb8ITVGTUOZiEF5KNr++qgNIkG25Us8Bhus4w8I5toSjDaA61YuLoaHYKKi6r4xMkWiHRTcrUk0znHVK6W1mhOs+rtqOBPTME9vZmvWrF3NrM+TmUib9P09hdgQvWJiyQBb98BAYYDf4Zjj9f6lLCgM/VAISUVI3ZHx/987UGyAV4ETlA2BXfUBaWVw8vcI7gXHxsZzDIdm94ayV111MX1AX9PT4y6Ai8zPElAZndo9ACX05qKYK42iP+FbDVvcTT1ckjZ/+E5kzsh0lHAWnC9pVmPHIAmntVUCQ+nVEx0qSxXgJI3maoHXYdYdHu8sRqMFucIOOX4uTL6Maz6kNZFyf/OKkIEqg+mxBXhEhq6wtlT1EL6c1TSh017tQTx9fK1xgdKB563uJHbuZtn3Bp2f1kQHUqr7s8ojmEVXRZ+vJNwIKaSRtwKkX70uUisLvYajN+JHpbInhISNqwiefGxaWOx9+awZPdb2xBvvOWg1v8CGyiF/4L94gIXmSl0VH+ZTycygy2+RwzTYaAaaBIw54Ctq4eEUTIPPNHsh9/VdyfZvkzN2saxJNBsP0q3SYsSrB9twCegyHIQoLsh7f0TEH0etDya4oA+lWW2fZWmyny/x9+fV3WEU2eP4fjmdrm2UWdF5/dSmqtmjoVFy8PZLA4aXjJwLLF395nOExFoXe/M6UOQBjGAzhA+PJj2wRAU7cHceuuGYMn/fMbopBwtRND9yxoqcc9QQYKlm0Ce6wtYciRwVQSE7CMjXZ+qznLh5OskRkcL8sk2Vo5UM2zqU0/+X/0iXP0wKjrUUVGKHHq4fU6W0GHGmXMNUbJhj7E6it9Wkug5UDWpDMMNKGLWAbrfeoTiAfl/29GZqZCUci4==' \
+  -H 'bx-umidtoken: T2gAJllnldFiRL-u8mC_CoRJu4UkeSmmDyAGdRWHSDDtxGpwCLykAm6gn7JppTggooY=' \
+  -H 'bx-v: 2.5.31' \
+  -H 'content-type: application/json' \
+  -H 'sec-ch-ua: "Chromium";v="107", "Not=A?Brand";v="24"' \
+  -H 'sec-ch-ua-mobile: ?1' \
+  -H 'sec-ch-ua-platform: "Android"' \
+  -H 'source: h5' \
+  -H 'timezone: Wed Jul 23 2025 13:28:31 GMT+0545' \
+  -H 'x-accel-buffering: no' \
+  -H 'x-request-id: 2297a619-1eae-444c-b6af-2cd20927a99f' \
+  --data-raw '{"stream":true,"incremental_output":true,"chat_id":"0d545d84-b9d5-424d-a014-9898d6bb8286","chat_mode":"normal","model":"qwen3-235b-a22b","parent_id":"366424b2-7b60-4d9c-bb41-7eb7160982dc","messages":[{"fid":"3d0c704b-e6e0-4040-937b-e34074a7b37d","parentId":"366424b2-7b60-4d9c-bb41-7eb7160982dc","childrenIds":["e65a3698-81c5-496d-a7a2-885f24d6554c"],"role":"user","content":"Latest news from nepal (short bullet points)","user_action":"chat","files":[],"timestamp":1753256611,"models":["qwen3-235b-a22b"],"chat_type":"search","feature_config":{"thinking_enabled":false,"output_schema":"phase","search_version":"v2"},"extra":{"meta":{"subChatType":"search"}},"sub_chat_type":"search","parent_id":"366424b2-7b60-4d9c-bb41-7eb7160982dc"}],"timestamp":1753256611,"size":"1:1"}' \
+  --compressed
+  
+Response:
+data: {"response.created":{"chat_id": "0d545d84-b9d5-424d-a014-9898d6bb8286", "parent_id": "93782765-512f-42d6-9fa9-6b5d9941a292", "response_id":"fcc2b93f-0e3f-4735-9522-491344748c57"}} 
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "", "phase": "web_search", "status": "typing", "function_call": {"name": "web_search", "arguments": ""}, "extra": {"model_service_info": {"status_code": 200, "request_id": "c51280b0-6dc5-9f13-b692-a383801c4bbf", "code": "", "message": "", "output": {"text": null, "finish_reason": null, "choices": [{"finish_reason": "null", "message": {"role": "assistant", "content": "\", \"arguments\": {\""}}]}, "usage": {"input_tokens": 249, "output_tokens": 13, "total_tokens": 262}}, "model": "qwen3-235b-a22b", "function_id": "1"}}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "", "phase": "web_search", "status": "typing", "function_call": {"name": "web_search", "arguments": "{\"query\": \"latest news fro"}, "extra": {"model_service_info": {"status_code": 200, "request_id": "c51280b0-6dc5-9f13-b692-a383801c4bbf", "code": "", "message": "", "output": {"text": null, "finish_reason": null, "choices": [{"finish_reason": "null", "message": {"role": "assistant", "content": "query\": \"latest news from"}}]}, "usage": {"input_tokens": 249, "output_tokens": 19, "total_tokens": 268}}, "model": "qwen3-235b-a22b", "function_id": "1"}}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "", "phase": "web_search", "status": "typing", "function_call": {"name": "web_search", "arguments": "{\"query\": \"latest news from Nepal today\"}"}, "extra": {"model_service_info": {"status_code": 200, "request_id": "c51280b0-6dc5-9f13-b692-a383801c4bbf", "code": "", "message": "", "output": {"text": null, "finish_reason": null, "choices": [{"finish_reason": "null", "message": {"role": "assistant", "content": " Nepal today\"}}\n</tool_call>"}}]}, "usage": {"input_tokens": 249, "output_tokens": 23, "total_tokens": 272}}, "model": "qwen3-235b-a22b", "function_id": "1"}}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "", "phase": "web_search", "status": "typing", "function_call": {"name": "web_search", "arguments": "{\"query\": \"latest news from Nepal today\"}"}, "extra": {"model_service_info": {"status_code": 200, "request_id": "c51280b0-6dc5-9f13-b692-a383801c4bbf", "code": "", "message": "", "output": {"text": null, "finish_reason": null, "choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": ""}}]}, "usage": {"input_tokens": 249, "output_tokens": 23, "total_tokens": 272}}, "model": "qwen3-235b-a22b", "function_id": "1"}}}]}
+
+data: {"choices": [{"delta": {"role": "function", "content": "", "phase": "web_search", "status": "typing", "name": "web_search", "extra": {"function_id": "1", "web_search_info": [{"url": "https://www.nepallivetoday.com/", "title": "Nepal Live Today", "snippet": "Latest News · Pahalgam attack: Security beefed up at India-Nepal border in UP's Maharajganj · Nepal condemns terrorist attack · PM Oli condemns terrorist attack in", "hostname": null, "hostlogo": null, "date": ""}, {"url": "https://www.aljazeera.com/where/nepal/", "title": "Nepal | Today's latest from Al Jazeera", "snippet": "Dozens missing after monsoon triggers Nepal-China floods · Published On 8 Jul 20258 Jul 2025 ; Devi Khadka: The woman leading the fight against wartime sexual", "hostname": null, "hostlogo": null, "date": ""}, {"url": "https://kathmandupost.com/", "title": "The Kathmandu Post | Read online latest news and articles from Nepal", "snippet": "Nepal's foreign trade hits Rs2 trillion, driven by edible oil re-export boom · ADB unveils $1.91 billion plan to support Nepal's green, inclusive growth · Nepse", "hostname": null, "hostlogo": null, "date": ""}, {"url": "https://myrepublica.nagariknetwork.com/", "title": "myRepublica - The New York Times Partner, Latest news of Nepal in ", "snippet": "Nepal's trade deficit soars to Rs 1.527 trillion despite 82 pc export boom last FY. The records with the Department of Customs (DoC) show that the country's", "hostname": null, "hostlogo": null, "date": ""}, {"url": "https://kathmandupost.com/time", "title": "The Kathmandu Post | Read online latest news and articles from Nepal", "snippet": "Strikes on Iran mark Trump's biggest, and riskiest, foreign policy gamble · NEPSE plunges 32.93 points as all subgroups post losses · Nepal defeat Singapore by", "hostname": null, "hostlogo": null, "date": ""}, {"url": "https://www.independent.co.uk/topic/nepal", "title": "Nepal - latest news, breaking stories and comment - The Independent", "snippet": "Nepal ; Rescuers search for 19 missing and recover 9 bodies after flooding in Nepal · <p>Among those swept away were 12 Nepalis and six Chinese nationals </.", "hostname": null, "hostlogo": null, "date": ""}, {"url": "https://kathmandupost.com/columns/2025/06/24/the-upper-house-debate,", "title": "The Kathmandu Post | Read online latest news and articles from Nepal", "snippet": "Sun, Jul 20, 2025. 22.74°C Kathmandu · Air Quality in Kathmandu: 55. What's News : UN warnings ignored · 2024 plane crash · Bus terminal", "hostname": null, "hostlogo": null, "date": " (2025-06-24)"}]}}}]}
+
+data: {"choices": [{"delta": {"role": "function", "content": "", "phase": "web_search", "status": "finished"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "*", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "  ", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " Do", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "zens are", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " missing following floods triggered", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " by monsoon rains affecting", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " both Nepal and China", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " [[2]]. Res", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "cuers are searching for ", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "19 missing people", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " and have recovered 9 bodies", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " after flooding in Nepal,", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " with those swept away including", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " 12 Nep", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "alis and six Chinese nationals [[", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "6]].\n*  ", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " Nepal's foreign trade", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " reached Rs 2 trillion,", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " driven significantly by a", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " boom in edible oil re-", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "exports [[3]].", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " However, the country's trade", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " deficit soared to Rs", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " 1.527", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " trillion despite an 82", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " percent export increase in the last", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " fiscal year [[4", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "]].\n*   The Asian", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " Development Bank (ADB", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": ") unveiled a $", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "1.91 billion", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " plan to support Nepal's green", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " and inclusive growth [[", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "3]].\n*", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "   Nepal's stock", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " market, NEP", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "SE, experienced a decline", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": ", plunging 32", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": ".93 points as", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " all subgroups posted", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " losses [[5]].\n", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "*   Nepal condemned", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " a recent terrorist attack, with", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " Prime Minister Oli specifically", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": " condemning the attack in P", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "ahalgam [[", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "1]].", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"role": "assistant", "content": "", "phase": "answer", "status": "typing"}}]}
+
+data: {"choices": [{"delta": {"content": "", "role": "assistant", "status": "finished", "phase": "answer"}}]}
+
+
+
+completions (followup suggestions)
+curl 'https://chat.qwen.ai/api/v2/task/suggestions/completions' \
+  -H 'Accept-Language: en-US,en;q=0.9' \
+  -H 'Connection: keep-alive' \
+  -H 'Cookie: _gcl_au=1.1.1766988768.1752579263; _bl_uid=nXm6qd3q4zpg6tgm02909kvmFUpm; acw_tc=0a03e54317532565292955177e493bd17cb6ab0297793d17257e4afc7bf42b; x-ap=ap-southeast-1; token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU4NDg1NDh9.pb0IybY9tQkriqMUOos72FKtZM3G4p1_aDzwqqh5zX4; tfstk=gI0oWOZgczrROFvYDqaWV5Lz1bKA2zaQNvQLpyee0-yjyvK7pm4E_AqLY3i-nJ24T2IzL7Phg5wDO_JQaqV4t5uL43aUuSyYZ95P8ps4xvVzT9PE-m_n1XgJNyd7PbaQ8dp9W2cSNy6dNybtr-r4Nj7ULJ-YuCtHmVv9WFhrH84TVd3pJkpgHWzUauyP0IVg99zUY7l2iWPdUM7rLIA0t7WFUJyUuSPgTyyELyRmg-N38WkU8hnGD8wzeqJ3ho9-88KEr7quQbyoQRg4TOFna-bFelNuq3hznw7ElDDb4ByHuO2Iuv4aqm9cVfmgTfrs2dj_VYgSPoiyI9Uz-8EtyAJcu8nE1V4q7K_3qml-ul3p3ww-Yjo14rSVbYgGRRLm9MsQ4SN0BdrY-uHRTsV2iIjwruPbgqdDiMsQ4SN0BIAcj-qzGSuA.; isg=BFlZY-BRVUg1Jgkq13lZROtaaEcz5k2YLmDflXsO3ADggmwUgDcVaVOUgRhSBOXQ; ssxmod_itna=eq0xcDgCGQYDq4e9igDmhxnD3q7u40dGM9Deq7tdGcD8Ox0PGOzojD5DU2Yz2Ak52qqyCiBKD/KQCqDy7xA3DTx+ajQq5nxvqq35mCxteqDPLwwweCngAOnBKmgY8nUTXUZgw0uWKeDIDY=IDAtD0qDi+DDgDA=DjwDD7qewDD3DzwmPx03Dm4rN2eGuYCqexBYD3+DzFBYDbf2YK10YDGUD2moexGf=D7QDiwoQpmnDyBeiFiUIx2xI=+URWYQUj3KiRYIjSYq4SgKA5N8D8+lxYkhAgteW2mWoNPFID/p3Xh=SIkUR0Oxv25eiQSMKSG5/Bqt0xPDeoDxsqGKYeaex4D; ssxmod_itna2=eq0xcDgCGQYDq4e9igDmhxnD3q7u40dGM9Deq7tdGcD8Ox0PGOzojD5DU2Yz2Ak52qqyCiDeGIDgDn6Pq+1q032+po8I+r5mqDstISDHnKY+bY7QUqDdIj9vzvSWzQ6/CAF/8zcytYU4rc2xGPqzLPBGKAP4dey4ZCa78PuD1m5md+p7qmx422qxb8cFl7izhtSkdgiIiA9DKGHrHSH8tnotYCSFZBP4EcLwiiDj2/dXZSPtkxM4ytGq5t04PwLqo5uEHHMFYCTa3oUpyAwE1lhnPY/bNrmb4D' \
+  -H 'Origin: https://chat.qwen.ai' \
+  -H 'Referer: https://chat.qwen.ai/c/0d545d84-b9d5-424d-a014-9898d6bb8286' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-origin' \
+  -H 'User-Agent: Mozilla/5.0 (Linux; Android 12; itel A662LM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Mobile Safari/537.36' \
+  -H 'accept: application/json' \
+  -H 'authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU4NDg1NDh9.pb0IybY9tQkriqMUOos72FKtZM3G4p1_aDzwqqh5zX4' \
+  -H $'bx-ua: 231\u00216zk7TAmUNp++j3eEUA3Y0MEjUq/YvqY2leOxacSC80vTPuB9lMZY9mRWFzrwLEV0PmcfY4rL2JFHeKTCyUQdACIzKZBlsbAyXt6Iz8TQ7ck9CIZgeOBOVaRK66GQqw/G9pMRBb28c0I6pXxeCmhbzzfCtEk+xPyXnSGpo+LsaU/+OPHDQCrVM2z4ya7TrTguCmtI4Pa6Rv4viebaCe8WWTSJHniCh8uhVSSGdzzr+MMepk4qk4MsH6okuqTUwHNqUk3+++3+qlS+PUnmj4jYPj+468z+XygW+MYOYR/+x2/43IeW+8IWYCPMwbggyygW++j0+A3+dX5T/IrhTkMWYA++Iap+ZXu57+oLRA3jYCS+wxtWbXNEYlcp6bE++yKp3+jqSAoP7Cz4+IeWS4IUQVrX6fgQ7CgW++j0OA3jYCv+9nQWcAWWqA++6Jzj+KK8+me0d2pjqCS++jOd+4mWjs3Itk+qFkk3+U3Ye5T2J2Vt2p7hza39VAFEcV5YOSkFysGVsgGuh/bqn0Au7+52t2I4eoEfb//3rNFC8Q2gDinSRkB4HzFUx1tZLI35VF9vPKT2A0SRyBVNOrgdOe+Axm4qAagdYSdyJ2kLMcxF8BerXFB3kyvajvkwpa7DjFJIrCrcUCdaQUQLs5L+4kygCgIAf26k2LQ0fFti1IpE960+IUrsLVh7KVGsjYgjm07M2C5QqIRTxC9QgNs3Cyj9H++WY1q3MfxUxcjaHOPH1rY41yosBhzqXCEMMxJbaR3MZ8fvn+3Jbk0bLnEzOuzyh3WETnoktHNwWLwvxbg29IdHW1WcXwCtUuoqgWmfJhv8ABytsbr9cGaaUtqUqCZihMU0K6ezVFWhjvxmsl4yx2Gt62dxDTBLL2UisSTw/YikRanEY1Q7yRksjPekSgKfJ/TaUJp2ZNjSweN3Jv+0Asj0NT/dXkuzSeUEXvnJ83NABFjrivoU+i6rBxNcZu2EoR82aN6bsi/51+pNT2YkZ3XcY+kEF2Wk+c1ZnRfOqiTUaO7/KUkwdQ6EwuVQ49WyMvxTJHyWunNHzortulJE94yNxP3OLnxCanbbfCuFe/htYQE+T16BN7t2MRJrI5MiY+BTc8phrD3TBvVg+s9eHgOKkEguK0wOMcV/6ZeAEtPRuhf/HFIPp1rZTxGx5zBm2mLVmeKscbhuvoCA/kDlMQtMQPQfKSAc6/Biuw+n183vSWf6VZRpN+UNZc9OiLb0PoaNohpXXAio9QR63e+ndhSy0M8uoUpu1po1MkEKEbS8xBKAW5RAEm2/UArGCPYN/5+RmT6E2T7QTVoSPW7a1CrtHGBmd7pXq7/6qVCe+LknyUkuBv2Zbzm1WDgJ/ybdWP8ZB3N+LxzLV+LOKk2UVNsgo6fb71BRX++DKT51SPdCIwMZa6uAaVWjWBHjaGA8FR+BXLsXX4DqyRwBtgTAA5nvm/d+Y+HtYEWE8Pqvc64bzIqO/FBOATscRp6+e8OqKFHmANhFoE5bpSCBtw2xFXOfDgZ5OW/m3AVjFoDarWdtRMRXYz5Zp5e4yT2XBQWcMVv+GKA2QQ1lv3PI4hFC37Ndzy94X1wSgfsp9nn1zl2DqpwpeAQJ79iKJnyi0ankehORXLNJgBkWE1yx3LnfPNrs4+uh/BSzBmoFVTpmVE7e5Csyl63NvlU+Z5f8nJkoJsZCM28yen21wY+VIY4tZYbCwiyb0fVI5k+tn2PqlE6EnhT/iiBUH87BxU172LSiIJpxzyDkdXaRzHJD4ISYv+pJwES=' \
+  -H 'bx-umidtoken: T2gAJllnldFiRL-u8mC_CoRJu4UkeSmmDyAGdRWHSDDtxGpwCLykAm6gn7JppTggooY=' \
+  -H 'bx-v: 2.5.31' \
+  -H 'content-type: application/json' \
+  -H 'sec-ch-ua: "Chromium";v="107", "Not=A?Brand";v="24"' \
+  -H 'sec-ch-ua-mobile: ?1' \
+  -H 'sec-ch-ua-platform: "Android"' \
+  -H 'source: h5' \
+  -H 'timezone: Wed Jul 23 2025 13:28:39 GMT+0545' \
+  -H 'x-request-id: cb010bef-b8fb-47b1-8788-522715dd0432' \
+  --data-raw '{"stream":false,"modelIdx":0,"model":"qwen3-235b-a22b","chat_id":"0d545d84-b9d5-424d-a014-9898d6bb8286","parent_id":"fcc2b93f-0e3f-4735-9522-491344748c57","timestamp":1753256619}' \
+  --compressed
+  
+Response:
+{"success":true,"request_id":"cb010bef-b8fb-47b1-8788-522715dd0432","data":{"id":null,"created":1753256624,"choices":[{"message":{"role":"assistant","content":"[\"What are the current political developments in Nepal?\",\"Can you provide details about recent natural disasters in Nepal?\",\"How is Nepal's tourism industry faring lately?\"]","reasoning_content":null,"chat_type":"t2t","sub_chat_type":null,"model":null,"modelName":null,"modelIdx":0,"id":null,"parentId":null,"childrenIds":null,"feature_config":null,"content_list":null,"is_stop":null,"edited":false,"error":null,"meta":null,"extra":null,"feedbackId":null,"turn_id":null,"annotation":null,"done":null,"info":null,"timestamp":null}}]}}
