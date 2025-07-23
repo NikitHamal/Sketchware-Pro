@@ -7,6 +7,7 @@ import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.LinearLayoutManager;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -14,13 +15,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ArrayList;
 
 import io.noties.markwon.Markwon;
 import pro.sketchware.activities.ai.chat.models.ChatMessage;
 import pro.sketchware.activities.ai.chat.views.ProjectItemView;
 import pro.sketchware.activities.ai.chat.views.FixProposalView;
+import pro.sketchware.activities.ai.chat.adapters.SourcesAdapter;
 import pro.sketchware.databinding.ItemChatMessageBinding;
 import pro.sketchware.R;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import com.google.android.material.bottomsheet.BottomSheetDialog;
 
 public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder> {
     private static final String TAG = "ChatAdapter";
@@ -101,7 +110,8 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
         
         // Set thinking content
         contentView.setText(thinkingContent);
-        statusView.setText("Thoughts");
+        // Hide status view as it's not needed
+        statusView.setVisibility(android.view.View.GONE);
         
         // Set up toggle functionality
         headerView.setOnClickListener(v -> {
@@ -195,6 +205,14 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
                 } else {
                     binding.projectItemContainer.setVisibility(android.view.View.GONE);
                 }
+
+                // Handle web search sources
+                if (message.hasWebSearchSources()) {
+                    binding.sourcesButtonContainer.setVisibility(android.view.View.VISIBLE);
+                    binding.sourcesButton.setOnClickListener(v -> showSourcesBottomSheet(message.getWebSearchSources()));
+                } else {
+                    binding.sourcesButtonContainer.setVisibility(android.view.View.GONE);
+                }
             }
         }
         
@@ -234,6 +252,37 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
                 if (binding.userMessage.getParent() instanceof android.view.View) {
                     ((android.view.View) binding.userMessage.getParent()).setOnClickListener(expandClickListener);
                 }
+            }
+        }
+
+        private void showSourcesBottomSheet(String sourcesJson) {
+            try {
+                JSONArray sourcesArray = new JSONArray(sourcesJson);
+                List<JSONObject> sourcesList = new ArrayList<>();
+                
+                for (int i = 0; i < sourcesArray.length(); i++) {
+                    sourcesList.add(sourcesArray.getJSONObject(i));
+                }
+
+                if (!sourcesList.isEmpty()) {
+                    BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(binding.getRoot().getContext());
+                    android.view.View bottomSheetView = LayoutInflater.from(binding.getRoot().getContext())
+                            .inflate(R.layout.bottom_sheet_sources, null);
+                    
+                    RecyclerView recyclerView = bottomSheetView.findViewById(R.id.sources_recycler_view);
+                    android.widget.ImageView closeButton = bottomSheetView.findViewById(R.id.close_button);
+                    
+                    SourcesAdapter sourcesAdapter = new SourcesAdapter(sourcesList, binding.getRoot().getContext());
+                    recyclerView.setLayoutManager(new LinearLayoutManager(binding.getRoot().getContext()));
+                    recyclerView.setAdapter(sourcesAdapter);
+                    
+                    closeButton.setOnClickListener(v -> bottomSheetDialog.dismiss());
+                    
+                    bottomSheetDialog.setContentView(bottomSheetView);
+                    bottomSheetDialog.show();
+                }
+            } catch (JSONException e) {
+                Log.e(TAG, "Error parsing web search sources", e);
             }
         }
     }

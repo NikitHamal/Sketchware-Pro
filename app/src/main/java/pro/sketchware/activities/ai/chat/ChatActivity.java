@@ -38,6 +38,7 @@ import pro.sketchware.activities.ai.chat.models.ChatMessage;
 import pro.sketchware.activities.ai.chat.models.QwenModel;
 import pro.sketchware.activities.ai.chat.api.QwenApiClient;
 import pro.sketchware.activities.ai.chat.api.AgenticQwenApiClient;
+import pro.sketchware.activities.ai.chat.api.ModelFetcher;
 import pro.sketchware.activities.ai.storage.ConversationStorage;
 import pro.sketchware.activities.ai.storage.MessageStorage;
 import pro.sketchware.activities.main.fragments.ai.models.Conversation;
@@ -79,6 +80,11 @@ public class ChatActivity extends AppCompatActivity {
     private List<HashMap<String, Object>> availableProjects = new ArrayList<>();
     private String selectedProjectId = null;
     private boolean isShowingProjectSelector = false;
+    
+    // Dynamic model fetching
+    private ModelFetcher modelFetcher;
+    private List<QwenModel> cachedModels = new ArrayList<>();
+    private boolean modelsLoaded = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -103,22 +109,57 @@ public class ChatActivity extends AppCompatActivity {
 
         conversationStorage = new ConversationStorage(this);
         messageStorage = new MessageStorage(this);
+        apiClient = new AgenticQwenApiClient(this);
         fileUploadManager = new FileUploadManager(this);
-        // Set auth token for file uploads - this should come from your authentication system
-        fileUploadManager.setAuthToken("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU0MTY4MjJ9.jmyaxu5mrr1M1rvtRtpGi2DKyp6RM8xRZ1nEx-rHRgQ");
         
-        setupFilePickerLauncher();
-        setupToolbar();
-        setupModelSelector();
+        // Initialize model fetcher and load models
+        modelFetcher = new ModelFetcher();
+        // Set auth token if available (you should get this from your auth system)
+        // modelFetcher.setAuthToken(yourAuthToken);
+        loadAvailableModels();
+
         setupRecyclerView();
         setupProjectSelector();
         setupInputArea();
+        setupFilePickerLauncher();
+        setupToolbar();
+        setupModelSelector();
         loadMessages();
-        
-        apiClient = new AgenticQwenApiClient(this);
         
         // Handle auto_message from error analysis
         handleAutoMessage();
+    }
+    
+    private void loadAvailableModels() {
+        modelFetcher.fetchModels(new ModelFetcher.ModelFetchCallback() {
+            @Override
+            public void onModelsLoaded(List<QwenModel> models) {
+                cachedModels.clear();
+                cachedModels.addAll(models);
+                modelsLoaded = true;
+                
+                // Update model selector if it's already been set up
+                if (binding != null && binding.modelSelectorText != null) {
+                    binding.modelSelectorText.setText(getModelDisplayName(selectedModel));
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Failed to load models: " + error);
+                // Fall back to hardcoded models
+                loadFallbackModels();
+                modelsLoaded = true;
+            }
+        });
+    }
+    
+    private void loadFallbackModels() {
+        cachedModels.clear();
+        cachedModels.add(new QwenModel("qwen3-235b-a22b", "Qwen3-235B-A22B", "The most powerful mixture-of-experts language model"));
+        cachedModels.add(new QwenModel("qwen3-30b-a3b", "Qwen3-30B-A3B", "A compact and high-performance Mixture of Experts (MoE) model"));
+        cachedModels.add(new QwenModel("qwen3-32b", "Qwen3-32B", "The most powerful dense model"));
+        cachedModels.add(new QwenModel("qwen-max-latest", "Qwen2.5-Max", "The most powerful language model in the Qwen series"));
     }
 
     private void setupToolbar() {
@@ -140,7 +181,17 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     private void showModelSelectionDialog() {
+        if (!modelsLoaded) {
+            Toast.makeText(this, "Loading models...", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
         List<QwenModel> models = getAvailableModels();
+        if (models.isEmpty()) {
+            Toast.makeText(this, "No models available", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
         String[] modelNames = new String[models.size()];
         int selectedIndex = 0;
         
@@ -535,8 +586,9 @@ public class ChatActivity extends AppCompatActivity {
                         if (lastMessage.getType() == ChatMessage.TYPE_AI) {
                             String content = response;
                             String thinkingContent = null;
+                            String webSearchSources = null;
                             
-                            // Try to parse as JSON response with thinking content
+                            // Try to parse as JSON response with thinking content and web search sources
                             try {
                                 JSONObject responseObj = new JSONObject(response);
                                 if (responseObj.has("content")) {
@@ -544,6 +596,9 @@ public class ChatActivity extends AppCompatActivity {
                                 }
                                 if (responseObj.has("thinking_content")) {
                                     thinkingContent = responseObj.getString("thinking_content");
+                                }
+                                if (responseObj.has("web_search_sources")) {
+                                    webSearchSources = responseObj.getJSONArray("web_search_sources").toString();
                                 }
                             } catch (JSONException e) {
                                 // If it's not JSON, use the response as-is
@@ -555,6 +610,11 @@ public class ChatActivity extends AppCompatActivity {
                             // Set thinking content if available
                             if (thinkingContent != null && !thinkingContent.trim().isEmpty()) {
                                 lastMessage.setThinkingContent(thinkingContent);
+                            }
+                            
+                            // Set web search sources if available
+                            if (webSearchSources != null && !webSearchSources.trim().isEmpty()) {
+                                lastMessage.setWebSearchSources(webSearchSources);
                             }
                             
                             chatAdapter.notifyItemChanged(messages.size() - 1);
@@ -965,16 +1025,7 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     private List<QwenModel> getAvailableModels() {
-        List<QwenModel> models = new ArrayList<>();
-        models.add(new QwenModel("qwen3-235b-a22b", "Qwen3-235B-A22B", "The most powerful mixture-of-experts language model"));
-        models.add(new QwenModel("qwen3-30b-a3b", "Qwen3-30B-A3B", "A compact and high-performance Mixture of Experts (MoE) model"));
-        models.add(new QwenModel("qwen3-32b", "Qwen3-32B", "The most powerful dense model"));
-        models.add(new QwenModel("qwen-max-latest", "Qwen2.5-Max", "The most powerful language model in the Qwen series"));
-        models.add(new QwenModel("qwen-plus-2025-01-25", "Qwen2.5-Plus", "Capable of complex tasks"));
-        models.add(new QwenModel("qwq-32b", "QwQ-32B", "Capable of thinking and reasoning"));
-        models.add(new QwenModel("qwen-turbo-2025-02-11", "Qwen2.5-Turbo", "Fast and 1M-token context"));
-        models.add(new QwenModel("qwen2.5-72b-instruct", "Qwen2.5-72B-Instruct", "Smart large language model"));
-        return models;
+        return cachedModels;
     }
 
     private String getModelDisplayName(String modelId) {

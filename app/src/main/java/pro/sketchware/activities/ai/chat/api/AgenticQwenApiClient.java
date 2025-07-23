@@ -31,6 +31,8 @@ import pro.sketchware.activities.ai.chat.models.ConversationContext;
 import pro.sketchware.activities.ai.storage.ConversationContextStorage;
 import pro.sketchware.activities.ai.config.ApiConfig;
 
+import java.util.ArrayList;
+
 public class AgenticQwenApiClient extends QwenApiClient {
     private static final String TAG = "AgenticQwenApiClient";
     
@@ -457,8 +459,10 @@ public class AgenticQwenApiClient extends QwenApiClient {
         StringBuilder fullResponse = new StringBuilder();
         StringBuilder thinkingContent = new StringBuilder();
         StringBuilder debugInfo = new StringBuilder();
+        List<WebSearchResult> webSearchResults = new ArrayList<>();
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
         String line;
+        boolean hasAnswerPhase = false;
         
         while ((line = reader.readLine()) != null) {
             if (line.startsWith("data: ")) {
@@ -485,33 +489,45 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                 if (choice.has("delta")) {
                                     JSONObject delta = choice.getJSONObject("delta");
                                     
-                                    // Handle different phases (web_search, answer, etc.)
+                                    // Handle different phases (web_search, think, answer, etc.)
                                     String phase = delta.optString("phase", "answer");
                                     String role = delta.optString("role", "assistant");
                                     
                                     // Collect debug info
                                     debugInfo.append("[").append(phase).append(":").append(role).append("] ");
                                     
-                                    // Handle thinking content
-                                    if ("thinking".equals(phase) && delta.has("content")) {
+                                    // Handle thinking content (think phase)
+                                    if ("think".equals(phase) && "assistant".equals(role) && delta.has("content")) {
                                         String content = delta.getString("content");
                                         if (!content.isEmpty()) {
                                             thinkingContent.append(content);
                                         }
                                     }
                                     
-                                    // Append content from assistant role (any phase except thinking)
-                                    if ("assistant".equals(role) && delta.has("content") && !"thinking".equals(phase)) {
-                                        String content = delta.getString("content");
-                                        if (!content.isEmpty()) {
-                                            fullResponse.append(content);
+                                    // Handle web search results
+                                    if ("web_search".equals(phase) && "function".equals(role) && delta.has("extra")) {
+                                        JSONObject extra = delta.getJSONObject("extra");
+                                        if (extra.has("web_search_info")) {
+                                            JSONArray searchInfo = extra.getJSONArray("web_search_info");
+                                            for (int i = 0; i < searchInfo.length(); i++) {
+                                                JSONObject searchResult = searchInfo.getJSONObject(i);
+                                                WebSearchResult result = new WebSearchResult(
+                                                    searchResult.optString("url", ""),
+                                                    searchResult.optString("title", ""),
+                                                    searchResult.optString("snippet", "")
+                                                );
+                                                webSearchResults.add(result);
+                                            }
                                         }
                                     }
                                     
-                                    // Handle web search phase display
-                                    if ("web_search".equals(phase) && "function".equals(role)) {
-                                        // You could show web search status here if needed
-                                        Log.d(TAG, "Web search in progress...");
+                                    // Handle answer phase content
+                                    if ("answer".equals(phase) && "assistant".equals(role) && delta.has("content")) {
+                                        String content = delta.getString("content");
+                                        if (!content.isEmpty()) {
+                                            fullResponse.append(content);
+                                            hasAnswerPhase = true;
+                                        }
                                     }
                                         
                                     // Check if finished
@@ -541,30 +557,61 @@ public class AgenticQwenApiClient extends QwenApiClient {
             // Not a JSON action, continue with normal response processing
         }
         
-        // If response is empty, return a debug message to help identify the issue
-        if (responseText.isEmpty() && thinkingContent.length() == 0) {
-            String debugMessage = "🔍 DEBUG: No content received. Phases/Roles seen: " + debugInfo.toString().trim();
-            if (debugMessage.length() > 200) {
-                debugMessage = debugMessage.substring(0, 200) + "...";
-            }
+        // If no answer phase but we have thinking content, something went wrong
+        if (!hasAnswerPhase && thinkingContent.length() == 0) {
+            String debugMessage = "🔍 No response received from the AI. This might be a temporary issue.";
+            Log.w(TAG, "No content received. Debug info: " + debugInfo.toString());
             return debugMessage;
         }
         
-        // For regular responses, only wrap in content/thinking structure if there's thinking content
-        if (thinkingContent.length() > 0) {
-            try {
-                JSONObject responseObj = new JSONObject();
-                responseObj.put("content", responseText);
+        // If we only have thinking but no answer, return thinking as the response
+        if (!hasAnswerPhase && thinkingContent.length() > 0) {
+            responseText = thinkingContent.toString().trim();
+        }
+        
+        // Build response with structured data
+        try {
+            JSONObject responseObj = new JSONObject();
+            responseObj.put("content", responseText);
+            
+            if (thinkingContent.length() > 0) {
                 responseObj.put("thinking_content", thinkingContent.toString().trim());
-                return responseObj.toString();
-            } catch (Exception e) {
-                Log.e(TAG, "Error creating response object", e);
-                return responseText;
             }
-        } else {
-            // No thinking content, return response directly
+            
+            if (!webSearchResults.isEmpty()) {
+                JSONArray sourcesArray = new JSONArray();
+                for (WebSearchResult result : webSearchResults) {
+                    JSONObject source = new JSONObject();
+                    source.put("url", result.getUrl());
+                    source.put("title", result.getTitle());
+                    source.put("snippet", result.getSnippet());
+                    sourcesArray.put(source);
+                }
+                responseObj.put("web_search_sources", sourcesArray);
+            }
+            
+            return responseObj.toString();
+        } catch (Exception e) {
+            Log.e(TAG, "Error creating response object", e);
             return responseText;
         }
+    }
+
+    // Helper class for web search results
+    private static class WebSearchResult {
+        private final String url;
+        private final String title;
+        private final String snippet;
+        
+        public WebSearchResult(String url, String title, String snippet) {
+            this.url = url;
+            this.title = title;
+            this.snippet = snippet;
+        }
+        
+        public String getUrl() { return url; }
+        public String getTitle() { return title; }
+        public String getSnippet() { return snippet; }
     }
 
     private void executeAction(JSONObject actionJson, ConversationContext context, AgenticChatCallback callback) {

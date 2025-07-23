@@ -22,6 +22,7 @@ public class ChatMessage {
     private List<AttachedFile> attachedFiles;
     private String thinkingContent;
     private String affectedFiles;
+    private String webSearchSources;
 
     public ChatMessage() {
         this.attachedFiles = new ArrayList<>();
@@ -182,6 +183,18 @@ public class ChatMessage {
 
     public boolean isSuccessMessage() {
         return type == TYPE_AI_SUCCESS;
+    }
+
+    public String getWebSearchSources() {
+        return webSearchSources;
+    }
+
+    public void setWebSearchSources(String webSearchSources) {
+        this.webSearchSources = webSearchSources;
+    }
+
+    public boolean hasWebSearchSources() {
+        return webSearchSources != null && !webSearchSources.trim().isEmpty();
     }
 
     public static class AttachedFile {

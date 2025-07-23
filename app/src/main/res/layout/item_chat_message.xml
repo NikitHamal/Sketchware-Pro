@@ -104,6 +104,34 @@
             android:textIsSelectable="true"
             tools:text="Hello! I'm doing great, thank you for asking. How can I assist you today?" />
 
+        <!-- Sources Button -->
+        <LinearLayout
+            android:id="@+id/sources_button_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/sources_button"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="Sources"
+                android:textSize="12sp"
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="4dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                app:cornerRadius="16dp"
+                app:icon="@drawable/ic_link_24dp"
+                app:iconSize="14dp"
+                app:iconPadding="4dp" />
+
+        </LinearLayout>
+
         <!-- Project Item Container -->
         <FrameLayout
             android:id="@+id/project_item_container"
