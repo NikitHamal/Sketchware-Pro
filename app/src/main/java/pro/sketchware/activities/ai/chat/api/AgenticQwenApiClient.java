@@ -474,6 +474,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
             if (line.startsWith("data: ")) {
                 String data = line.substring(6);
                 if (!data.trim().isEmpty()) {
+                    Log.d(TAG, "Processing streaming data: " + data);
                     try {
                         JSONObject jsonData = new JSONObject(data);
                         
@@ -503,44 +504,43 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                     debugInfo.append("[").append(phase).append(":").append(role).append("] ");
                                     
                                     // Handle thinking content (think phase)
-                                    if ("think".equals(phase) && "assistant".equals(role) && delta.has("content")) {
-                                        String content = delta.getString("content");
-                                        if (!content.isEmpty()) {
-                                            thinkingContent.append(content);
+                                    if ("think".equals(phase) && "assistant".equals(role)) {
+                                        if (delta.has("content")) {
+                                            String content = delta.getString("content");
+                                            if (!content.isEmpty()) {
+                                                thinkingContent.append(content);
+                                            }
+                                        }
+                                        // Check if thinking phase is finished
+                                        if (delta.has("status") && "finished".equals(delta.getString("status"))) {
+                                            Log.d(TAG, "Thinking phase finished, content length: " + thinkingContent.length());
                                         }
                                     }
                                     
-                                    // Handle web search results - check both function role and assistant role
-                                    if ("web_search".equals(phase) && delta.has("extra")) {
-                                        JSONObject extra = delta.getJSONObject("extra");
-                                        if (extra.has("web_search_info")) {
-                                            JSONArray searchInfo = extra.getJSONArray("web_search_info");
-                                            for (int i = 0; i < searchInfo.length(); i++) {
-                                                JSONObject searchResult = searchInfo.getJSONObject(i);
-                                                WebSearchResult result = new WebSearchResult(
-                                                    searchResult.optString("url", ""),
-                                                    searchResult.optString("title", ""),
-                                                    searchResult.optString("snippet", "")
-                                                );
-                                                webSearchResults.add(result);
+                                    // Handle web search results - based on reference API format
+                                    if ("web_search".equals(phase)) {
+                                        if ("assistant".equals(role) && delta.has("function_call")) {
+                                            // Web search function call initiation
+                                            Log.d(TAG, "Web search function call detected");
+                                        } else if ("function".equals(role) && delta.has("extra")) {
+                                            JSONObject extra = delta.getJSONObject("extra");
+                                            if (extra.has("web_search_info")) {
+                                                JSONArray searchInfo = extra.getJSONArray("web_search_info");
+                                                Log.d(TAG, "Found web search results: " + searchInfo.length());
+                                                for (int i = 0; i < searchInfo.length(); i++) {
+                                                    JSONObject searchResult = searchInfo.getJSONObject(i);
+                                                    WebSearchResult result = new WebSearchResult(
+                                                        searchResult.optString("url", ""),
+                                                        searchResult.optString("title", ""),
+                                                        searchResult.optString("snippet", "")
+                                                    );
+                                                    webSearchResults.add(result);
+                                                }
                                             }
                                         }
-                                    }
-                                    
-                                    // Also handle web search results from function calls
-                                    if ("function".equals(role) && delta.has("extra")) {
-                                        JSONObject extra = delta.getJSONObject("extra");
-                                        if (extra.has("web_search_info")) {
-                                            JSONArray searchInfo = extra.getJSONArray("web_search_info");
-                                            for (int i = 0; i < searchInfo.length(); i++) {
-                                                JSONObject searchResult = searchInfo.getJSONObject(i);
-                                                WebSearchResult result = new WebSearchResult(
-                                                    searchResult.optString("url", ""),
-                                                    searchResult.optString("title", ""),
-                                                    searchResult.optString("snippet", "")
-                                                );
-                                                webSearchResults.add(result);
-                                            }
+                                        // Check if web search phase is finished
+                                        if (delta.has("status") && "finished".equals(delta.getString("status"))) {
+                                            Log.d(TAG, "Web search phase finished, results count: " + webSearchResults.size());
                                         }
                                     }
                                     
@@ -553,10 +553,17 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                         }
                                     }
                                         
-                                    // Check if finished
-                                    if (delta.has("status") && "finished".equals(delta.getString("status"))) {
-                                        break;
-                                    }
+                                                                            // Check if finished - handle both answer and overall finish
+                                        String status = delta.optString("status", "");
+                                        if ("finished".equals(status)) {
+                                            String currentPhase = delta.optString("phase", "");
+                                            Log.d(TAG, "Phase finished: " + currentPhase + " with status: " + status);
+                                            
+                                            // If answer phase is finished, we're done
+                                            if ("answer".equals(currentPhase)) {
+                                                break;
+                                            }
+                                        }
                                 }
                             }
                         }
@@ -580,17 +587,25 @@ public class AgenticQwenApiClient extends QwenApiClient {
             // Not a JSON action, continue with normal response processing
         }
         
-        // If no answer phase but we have thinking content, something went wrong
-        if (!hasAnswerPhase && thinkingContent.length() == 0) {
-            String debugMessage = "🔍 No response received from the AI. This might be a temporary issue.";
-            Log.w(TAG, "No content received. Debug info: " + debugInfo.toString());
-            return debugMessage;
+        // Enhanced response processing logic
+        if (!hasAnswerPhase) {
+            if (thinkingContent.length() == 0 && webSearchResults.isEmpty()) {
+                String debugMessage = "🔍 No response received from the AI. This might be a temporary issue.";
+                Log.w(TAG, "No content received. Debug info: " + debugInfo.toString());
+                return debugMessage;
+            } else if (thinkingContent.length() > 0) {
+                Log.w(TAG, "Only thinking phase received, no answer phase. Debug info: " + debugInfo.toString());
+                // In case of thinking-only response, we should still wait for answer phase
+                // But if stream ended, return what we have
+                responseText = "🤔 AI is processing your request...";
+            }
         }
         
-        // If we only have thinking but no answer, still provide thinking content but warn
-        if (!hasAnswerPhase && thinkingContent.length() > 0) {
-            Log.w(TAG, "Only thinking phase received, no answer phase. This might indicate an API issue.");
-            // Don't replace responseText with thinking content - keep them separate
+        // Ensure we have some response content
+        if (responseText.trim().isEmpty() && thinkingContent.length() == 0 && webSearchResults.isEmpty()) {
+            String debugMessage = "🔍 No response content received. Debug info: " + debugInfo.toString();
+            Log.w(TAG, debugMessage);
+            return debugMessage;
         }
         
         // Build response with structured data

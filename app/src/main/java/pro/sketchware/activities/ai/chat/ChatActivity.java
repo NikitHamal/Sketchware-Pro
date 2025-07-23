@@ -112,6 +112,11 @@ public class ChatActivity extends AppCompatActivity {
         apiClient = new AgenticQwenApiClient(this);
         fileUploadManager = new FileUploadManager(this);
         
+        // Set auth token for file uploads (should be retrieved from your auth system)
+        // For now using the same token as API client
+        String authToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiYjQ1NjVmLTk3NjUtNDQwNi04OWQ5LTI3NmExMTIxMjBkNiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3NTU4NDk5NzB9.OEvpJhnzhUNFVMKb3d6UhtQBlQKypl3UcLRGUbm07H0";
+        fileUploadManager.setAuthToken(authToken);
+        
         // Initialize model fetcher and load models
         modelFetcher = new ModelFetcher();
         // Set auth token if available (you should get this from your auth system)
@@ -357,6 +362,21 @@ public class ChatActivity extends AppCompatActivity {
         if (!isShowingProjectSelector && !availableProjects.isEmpty()) {
             isShowingProjectSelector = true;
             binding.projectSelectorPopup.setVisibility(View.VISIBLE);
+            
+            // Position the popup above the input area
+            binding.projectSelectorPopup.post(() -> {
+                android.view.ViewGroup.LayoutParams params = binding.projectSelectorPopup.getLayoutParams();
+                if (params instanceof android.widget.FrameLayout.LayoutParams) {
+                    android.widget.FrameLayout.LayoutParams frameParams = (android.widget.FrameLayout.LayoutParams) params;
+                    frameParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.START;
+                    
+                    // Calculate margin to position above input area
+                    int inputAreaHeight = binding.inputArea.getHeight();
+                    frameParams.bottomMargin = inputAreaHeight + 16; // 16dp additional margin
+                    
+                    binding.projectSelectorPopup.setLayoutParams(frameParams);
+                }
+            });
         }
     }
     

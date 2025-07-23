@@ -107,6 +107,52 @@
 
     </FrameLayout>
 
+    <!-- Project Selector Popup - Floating above input area -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/project_selector_popup"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="8dp"
+        android:layout_gravity="bottom|start"
+        android:visibility="gone"
+        app:cardElevation="16dp"
+        app:cardCornerRadius="12dp"
+        app:cardBackgroundColor="?attr/colorSurfaceVariant">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:minWidth="280dp"
+            android:maxWidth="400dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Select Project"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:padding="12dp"
+                android:paddingBottom="8dp" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/project_selector_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxHeight="144dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="8dp"
+                android:scrollbars="vertical"
+                android:nestedScrollingEnabled="true" />
+
+        </LinearLayout>
+
+    </androidx.cardview.widget.CardView>
+
     <!-- Bottom Input Area -->
     <LinearLayout
         android:id="@+id/input_area"
@@ -119,50 +165,6 @@
         <com.google.android.material.divider.MaterialDivider
             android:layout_width="match_parent"
             android:layout_height="wrap_content" />
-
-        <!-- Project Selector Popup -->
-        <androidx.cardview.widget.CardView
-            android:id="@+id/project_selector_popup"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
-            android:layout_marginBottom="8dp"
-            android:visibility="gone"
-            app:cardElevation="8dp"
-            app:cardCornerRadius="12dp"
-            app:cardBackgroundColor="?attr/colorSurfaceVariant">
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:minWidth="280dp"
-                android:maxWidth="400dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Select Project"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textStyle="bold"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:padding="12dp"
-                    android:paddingBottom="8dp" />
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/project_selector_list"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:maxHeight="144dp"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
-                    android:paddingBottom="8dp"
-                    android:scrollbars="vertical" />
-
-            </LinearLayout>
-
-        </androidx.cardview.widget.CardView>
 
         <!-- Attached Files Container -->
         <LinearLayout

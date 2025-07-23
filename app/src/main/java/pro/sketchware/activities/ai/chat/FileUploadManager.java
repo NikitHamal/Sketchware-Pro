@@ -187,6 +187,17 @@ public class FileUploadManager {
             
             int responseCode = conn.getResponseCode();
             Log.d(TAG, "OSS upload response code: " + responseCode);
+            
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                // Read error response for debugging
+                try {
+                    String errorResponse = readResponse(conn.getErrorStream());
+                    Log.e(TAG, "OSS upload error response: " + errorResponse);
+                } catch (Exception e) {
+                    Log.e(TAG, "Could not read error response", e);
+                }
+            }
+            
             return responseCode == HttpURLConnection.HTTP_OK;
             
         } catch (Exception e) {
@@ -201,12 +212,13 @@ public class FileUploadManager {
         String dateOnly = date.substring(0, 8); // Extract YYYYMMDD from date
         String credential = accessKeyId + "/" + dateOnly + "/" + region + "/oss/aliyun_v4_request";
         
-        // Create canonical request
-        String canonicalHeaders = "host:" + "qwen-webui-prod.oss-accelerate.aliyuncs.com" + "\n" +
+        // Create canonical request based on reference API
+        String hostHeader = bucketName + "." + endpoint;
+        String canonicalHeaders = "host:" + hostHeader + "\n" +
                                 "x-oss-content-sha256:UNSIGNED-PAYLOAD" + "\n" +
                                 "x-oss-date:" + date + "\n";
         String signedHeaders = "host;x-oss-content-sha256;x-oss-date";
-        String canonicalRequest = method + "\n" + canonicalUri + "\n" + "\n" + 
+        String canonicalRequest = method + "\n" + "/" + filePath + "\n" + "\n" + 
                                 canonicalHeaders + "\n" + signedHeaders + "\nUNSIGNED-PAYLOAD";
         
         // Create string to sign
