@@ -271,8 +271,11 @@ public class ChatActivity extends AppCompatActivity {
         
         // Setup project selector RecyclerView
         projectSelectorAdapter = new ProjectSelectorAdapter(availableProjects, this::onProjectSelected);
-        binding.projectSelectorList.setLayoutManager(new LinearLayoutManager(this));
+        LinearLayoutManager layoutManager = new LinearLayoutManager(this);
+        binding.projectSelectorList.setLayoutManager(layoutManager);
         binding.projectSelectorList.setAdapter(projectSelectorAdapter);
+        binding.projectSelectorList.setNestedScrollingEnabled(true);
+        binding.projectSelectorList.setHasFixedSize(false);
     }
     
     private void loadAvailableProjects() {
@@ -959,31 +962,32 @@ public class ChatActivity extends AppCompatActivity {
                             JSONObject result = new JSONObject(actionResult);
                             if (result.optBoolean("success", false)) {
                                 String actionName = result.optString("action", "");
-                                JSONObject actionData = result.optJSONObject("data");
                                 
-                                // Create affected file data based on action type
-                                JSONObject affectedFile = new JSONObject();
-                                
-                                if ("create_java_file".equals(actionName) && actionData != null) {
-                                    affectedFile.put("file_path", actionData.optString("file_path", ""));
-                                    affectedFile.put("action", "create_file");
-                                    affectedFile.put("content", "// Java class created: " + actionData.optString("class_name", ""));
-                                } else if ("create_xml_resource".equals(actionName) && actionData != null) {
-                                    affectedFile.put("file_path", actionData.optString("file_path", ""));
-                                    affectedFile.put("action", "create_file");
-                                    affectedFile.put("content", "<!-- XML resource created -->");
-                                } else if ("edit_file".equals(actionName)) {
-                                    affectedFile.put("file_path", finalProposalData.optString("file_path", ""));
-                                    affectedFile.put("action", "edit_file");
-                                    affectedFile.put("content", finalProposalData.optString("content", ""));
+                                // Handle grouped file operations
+                                if ("grouped_file_operations".equals(actionName)) {
+                                    JSONArray results = result.optJSONArray("results");
+                                    if (results != null) {
+                                        for (int i = 0; i < results.length(); i++) {
+                                            JSONObject actionResult = results.getJSONObject(i);
+                                            if (actionResult.optBoolean("success", false)) {
+                                                String subActionName = actionResult.optString("action", "");
+                                                JSONObject actionData = actionResult.optJSONObject("data");
+                                                
+                                                JSONObject affectedFile = createAffectedFileData(subActionName, actionData, null);
+                                                if (affectedFile != null) {
+                                                    affectedFiles.add(affectedFile);
+                                                }
+                                            }
+                                        }
+                                    }
                                 } else {
-                                    // Fallback for other actions
-                                    affectedFile.put("file_path", finalProposalData.optString("file_path", "Unknown file"));
-                                    affectedFile.put("action", actionName);
-                                    affectedFile.put("content", finalProposalData.optString("content", ""));
+                                    // Single action
+                                    JSONObject actionData = result.optJSONObject("data");
+                                    JSONObject affectedFile = createAffectedFileData(actionName, actionData, finalProposalData);
+                                    if (affectedFile != null) {
+                                        affectedFiles.add(affectedFile);
+                                    }
                                 }
-                                
-                                affectedFiles.add(affectedFile);
                             }
                         } catch (Exception e) {
                             Log.w(TAG, "Error parsing action result for affected files", e);
@@ -994,7 +998,10 @@ public class ChatActivity extends AppCompatActivity {
                         try {
                             JSONObject result = new JSONObject(actionResult);
                             String actionName = result.optString("action", "");
-                            if ("create_java_file".equals(actionName)) {
+                            if ("grouped_file_operations".equals(actionName)) {
+                                int actionCount = result.optInt("action_count", 0);
+                                successText = "✅ " + actionCount + " files created/modified successfully!";
+                            } else if ("create_java_file".equals(actionName)) {
                                 successText = "✅ Java file created successfully!";
                             } else if ("create_xml_resource".equals(actionName)) {
                                 successText = "✅ XML resource created successfully!";
@@ -1069,6 +1076,55 @@ public class ChatActivity extends AppCompatActivity {
         message.setContent("❌ Proposed changes discarded. No files will be modified.");
         chatAdapter.notifyItemChanged(messages.indexOf(message));
         messageStorage.saveMessages(conversationId, messages);
+    }
+
+    private JSONObject createAffectedFileData(String actionName, JSONObject actionData, JSONObject fallbackData) {
+        try {
+            JSONObject affectedFile = new JSONObject();
+            
+            if ("create_java_file".equals(actionName) && actionData != null) {
+                affectedFile.put("file_path", actionData.optString("file_path", ""));
+                affectedFile.put("action", "create_file");
+                String className = actionData.optString("class_name", "");
+                String packageName = actionData.optString("package_name", "");
+                affectedFile.put("content", "// Java class created: " + className + "\n// Package: " + packageName);
+            } else if ("create_xml_resource".equals(actionName) && actionData != null) {
+                affectedFile.put("file_path", actionData.optString("file_path", ""));
+                affectedFile.put("action", "create_file");
+                String resourceType = actionData.optString("resource_type", "");
+                affectedFile.put("content", "<!-- XML resource created: " + resourceType + " -->");
+            } else if ("edit_file".equals(actionName)) {
+                String filePath = actionData != null ? actionData.optString("file_path", "") : "";
+                if (filePath.isEmpty() && fallbackData != null) {
+                    filePath = fallbackData.optString("file_path", "");
+                }
+                affectedFile.put("file_path", filePath);
+                affectedFile.put("action", "edit_file");
+                String content = actionData != null ? actionData.optString("content", "") : "";
+                if (content.isEmpty() && fallbackData != null) {
+                    content = fallbackData.optString("content", "");
+                }
+                affectedFile.put("content", content);
+            } else {
+                // Fallback for other actions
+                String filePath = actionData != null ? actionData.optString("file_path", "") : "";
+                if (filePath.isEmpty() && fallbackData != null) {
+                    filePath = fallbackData.optString("file_path", "Unknown file");
+                }
+                affectedFile.put("file_path", filePath);
+                affectedFile.put("action", actionName);
+                String content = actionData != null ? actionData.optString("content", "") : "";
+                if (content.isEmpty() && fallbackData != null) {
+                    content = fallbackData.optString("content", "");
+                }
+                affectedFile.put("content", content);
+            }
+            
+            return affectedFile;
+        } catch (Exception e) {
+            Log.w(TAG, "Error creating affected file data", e);
+            return null;
+        }
     }
 
     private void showTypingIndicator() {

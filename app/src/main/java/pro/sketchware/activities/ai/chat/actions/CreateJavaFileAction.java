@@ -43,9 +43,9 @@ public class CreateJavaFileAction extends BaseUniversalAction {
             // Build full package name
             String fullPackage = packagePath.isEmpty() ? projectPackage : projectPackage + "." + packagePath;
             
-            // Create package directory structure
+            // Create package directory structure - Java files go directly in /files/java/
             String javaBasePath = filePathUtil.getPathJava(projectId);
-            String packageDirPath = javaBasePath + "/" + fullPackage.replace(".", "/");
+            String packageDirPath = javaBasePath; // Don't add package subdirectories
             
             if (createDirectories) {
                 File packageDir = new File(packageDirPath);

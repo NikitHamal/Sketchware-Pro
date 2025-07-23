@@ -141,35 +141,48 @@ public class FileChangeView extends LinearLayout {
         // Calculate actual diff based on content and action
         switch (action.toLowerCase()) {
             case "create_file":
-                // All lines are additions for new files
-                info.addedLines = content.split("\n").length;
+                // For new files, count actual content lines (not just comments)
+                String[] lines = content.split("\n");
+                int actualContentLines = 0;
+                for (String line : lines) {
+                    String trimmed = line.trim();
+                    if (!trimmed.isEmpty() && !trimmed.startsWith("//") && !trimmed.startsWith("<!--")) {
+                        actualContentLines++;
+                    }
+                }
+                // If no actual content, use total lines
+                info.addedLines = actualContentLines > 0 ? actualContentLines : lines.length;
                 info.removedLines = 0;
                 break;
                 
             case "delete_file":
                 // All lines are removals - try to get actual count if possible
                 info.addedLines = 0;
-                info.removedLines = 0; // Will be set to 0 since we don't know original content
+                info.removedLines = content.split("\n").length;
                 break;
                 
             case "edit_file":
             default:
-                // For edits, count lines with diff markers or assume all are additions if no markers
+                // For edits, count lines with diff markers or analyze content changes
                 String[] lines = content.split("\n");
                 for (String line : lines) {
                     if (line.startsWith("+")) {
                         info.addedLines++;
                     } else if (line.startsWith("-")) {
                         info.removedLines++;
-                    } else if (!line.startsWith(" ") && !line.startsWith("@@")) {
-                        // Lines without diff markers are treated as additions in new content
+                    } else if (!line.startsWith(" ") && !line.startsWith("@@") && !line.trim().isEmpty()) {
+                        // Non-empty lines without diff markers are treated as changes
                         info.addedLines++;
                     }
                 }
                 
-                // If no diff markers found, treat all lines as additions
+                // If no diff markers found, analyze content as new additions
                 if (info.addedLines == 0 && info.removedLines == 0) {
-                    info.addedLines = lines.length;
+                    for (String line : lines) {
+                        if (!line.trim().isEmpty()) {
+                            info.addedLines++;
+                        }
+                    }
                 }
                 break;
         }

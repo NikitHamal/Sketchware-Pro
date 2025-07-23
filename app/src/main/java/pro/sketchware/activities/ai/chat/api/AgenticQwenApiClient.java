@@ -205,7 +205,10 @@ public class AgenticQwenApiClient extends QwenApiClient {
                             // Split multiple JSON objects if they exist using a simpler approach
                             String[] jsonParts = splitJsonObjects(trimmedResponse);
                             
-                            boolean actionProcessed = false;
+                            // Group file-related actions together
+                            List<JSONObject> fileActions = new ArrayList<>();
+                            List<JSONObject> otherActions = new ArrayList<>();
+                            String overallExplanation = "";
                             
                             for (String jsonPart : jsonParts) {
                                 try {
@@ -213,19 +216,42 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                     String responseType = responseJson.optString("response_type");
                                     
                                     if ("action".equals(responseType)) {
-                                        if (!actionProcessed) {
-                                            // First show the explanation to the user (only once)
-                                            String explanation = responseJson.optString("explanation", "I'm working on that for you...");
-                                            mainHandler.post(() -> callback.onResponse(explanation));
-                                            actionProcessed = true;
+                                        String actionName = responseJson.optString("action");
+                                        if (overallExplanation.isEmpty()) {
+                                            overallExplanation = responseJson.optString("explanation", "I'm working on that for you...");
                                         }
                                         
-                                        // Execute each action
-                                        executeAction(responseJson, context, callback);
+                                        if (isFileRelatedAction(actionName)) {
+                                            fileActions.add(responseJson);
+                                        } else {
+                                            otherActions.add(responseJson);
+                                        }
                                     }
                                 } catch (JSONException e) {
                                     // JSON parsing failed, treat as regular response
                                 }
+                            }
+                            
+                            // Process grouped file actions as a single proposal
+                            if (!fileActions.isEmpty()) {
+                                mainHandler.post(() -> callback.onResponse(overallExplanation));
+                                executeGroupedFileActions(fileActions, context, callback);
+                                
+                                // Process other actions normally
+                                for (JSONObject action : otherActions) {
+                                    executeAction(action, context, callback);
+                                }
+                                return; // Don't send as regular response
+                            }
+                            
+                            // If no file actions, process normally
+                            boolean actionProcessed = false;
+                            for (JSONObject action : otherActions) {
+                                if (!actionProcessed) {
+                                    mainHandler.post(() -> callback.onResponse(overallExplanation));
+                                    actionProcessed = true;
+                                }
+                                executeAction(action, context, callback);
                             }
                             
                             if (actionProcessed) {
@@ -665,6 +691,63 @@ public class AgenticQwenApiClient extends QwenApiClient {
                actionName.equals("create_file");
     }
 
+    /**
+     * Execute grouped file actions as a single proposal
+     */
+    private void executeGroupedFileActions(List<JSONObject> fileActions, ConversationContext context, AgenticChatCallback callback) {
+        Log.d(TAG, "=== CREATING GROUPED FILE OPERATIONS PROPOSAL ===");
+        Log.d(TAG, "Number of file actions: " + fileActions.size());
+        
+        try {
+            // Create a combined proposal with all file actions
+            JSONObject groupedProposal = new JSONObject();
+            JSONArray actionsArray = new JSONArray();
+            
+            StringBuilder combinedExplanation = new StringBuilder();
+            
+            for (int i = 0; i < fileActions.size(); i++) {
+                JSONObject action = fileActions.get(i);
+                String actionName = action.getString("action");
+                String explanation = action.optString("explanation", "");
+                JSONObject parameters = action.optJSONObject("parameters");
+                
+                // Add to actions array
+                JSONObject actionEntry = new JSONObject();
+                actionEntry.put("action", actionName);
+                actionEntry.put("parameters", parameters);
+                actionsArray.put(actionEntry);
+                
+                // Build combined explanation
+                if (i > 0) combinedExplanation.append("\n");
+                combinedExplanation.append("• ").append(explanation);
+                
+                Log.d(TAG, "Added action to group: " + actionName);
+            }
+            
+            groupedProposal.put("grouped_actions", actionsArray);
+            groupedProposal.put("action_count", fileActions.size());
+            
+            String finalExplanation = combinedExplanation.toString();
+            if (finalExplanation.isEmpty()) {
+                finalExplanation = "I'll make the following changes to your project:";
+            }
+            
+            Log.d(TAG, "Grouped proposal created: " + groupedProposal.toString());
+            Log.d(TAG, "Combined explanation: " + finalExplanation);
+            
+            mainHandler.post(() -> {
+                callback.onFixProposal(finalExplanation, groupedProposal.toString(), context.getCurrentProjectId());
+            });
+            
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating grouped file operations proposal", e);
+            // Fallback to individual proposals
+            for (JSONObject action : fileActions) {
+                executeAction(action, context, callback);
+            }
+        }
+    }
+
     private void executeAction(JSONObject actionJson, ConversationContext context, AgenticChatCallback callback) {
         Log.d(TAG, "=== EXECUTE ACTION CALLED ===");
         Log.d(TAG, "Action JSON: " + actionJson.toString());
@@ -756,31 +839,88 @@ public class AgenticQwenApiClient extends QwenApiClient {
                 Log.d(TAG, "executeApprovedAction called with: " + actionData.toString());
                 ConversationContext context = contextStorage.loadContext(conversationId);
                 
-                String actionName = actionData.getString("action");
-                JSONObject parameters = actionData.getJSONObject("parameters");
-                
-                Log.d(TAG, "Action name: " + actionName);
-                Log.d(TAG, "Parameters: " + parameters.toString());
-                
-                Map<String, Object> paramMap = new HashMap<>();
-                parameters.keys().forEachRemaining(key -> {
-                    try {
-                        paramMap.put(key, parameters.get(key));
-                    } catch (JSONException e) {
-                        Log.e(TAG, "Error parsing parameter: " + key, e);
+                // Check if this is a grouped action
+                if (actionData.has("grouped_actions")) {
+                    JSONArray groupedActions = actionData.getJSONArray("grouped_actions");
+                    List<String> results = new ArrayList<>();
+                    
+                    Log.d(TAG, "Executing grouped actions, count: " + groupedActions.length());
+                    
+                    for (int i = 0; i < groupedActions.length(); i++) {
+                        JSONObject action = groupedActions.getJSONObject(i);
+                        String actionName = action.getString("action");
+                        JSONObject parameters = action.getJSONObject("parameters");
+                        
+                        Log.d(TAG, "Executing grouped action " + (i+1) + ": " + actionName);
+                        
+                        Map<String, Object> paramMap = new HashMap<>();
+                        parameters.keys().forEachRemaining(key -> {
+                            try {
+                                paramMap.put(key, parameters.get(key));
+                            } catch (JSONException e) {
+                                Log.e(TAG, "Error parsing parameter: " + key, e);
+                            }
+                        });
+                        
+                        String result = contextBuilder.executeAction(actionName, paramMap, context.getCurrentProjectId());
+                        results.add(result);
+                        
+                        // Update context for each action
+                        context.addExecutedAction(actionName);
                     }
-                });
-                
-                // Execute the approved action
-                Log.d(TAG, "About to execute action: " + actionName + " with paramMap: " + paramMap);
-                String result = contextBuilder.executeAction(actionName, paramMap, context.getCurrentProjectId());
-                Log.d(TAG, "Action execution result: " + result);
-                
-                // Update context
-                context.addExecutedAction(actionName);
-                contextStorage.saveContext(context);
-                
-                mainHandler.post(() -> callback.onActionExecuted(result, context.getCurrentProjectId()));
+                    
+                    contextStorage.saveContext(context);
+                    
+                    // Combine results into a single response
+                    JSONObject combinedResult = new JSONObject();
+                    combinedResult.put("success", true);
+                    combinedResult.put("action", "grouped_file_operations");
+                    combinedResult.put("action_count", results.size());
+                    
+                    JSONArray resultsArray = new JSONArray();
+                    for (String result : results) {
+                        try {
+                            JSONObject resultObj = new JSONObject(result);
+                            resultsArray.put(resultObj);
+                        } catch (JSONException e) {
+                            // If result is not JSON, wrap it
+                            JSONObject wrapper = new JSONObject();
+                            wrapper.put("result", result);
+                            resultsArray.put(wrapper);
+                        }
+                    }
+                    combinedResult.put("results", resultsArray);
+                    
+                    mainHandler.post(() -> callback.onActionExecuted(combinedResult.toString(), context.getCurrentProjectId()));
+                    
+                } else {
+                    // Single action execution (existing logic)
+                    String actionName = actionData.getString("action");
+                    JSONObject parameters = actionData.getJSONObject("parameters");
+                    
+                    Log.d(TAG, "Action name: " + actionName);
+                    Log.d(TAG, "Parameters: " + parameters.toString());
+                    
+                    Map<String, Object> paramMap = new HashMap<>();
+                    parameters.keys().forEachRemaining(key -> {
+                        try {
+                            paramMap.put(key, parameters.get(key));
+                        } catch (JSONException e) {
+                            Log.e(TAG, "Error parsing parameter: " + key, e);
+                        }
+                    });
+                    
+                    // Execute the approved action
+                    Log.d(TAG, "About to execute action: " + actionName + " with paramMap: " + paramMap);
+                    String result = contextBuilder.executeAction(actionName, paramMap, context.getCurrentProjectId());
+                    Log.d(TAG, "Action execution result: " + result);
+                    
+                    // Update context
+                    context.addExecutedAction(actionName);
+                    contextStorage.saveContext(context);
+                    
+                    mainHandler.post(() -> callback.onActionExecuted(result, context.getCurrentProjectId()));
+                }
                 
             } catch (Exception e) {
                 Log.e(TAG, "Error executing approved action", e);
