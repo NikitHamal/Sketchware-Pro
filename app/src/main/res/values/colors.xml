@@ -40,6 +40,7 @@
     <color name="scolor_green_normal">#ff26a59a</color>
     <color name="scolor_light_grey">#ffd4d4d4</color>
     <color name="scolor_red_01">#ffde0000</color>
+    <color name="red_500">#F44336</color>
     <color name="scolor_red_02">#ffff7c79</color>
     <color name="scolor_sl_01">#ff1d2129</color>
     <color name="scolor_sl_02">#ffffb055</color>
