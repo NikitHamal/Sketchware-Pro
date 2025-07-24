@@ -15,23 +15,5 @@
         android:icon="@drawable/ic_mtrl_settings"
         android:title="Settings" />
 
-    <item android:title="Related links">
-        <menu>
-            <item
-                android:id="@+id/social_discord"
-                android:icon="@drawable/ic_discord"
-                android:title="Discord" />
-
-            <item
-                android:id="@+id/social_telegram"
-                android:icon="@drawable/ic_telegram"
-                android:title="Telegram" />
-
-            <item
-                android:id="@+id/social_github"
-                android:icon="@drawable/ic_github"
-                android:title="GitHub" />
-        </menu>
-    </item>
 
 </menu>
