@@ -3,7 +3,7 @@ package pro.sketchware.activities.ai.chat.context;
 import java.util.HashMap;
 import java.util.Map;
 
-import pro.sketchware.activities.ai.chat.actions.AgenticAction;
+import pro.sketchware.activities.ai.chat.models.AgenticAction;
 import pro.sketchware.activities.ai.chat.actions.CreateProjectAction;
 import pro.sketchware.activities.ai.chat.actions.FixFileErrorAction;
 import pro.sketchware.activities.ai.chat.actions.UpdateProjectSettingsAction;

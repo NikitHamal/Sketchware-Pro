@@ -5,6 +5,7 @@ import android.view.LayoutInflater;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
+import androidx.databinding.DataBindingUtil;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 
 import io.noties.markwon.Markwon;
+import pro.sketchware.R;
 import pro.sketchware.activities.ai.chat.models.ChatMessage;
 import pro.sketchware.databinding.ItemChatMessageBinding;
 
@@ -31,8 +33,8 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatMessageVie
     @NonNull
     @Override
     public ChatMessageViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        ItemChatMessageBinding binding = ItemChatMessageBinding.inflate(
-                LayoutInflater.from(parent.getContext()), parent, false);
+        ItemChatMessageBinding binding = DataBindingUtil.inflate(
+                LayoutInflater.from(parent.getContext()), R.layout.item_chat_message, parent, false);
         return new ChatMessageViewHolder(binding);
     }
 
