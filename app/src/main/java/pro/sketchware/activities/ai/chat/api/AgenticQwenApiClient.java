@@ -200,10 +200,20 @@ public class AgenticQwenApiClient extends QwenApiClient {
                         // Check if response contains action(s)
                         String trimmedResponse = response.trim();
                         
+                        Log.d(TAG, "=== PROCESSING AI RESPONSE ===");
+                        Log.d(TAG, "Response length: " + trimmedResponse.length());
+                        Log.d(TAG, "Response starts with '{': " + trimmedResponse.startsWith("{"));
+                        Log.d(TAG, "Response contains 'response_type': " + trimmedResponse.contains("\"response_type\""));
+                        Log.d(TAG, "First 200 chars: " + trimmedResponse.substring(0, Math.min(200, trimmedResponse.length())));
+                        
                         // Handle multiple JSON objects in response
                         if (trimmedResponse.startsWith("{") && trimmedResponse.contains("\"response_type\"")) {
+                            Log.d(TAG, "Detected JSON response with response_type - processing as action(s)");
+                            
                             // Split multiple JSON objects if they exist using a simpler approach
                             String[] jsonParts = splitJsonObjects(trimmedResponse);
+                            
+                            Log.d(TAG, "Split into " + jsonParts.length + " JSON parts");
                             
                             // Group file-related actions together
                             List<JSONObject> fileActions = new ArrayList<>();
@@ -215,19 +225,28 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                     JSONObject responseJson = new JSONObject(jsonPart.trim());
                                     String responseType = responseJson.optString("response_type");
                                     
+                                    Log.d(TAG, "Processing JSON part with response_type: " + responseType);
+                                    
                                     if ("action".equals(responseType)) {
                                         String actionName = responseJson.optString("action");
                                         if (explanationBuilder.isEmpty()) {
                                             explanationBuilder = responseJson.optString("explanation", "I'm working on that for you...");
                                         }
                                         
+                                        Log.d(TAG, "Found action: " + actionName);
+                                        
                                         if (isFileRelatedAction(actionName)) {
+                                            Log.d(TAG, "Adding to fileActions: " + actionName);
                                             fileActions.add(responseJson);
                                         } else {
+                                            Log.d(TAG, "Adding to otherActions: " + actionName);
                                             otherActions.add(responseJson);
                                         }
+                                    } else {
+                                        Log.d(TAG, "Ignoring JSON part with response_type: " + responseType);
                                     }
                                 } catch (JSONException e) {
+                                    Log.e(TAG, "JSON parsing failed for part: " + jsonPart, e);
                                     // JSON parsing failed, treat as regular response
                                 }
                             }
@@ -237,6 +256,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
                             
                             // Process grouped file actions as a single proposal
                             if (!fileActions.isEmpty()) {
+                                Log.d(TAG, "Processing " + fileActions.size() + " file actions as proposal");
                                 mainHandler.post(() -> callback.onResponse(overallExplanation));
                                 executeGroupedFileActions(fileActions, context, callback);
                                 
@@ -258,11 +278,43 @@ public class AgenticQwenApiClient extends QwenApiClient {
                             }
                             
                             if (actionProcessed) {
+                                Log.d(TAG, "Actions processed, not sending as regular response");
                                 return; // Don't send as regular response
+                            } else {
+                                Log.d(TAG, "No valid actions found in JSON response");
+                            }
+                        } else {
+                            Log.d(TAG, "Response not recognized as action JSON - treating as regular response");
+                            
+                            // Check if the response mentions file operations in natural language
+                            // This is a fallback for when AI doesn't use proper JSON format
+                            if (containsFileOperationKeywords(trimmedResponse)) {
+                                Log.d(TAG, "Response contains file operation keywords - providing guidance");
+                                
+                                // Add guidance message to help user understand the issue
+                                String guidanceMessage = trimmedResponse + "\n\n" +
+                                    "⚠️ **Note**: The AI mentioned file operations but didn't provide them in the correct format for approval. " +
+                                    "For file operations to work properly, the AI should respond with JSON actions like:\n" +
+                                    "```json\n" +
+                                    "{\n" +
+                                    "  \"response_type\": \"action\",\n" +
+                                    "  \"action\": \"fix_file_error\",\n" +
+                                    "  \"parameters\": {\n" +
+                                    "    \"action\": \"delete_file\",\n" +
+                                    "    \"file_path\": \"/path/to/file\"\n" +
+                                    "  },\n" +
+                                    "  \"explanation\": \"Description of the change\"\n" +
+                                    "}\n" +
+                                    "```\n" +
+                                    "Please ask the AI to reformat the response using proper JSON actions.";
+                                
+                                mainHandler.post(() -> callback.onResponse(guidanceMessage));
+                                return;
                             }
                         }
                         
                         // Regular response - only call this if no action was executed
+                        Log.d(TAG, "Sending as regular response");
                         mainHandler.post(() -> callback.onResponse(response));
                     }
 
@@ -686,12 +738,42 @@ public class AgenticQwenApiClient extends QwenApiClient {
      * Check if an action is file-related and requires user approval
      */
     private boolean isFileRelatedAction(String actionName) {
-        return actionName.equals("create_java_file") ||
+        boolean isFileAction = actionName.equals("create_java_file") ||
                actionName.equals("create_xml_resource") ||
                actionName.equals("edit_file") ||
                actionName.equals("delete_file") ||
                actionName.equals("fix_file_error") ||
                actionName.equals("create_file");
+        
+        Log.d(TAG, "isFileRelatedAction check for '" + actionName + "': " + isFileAction);
+        return isFileAction;
+    }
+
+    /**
+     * Check if response contains file operation keywords (fallback detection)
+     */
+    private boolean containsFileOperationKeywords(String response) {
+        String lowerResponse = response.toLowerCase();
+        
+        // Keywords that suggest file operations
+        String[] fileOperationKeywords = {
+            "delete file", "remove file", "delete the file",
+            "create file", "create a file", "add file",
+            "edit file", "modify file", "update file",
+            "duplicate resource", "duplicate files",
+            "annotation-v", "collection-v", "classes.jar",
+            "fix_file_error", "I'll delete", "I'll remove",
+            "I'll create", "I'll add", "I'll edit"
+        };
+        
+        for (String keyword : fileOperationKeywords) {
+            if (lowerResponse.contains(keyword)) {
+                Log.d(TAG, "Found file operation keyword: " + keyword);
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     /**

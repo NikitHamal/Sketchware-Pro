@@ -275,11 +275,35 @@ public class CompileLogActivity extends BaseAppCompatActivity {
             // Instructions for AI
             contextMessage.append("**🎯 INSTRUCTIONS:**\n");
             contextMessage.append("Please analyze these compile errors and provide solutions. ");
-            contextMessage.append("You can use the `fix_file_error` action to create, edit, or modify files. ");
-            contextMessage.append("Always explain what you're doing and ask for user approval before making changes.\n\n");
+            contextMessage.append("When you need to create, edit, or delete files, respond with JSON actions in this exact format:\n\n");
             
-            contextMessage.append("**Available actions:**\n");
-            contextMessage.append("- `fix_file_error` with action: create_file, edit_file, delete_file, create_directory\n");
+            contextMessage.append("```json\n");
+            contextMessage.append("{\n");
+            contextMessage.append("  \"response_type\": \"action\",\n");
+            contextMessage.append("  \"action\": \"fix_file_error\",\n");
+            contextMessage.append("  \"parameters\": {\n");
+            contextMessage.append("    \"action\": \"delete_file\",\n");
+            contextMessage.append("    \"file_path\": \"/storage/emulated/0/.sketchware/libs/local_libs/annotation-v1.8.2/classes.jar\",\n");
+            contextMessage.append("    \"explanation\": \"Removing duplicate annotation library to resolve resource conflict\"\n");
+            contextMessage.append("  },\n");
+            contextMessage.append("  \"explanation\": \"I'll delete the annotation-v1.8.2 library file to resolve the duplicate resource conflict. The collection library already includes the necessary annotations. Please review and accept to apply this change.\"\n");
+            contextMessage.append("}\n");
+            contextMessage.append("```\n\n");
+            
+            contextMessage.append("**CRITICAL:** You MUST respond with ONLY the JSON format above. Do NOT provide explanations outside the JSON. Do NOT use natural language responses for file operations.\n\n");
+            
+            contextMessage.append("**Available action types for fix_file_error:**\n");
+            contextMessage.append("- `create_file`: Create a new file\n");
+            contextMessage.append("- `edit_file`: Modify an existing file\n");
+            contextMessage.append("- `delete_file`: Remove a file (for duplicate conflicts)\n");
+            contextMessage.append("- `create_directory`: Create a directory\n\n");
+            
+            contextMessage.append("**IMPORTANT:**\n");
+            contextMessage.append("- Use JSON format exactly as shown above\n");
+            contextMessage.append("- Include both 'parameters.explanation' and top-level 'explanation'\n");
+            contextMessage.append("- Use future tense: 'I'll delete...' not 'I've deleted...'\n");
+            contextMessage.append("- All file operations require user approval first\n");
+            contextMessage.append("- For duplicate file errors like this one, usually delete the redundant file\n");
             contextMessage.append("- Always provide clear explanations for proposed changes\n");
 
             // Create intent to open ChatActivity

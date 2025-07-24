@@ -750,6 +750,10 @@ public class ChatActivity extends AppCompatActivity {
             @Override
             public void onFixProposal(String explanation, String actionJson, String projectId) {
 
+                Log.d(TAG, "=== FIX PROPOSAL CALLBACK TRIGGERED ===");
+                Log.d(TAG, "Explanation: " + explanation);
+                Log.d(TAG, "ActionJSON: " + actionJson);
+                Log.d(TAG, "ProjectID: " + projectId);
                 
                 runOnUiThread(() -> {
                     hideTypingIndicator();
@@ -757,6 +761,9 @@ public class ChatActivity extends AppCompatActivity {
                     try {
                         JSONObject actionData = new JSONObject(actionJson);
                         JSONObject parameters = actionData.getJSONObject("parameters");
+                        
+                        Log.d(TAG, "Parsed actionData: " + actionData.toString());
+                        Log.d(TAG, "Extracted parameters: " + parameters.toString());
                         
                         // Create and show fix proposal view
                         showFixProposal(explanation, parameters, projectId);
@@ -853,6 +860,11 @@ public class ChatActivity extends AppCompatActivity {
 
     private void showFixProposal(String explanation, JSONObject actionData, String projectId) {
         
+        Log.d(TAG, "=== SHOWING FIX PROPOSAL ===");
+        Log.d(TAG, "Explanation: " + explanation);
+        Log.d(TAG, "ActionData: " + actionData.toString());
+        Log.d(TAG, "ProjectId: " + projectId);
+        
         // Create proposal message with proper type
         ChatMessage proposalMessage = new ChatMessage(
             UUID.randomUUID().toString(),
@@ -865,10 +877,16 @@ public class ChatActivity extends AppCompatActivity {
         proposalMessage.setProposalData(actionData.toString());
         proposalMessage.setExplanation(explanation);
         
+        Log.d(TAG, "Created proposal message with ID: " + proposalMessage.getId());
+        Log.d(TAG, "Proposal message type: " + proposalMessage.getType());
+        Log.d(TAG, "Has proposal data: " + proposalMessage.hasProposalData());
+        
         messages.add(proposalMessage);
         chatAdapter.notifyItemInserted(messages.size() - 1);
         messageStorage.saveMessages(conversationId, messages);
         binding.messagesRecyclerView.scrollToPosition(messages.size() - 1);
+        
+        Log.d(TAG, "Proposal message added to chat at position: " + (messages.size() - 1));
     }
     
     private void showProjectCard(String projectId) {

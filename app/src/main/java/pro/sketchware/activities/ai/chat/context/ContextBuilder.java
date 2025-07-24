@@ -64,10 +64,13 @@ public class ContextBuilder {
         prompt.append("  \"explanation\": \"I'll create that for you. Please review the proposed changes and click Accept to apply them.\"\n");
         prompt.append("}\n");
         prompt.append("IMPORTANT NOTES:\n");
-        prompt.append("- File operations (create_java_file, create_xml_resource, edit_file) require user approval\n");
+        prompt.append("- File operations (create_java_file, create_xml_resource, edit_file, fix_file_error) require user approval\n");
         prompt.append("- Never claim to have completed file operations - they will be shown as proposals first\n");
-        prompt.append("- Use phrases like 'I'll create...', 'I'll add...', 'Let me prepare...' instead of 'I've created...'\n");
-        prompt.append("- Always include a helpful explanation that will be shown to the user\n\n");
+        prompt.append("- Use phrases like 'I'll create...', 'I'll add...', 'Let me prepare...', 'I'll delete...' instead of 'I've created...'\n");
+        prompt.append("- Always include a helpful explanation that will be shown to the user\n");
+        prompt.append("- For compilation errors, analyze the error and propose the most appropriate fix\n");
+        prompt.append("- For duplicate resource conflicts, usually delete one of the conflicting files\n");
+        prompt.append("- For missing files, create them with appropriate content\n\n");
 
         // Available actions
         prompt.append("AVAILABLE_ACTIONS:\n");

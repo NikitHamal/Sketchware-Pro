@@ -299,6 +299,12 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
 
         @Override
         public void bind(ChatMessage message) {
+            Log.d(TAG, "=== BINDING PROPOSAL MESSAGE ===");
+            Log.d(TAG, "Message ID: " + message.getId());
+            Log.d(TAG, "Message type: " + message.getType());
+            Log.d(TAG, "Has proposal data: " + message.hasProposalData());
+            Log.d(TAG, "Explanation: " + message.getExplanation());
+            
             // Clear any existing proposal views
             proposalContainer.removeAllViews();
 
@@ -306,14 +312,19 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
                 try {
                     org.json.JSONObject proposalData = new org.json.JSONObject(message.getProposalData());
                     
+                    Log.d(TAG, "Proposal data: " + proposalData.toString());
+                    
                     // Create and configure proposal view
                     FixProposalView fixProposalView = new FixProposalView(proposalView.getContext());
                     fixProposalView.setProposal(message.getExplanation(), proposalData);
+                    
+                    Log.d(TAG, "Created FixProposalView, setting up listeners");
                     
                     // Set up proposal action listener - bridge between FixProposalView and ChatAdapter listeners
                     fixProposalView.setOnProposalActionListener(new FixProposalView.OnProposalActionListener() {
                         @Override
                         public void onAccept(java.util.List<org.json.JSONObject> proposalDataList) {
+                            Log.d(TAG, "Proposal accepted with " + proposalDataList.size() + " items");
                             if (proposalActionListener != null) {
                                 proposalActionListener.onAcceptProposal(message);
                             }
@@ -321,6 +332,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
 
                         @Override
                         public void onDiscard(java.util.List<org.json.JSONObject> proposalDataList) {
+                            Log.d(TAG, "Proposal discarded with " + proposalDataList.size() + " items");
                             if (proposalActionListener != null) {
                                 proposalActionListener.onDiscardProposal(message);
                             }
@@ -330,9 +342,13 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.BaseViewHolder
                     // Add to container
                     proposalContainer.addView(fixProposalView);
                     
+                    Log.d(TAG, "FixProposalView added to container");
+                    
                 } catch (org.json.JSONException e) {
                     Log.e(TAG, "Error parsing proposal data", e);
                 }
+            } else {
+                Log.w(TAG, "Message has no proposal data!");
             }
         }
     }
