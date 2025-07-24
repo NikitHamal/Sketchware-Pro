@@ -44,14 +44,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-home-cache-cleanup: true
-          gradle-home-cache-includes: |
-            caches
-            wrapper/dists
-          gradle-home-cache-excludes: |
-            caches/journal-1
-            caches/**/*.lock
-            caches/**/gc.properties
+          cache-disabled: true
 
       - name: Build Release APK
         env:
