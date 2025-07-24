@@ -13,9 +13,9 @@ import java.util.Map;
 
 public class FileContentReader {
     private static final String TAG = "FileContentReader";
-    public static final int DEFAULT_MAX_FILE_SIZE = 50 * 1024; // 50KB max per file
-    public static final int DEFAULT_MAX_LINES = 1000; // Max lines per file
-
+    private static final int MAX_FILE_SIZE = 50 * 1024; // 50KB max per file
+    private static final int MAX_LINES = 1000; // Max lines per file
+    
     public static class FileContent {
         public String filePath;
         public String content;
@@ -24,91 +24,130 @@ public class FileContentReader {
         public boolean isTruncated;
         public int totalLines;
         public String errorMessage;
-
+        
         public FileContent(String filePath) {
             this.filePath = filePath;
             this.fileName = new File(filePath).getName();
             this.fileType = getFileExtension(fileName);
         }
-
+        
         private String getFileExtension(String fileName) {
             int lastDot = fileName.lastIndexOf('.');
             return lastDot > 0 ? fileName.substring(lastDot + 1) : "unknown";
         }
-
+        
         public boolean isReadable() {
             return content != null && errorMessage == null;
         }
     }
-
-    public static class FileReadException extends IOException {
-        public FileReadException(String message) {
-            super(message);
-        }
-
-        public FileReadException(String message, Throwable cause) {
-            super(message, cause);
-        }
-    }
-
+    
     public static List<FileContent> readFiles(List<String> filePaths) {
-        return readFiles(filePaths, DEFAULT_MAX_FILE_SIZE, DEFAULT_MAX_LINES);
-    }
-
-    public static List<FileContent> readFiles(List<String> filePaths, int maxFileSize, int maxLines) {
         List<FileContent> fileContents = new ArrayList<>();
+        
         for (String filePath : filePaths) {
-            try {
-                fileContents.add(readFile(filePath, maxFileSize, maxLines));
-            } catch (FileReadException e) {
-                Log.e(TAG, "Error reading file: " + filePath, e);
-                FileContent fileContent = new FileContent(filePath);
-                fileContent.errorMessage = e.getMessage();
+            FileContent fileContent = readFile(filePath);
+            if (fileContent != null) {
                 fileContents.add(fileContent);
             }
         }
+        
         return fileContents;
     }
-
-    public static FileContent readFile(String filePath) throws FileReadException {
-        return readFile(filePath, DEFAULT_MAX_FILE_SIZE, DEFAULT_MAX_LINES);
-    }
-
-    public static FileContent readFile(String filePath, int maxFileSize, int maxLines) throws FileReadException {
+    
+    public static FileContent readFile(String filePath) {
         FileContent fileContent = new FileContent(filePath);
+        
         try {
             File file = new File(filePath);
+            
+            // Check if file exists and is readable
             if (!file.exists()) {
-                throw new FileReadException("File does not exist");
+                fileContent.errorMessage = "File does not exist";
+                return fileContent;
             }
+            
             if (!file.canRead()) {
-                throw new FileReadException("File is not readable");
+                fileContent.errorMessage = "File is not readable";
+                return fileContent;
             }
-            if (file.length() > maxFileSize) {
+            
+            // Check file size
+            if (file.length() > MAX_FILE_SIZE) {
+                fileContent.errorMessage = "File too large (" + file.length() + " bytes)";
                 fileContent.isTruncated = true;
             }
-
+            
+            // Read file content
             StringBuilder content = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
                 String line;
                 int lineCount = 0;
-                while ((line = reader.readLine()) != null && lineCount < maxLines) {
+                
+                while ((line = reader.readLine()) != null && lineCount < MAX_LINES) {
                     content.append(line).append("\n");
                     lineCount++;
                 }
+                
                 fileContent.totalLines = lineCount;
                 fileContent.content = content.toString();
-                if (lineCount >= maxLines) {
+                
+                if (lineCount >= MAX_LINES) {
                     fileContent.isTruncated = true;
                 }
+                
                 Log.d(TAG, "Read file: " + filePath + " (" + lineCount + " lines)");
+                
             }
         } catch (IOException e) {
-            throw new FileReadException("Error reading file: " + e.getMessage(), e);
+            fileContent.errorMessage = "Error reading file: " + e.getMessage();
+            Log.e(TAG, "Error reading file: " + filePath, e);
         } catch (SecurityException e) {
-            throw new FileReadException("Permission denied: " + e.getMessage(), e);
+            fileContent.errorMessage = "Permission denied: " + e.getMessage();
+            Log.e(TAG, "Permission error reading file: " + filePath, e);
         }
+        
         return fileContent;
+    }
+    
+    public static Map<String, String> createFileContentsMap(List<FileContent> fileContents) {
+        Map<String, String> contentsMap = new HashMap<>();
+        
+        for (FileContent fileContent : fileContents) {
+            if (fileContent.isReadable()) {
+                String key = fileContent.fileName + " (" + fileContent.fileType + ")";
+                String value = fileContent.content;
+                
+                if (fileContent.isTruncated) {
+                    value += "\n\n[File truncated - showing first " + fileContent.totalLines + " lines]";
+                }
+                
+                contentsMap.put(key, value);
+            } else {
+                String key = fileContent.fileName + " (ERROR)";
+                contentsMap.put(key, "Could not read file: " + fileContent.errorMessage);
+            }
+        }
+        
+        return contentsMap;
+    }
+    
+    public static boolean isValidProjectFile(String filePath, String projectId) {
+        // Check if file path belongs to the project
+        return filePath != null && 
+               (filePath.contains("/data/" + projectId + "/") || 
+                filePath.contains("/.sketchware/data/" + projectId + "/"));
+    }
+    
+    public static List<String> filterProjectFiles(List<String> filePaths, String projectId) {
+        List<String> projectFiles = new ArrayList<>();
+        
+        for (String filePath : filePaths) {
+            if (isValidProjectFile(filePath, projectId)) {
+                projectFiles.add(filePath);
+            }
+        }
+        
+        return projectFiles;
     }
     
     public static String summarizeFileContents(List<FileContent> fileContents) {

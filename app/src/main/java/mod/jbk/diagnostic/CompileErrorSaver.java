@@ -67,8 +67,4 @@ public class CompileErrorSaver {
     public boolean logFileExists() {
         return FileUtil.isExistFile(path);
     }
-
-    public String getProjectPath() {
-        return FilePathUtil.getProjectPath(sc_id);
-    }
 }
