@@ -1,217 +1,93 @@
 package pro.sketchware.activities.ai.chat.context;
 
-/**
- * Comprehensive guide for AI about Sketchware project structure and available actions
- */
 public class SketchwareProjectGuide {
-    
-    public static String getProjectStructureGuide() {
-        return """
-            SKETCHWARE PROJECT STRUCTURE GUIDE FOR AI
-            ==========================================
-            
-            BASE STRUCTURE:
-            /storage/emulated/0/.sketchware/data/<PROJECT_ID>/
-            ├── files/
-            │   ├── java/                    # Java source files
-            │   │   └── <package_path>/      # Package structure (e.g., com/my/app/)
-            │   │       ├── MainActivity.java
-            │   │       └── <other_classes>.java
-            │   ├── resource/                # Android resources
-            │   │   ├── layout/              # Layout XML files
-            │   │   │   ├── activity_main.xml
-            │   │   │   └── <layout_name>.xml
-            │   │   ├── drawable/            # Drawable resources
-            │   │   │   ├── icon.xml
-            │   │   │   └── <drawable_name>.xml
-            │   │   ├── values/              # String, color, style resources
-            │   │   │   ├── strings.xml
-            │   │   │   ├── colors.xml
-            │   │   │   └── styles.xml
-            │   │   ├── values-night/        # Dark theme resources
-            │   │   ├── menu/                # Menu XML files
-            │   │   └── <other_resources>/
-            │   ├── assets/                  # Asset files
-            │   └── native_libs/             # Native libraries
-            ├── compile_log                  # Compilation logs
-            └── <other_project_files>
-            
-            PACKAGE STRUCTURE:
-            - Project package name: Retrieved from project metadata (my_sc_pkg_name)
-            - Java files location: /files/java/<package_path>/
-            - Package path example: com.my.app → com/my/app/
-            - Sub-packages: com.my.app.util → com/my/app/util/
-            
-            AVAILABLE UNIVERSAL ACTIONS:
-            ============================
-            
-            1. CREATE_JAVA_FILE
-            Purpose: Create Java classes, activities, interfaces in proper package structure
-            Parameters:
-            - class_name (required): Name of the Java class
-            - package_path (optional): Sub-package (e.g., "util", "model.data")
-            - file_type (optional): "class", "activity", "interface"
-            - content (optional): Custom content or auto-generated
-            - create_directories (optional): Create package dirs, default true
-            
-            Example Usage:
-            {
-              "action": "create_java_file",
-              "parameters": {
-                "class_name": "DatabaseHelper",
-                "package_path": "util",
-                "file_type": "class"
-              }
-            }
-            
-            2. CREATE_XML_RESOURCE
-            Purpose: Create XML resources (layouts, drawables, values, etc.)
-            Parameters:
-            - file_name (required): Name without .xml extension
-            - resource_type (required): "layout", "drawable", "values", "menu"
-            - variant (optional): "night", "hdpi", "sw600dp", etc.
-            - content (optional): Custom XML or auto-generated
-            - create_directories (optional): Create resource dirs, default true
-            
-            Example Usage:
-            {
-              "action": "create_xml_resource",
-              "parameters": {
-                "file_name": "fragment_settings",
-                "resource_type": "layout"
-              }
-            }
-            
-            3. READ_FILE
-            Purpose: Read file contents
-            Parameters:
-            - file_path (required): Full path to file
-            - encoding (optional): File encoding, default UTF-8
-            - max_size (optional): Max file size in bytes, default 1MB
-            
-            4. EDIT_FILE
-            Purpose: Edit existing files
-            Parameters:
-            - file_path (required): Full path to file
-            - content (optional): New content
-            - operation (optional): "overwrite", "append", "prepend"
-            - create_backup (optional): Create backup, default true
-            
-            5. LIST_DIRECTORY
-            Purpose: List directory contents
-            Parameters:
-            - path (required): Directory path
-            - recursive (optional): Include subdirectories, default false
-            - filter (optional): Filter by name substring
-            - include_hidden (optional): Include hidden files, default false
-            
-            6. FIX_FILE_ERROR (Legacy)
-            Purpose: Backward compatibility for file operations
-            Parameters:
-            - action (required): "create_file", "edit_file", "delete_file"
-            - file_path (required): Path to file
-            - content (optional): File content
-            - explanation (optional): Description of change
-            
-            COMMON FILE OPERATIONS FOR COMPILATION ERRORS:
-            ==============================================
-            
-            1. MISSING BINDING CLASS (MainBinding cannot be resolved):
-            - Problem: ViewBinding class not generated
-            - Solution: Create/fix layout XML file that generates the binding
-            - Action: Use create_xml_resource for layout files
-            
-            2. MISSING DRAWABLE RESOURCES:
-            - Problem: Referenced drawable doesn't exist
-            - Solution: Create drawable XML or image file
-            - Action: Use create_xml_resource with resource_type="drawable"
-            
-            3. MISSING STRING RESOURCES:
-            - Problem: Referenced string resource doesn't exist
-            - Solution: Add string to strings.xml
-            - Action: Use edit_file to modify values/strings.xml
-            
-            4. MISSING JAVA CLASSES:
-            - Problem: Referenced class doesn't exist
-            - Solution: Create the missing Java class
-            - Action: Use create_java_file with appropriate package_path
-            
-            5. PACKAGE IMPORTS:
-            - Problem: Import statements refer to missing classes
-            - Solution: Create missing classes or fix import statements
-            - Action: Use create_java_file or edit_file to fix imports
-            
-            BEST PRACTICES:
-            ==============
-            
-            1. Always use proper package structure for Java files
-            2. Follow Android naming conventions (snake_case for resources, PascalCase for classes)
-            3. Create directories automatically when needed
-            4. Use appropriate resource variants (night, hdpi, etc.) when necessary
-            5. Generate proper XML declarations and namespaces
-            6. Include TODO comments in generated templates
-            7. Validate file paths before operations
-            8. Provide meaningful error messages
-            
-            ERROR HANDLING:
-            ==============
-            
-            - Validate all required parameters before execution
-            - Check if files/directories already exist
-            - Verify package names and paths
-            - Handle file system permissions appropriately
-            - Provide clear error messages with context
-            - Log all operations for debugging
-            
-            INTEGRATION WITH COMPILE ERRORS:
-            ===============================
-            
-            When fixing compilation errors:
-            1. Parse error messages to identify missing files/resources
-            2. Determine appropriate action based on error type
-            3. Use correct file paths and package structure
-            4. Generate appropriate file content based on context
-            5. Verify fixes resolve the compilation issues
-            
-            This guide ensures AI can properly create and manage files within
-            the Sketchware project ecosystem following Android development best practices.
-            """;
+
+    public static String getSystemContext() {
+        return "You are an advanced AI assistant integrated into SketchwarePro, an Android app development IDE.\n" +
+                "You can execute actions to help users build Android applications.";
     }
-    
-    public static String getActionSchemas() {
-        return """
-            DETAILED ACTION SCHEMAS:
-            =======================
-            
-            CREATE_JAVA_FILE:
-            - Creates Java files with proper package structure
-            - Automatically generates package directories
-            - Supports class, activity, and interface templates
-            - Includes proper imports and basic structure
-            
-            CREATE_XML_RESOURCE:
-            - Creates Android XML resources in correct directories
-            - Supports all resource types (layout, drawable, values, menu)
-            - Handles resource variants (night, density, size qualifiers)
-            - Generates appropriate XML templates with namespaces
-            
-            EDIT_FILE:
-            - Modifies existing files with backup support
-            - Supports overwrite, append, and prepend operations
-            - Maintains file encoding and structure
-            - Includes error recovery mechanisms
-            
-            READ_FILE:
-            - Safely reads file contents with size limits
-            - Supports different encodings
-            - Provides file metadata (size, modification date)
-            - Handles large files appropriately
-            
-            LIST_DIRECTORY:
-            - Lists directory contents with filtering
-            - Supports recursive directory traversal
-            - Provides file metadata and permissions
-            - Respects hidden file settings
-            """;
+
+    public static String getActionProtocol() {
+        return "When you need to execute an action, respond with JSON in this exact format:\n" +
+                "{\n" +
+                "  \"response_type\": \"action\",\n" +
+                "  \"action\": \"action_name\",\n" +
+                "  \"parameters\": {\n" +
+                "    \"param1\": \"value1\",\n" +
+                "    \"param2\": \"value2\"\n" +
+                "  },\n" +
+                "  \"explanation\": \"I'll create that for you. Please review the proposed changes and click Accept to apply them.\"\n" +
+                "}\n" +
+                "IMPORTANT NOTES:\n" +
+                "- File operations (create_java_file, create_xml_resource, edit_file) require user approval\n" +
+                "- Never claim to have completed file operations - they will be shown as proposals first\n" +
+                "- Use phrases like 'I'll create...', 'I'll add...', 'Let me prepare...' instead of 'I've created...'\n" +
+                "- Always include a helpful explanation that will be shown to the user";
+    }
+
+    public static String getUniversalActionsGuide() {
+        return "You also have access to powerful Universal Actions for file operations:\n" +
+                "- create_java_file: Create Java classes with proper package structure\n" +
+                "- create_xml_resource: Create Android XML resources (layouts, drawables, etc.)\n" +
+                "- read_file: Read file contents safely\n" +
+                "- edit_file: Edit existing files with backup support\n" +
+                "- list_directory: List directory contents with filtering\n" +
+                "- fix_file_error: Legacy action for backward compatibility";
+    }
+
+    public static String getProjectStructureGuide() {
+        return "Base path: /storage/emulated/0/.sketchware/data/<PROJECT_ID>/\n" +
+                "- files/java/<package_path>/: Java source files\n" +
+                "- files/resource/layout/: Layout XML files\n" +
+                "- files/resource/drawable/: Drawable resources\n" +
+                "- files/resource/values/: String, color, style resources\n" +
+                "- files/assets/: Asset files\n" +
+                "Package structure: Use dots in Java (com.my.app) and slashes in paths (com/my/app/)";
+    }
+
+    public static String getProjectCreationGuidance() {
+        return "When creating projects:\n" +
+                "- If user doesn't specify project name, generate a descriptive one based on their request\n" +
+                "- If user doesn't specify package name, auto-generate one like 'com.my.projectname'\n" +
+                "- If user doesn't specify app name, use the project name\n" +
+                "- Always validate that names follow Android conventions\n" +
+                "- Set appropriate default settings: minSdk=21, targetSdk=34, viewBinding=true, oldMethods=false, materialComponents=false";
+    }
+
+    public static String getProjectManagementGuidance() {
+        return "When user mentions @projectId in their message:\n" +
+                "- You get full project context including all settings and file paths\n" +
+                "- Use update_project_settings action to modify project properties\n" +
+                "- Available project settings to modify:\n" +
+                "  * project_name: Change project workspace name\n" +
+                "  * app_name: Change application display name\n" +
+                "  * package_name: Change package identifier (e.g. com.example.app)\n" +
+                "  * version_code: Integer version for updates\n" +
+                "  * version_name: String version for display (e.g. 1.0)\n" +
+                "  * minimum_sdk: Minimum Android SDK (default 21)\n" +
+                "  * target_sdk: Target Android SDK (default 34)\n" +
+                "  * application_class: Main application class (default .SketchApplication)\n" +
+                "  * enable_view_binding: Enable view binding (true/false)\n" +
+                "  * remove_old_methods: Remove deprecated methods (true/false)\n" +
+                "  * enable_material_components: Use material components (true/false)\n" +
+                "- When updating settings, explain what each change does\n" +
+                "- Always use the update_project_settings action with proper parameters";
+    }
+
+    public static String getFileOperationsGuidance() {
+        return "When working with files:\n" +
+                "1. Analyze the request carefully and identify what files need to be created/modified\n" +
+                "2. Explain what you'll create/modify and why\n" +
+                "3. Use appropriate actions based on the file type:\n" +
+                "   - Java classes: Use create_java_file with proper package structure\n" +
+                "   - Layout files: Use create_xml_resource with resource_type='layout'\n" +
+                "   - Drawable resources: Use create_xml_resource with resource_type='drawable'\n" +
+                "   - Values (strings, colors): Use create_xml_resource with resource_type='values'\n" +
+                "   - File modifications: Use edit_file with complete updated content\n" +
+                "4. For XML files, provide complete valid XML content\n" +
+                "5. For Java files, include proper imports and method implementations\n" +
+                "6. Remember: All file operations will be shown as proposals for user approval\n" +
+                "7. Use future tense ('I'll create...') not past tense ('I've created...')\n" +
+                "8. Always use proper package structure and file paths";
     }
 }
