@@ -231,7 +231,7 @@ public class CompileLogActivity extends BaseAppCompatActivity {
             Log.d("CompileLogActivity", "Opening AI error fixer for project: " + projectId);
 
             // Parse errors from compile log
-            CompileErrorParser.ParseResult parseResult = CompileErrorParser.parseCompileLog(compileLog, projectId);
+            CompileErrorParser.ParseResult parseResult = CompileErrorParser.parseCompileLog(compileLog, compileErrorSaver.getProjectPath());
             
             if (parseResult.errors.isEmpty()) {
                 SketchwareUtil.toast("No errors found in compile log");
@@ -242,8 +242,7 @@ public class CompileLogActivity extends BaseAppCompatActivity {
 
             // Read affected files
             List<String> affectedFiles = CompileErrorParser.getUniqueFilePaths(parseResult);
-            List<String> projectFiles = FileContentReader.filterProjectFiles(affectedFiles, projectId);
-            List<FileContentReader.FileContent> fileContents = FileContentReader.readFiles(projectFiles);
+            List<FileContentReader.FileContent> fileContents = FileContentReader.readFiles(affectedFiles);
 
             // Build context message for AI
             StringBuilder contextMessage = new StringBuilder();
