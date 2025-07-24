@@ -30,6 +30,7 @@ public class UniversalActionManager {
         registerAction(new ReadFileAction());
         registerAction(new EditFileAction());
         registerAction(new ListDirectoryAction());
+        registerAction(new DeleteFileAction());
         
         // Android development
         registerAction(new CreateJavaFileAction());

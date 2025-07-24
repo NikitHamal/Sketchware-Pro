@@ -69,27 +69,36 @@ public class FileChangeView extends LinearLayout {
     
     private void updateUI() {
         if (fileData == null) return;
-        
+
         try {
             String filePath = fileData.optString("file_path", "");
             String content = fileData.optString("content", "");
             String action = fileData.optString("action", "edit_file");
-            
+
             // Display short file path
             String shortPath = getShortPath(filePath);
             filePathText.setText(shortPath);
-            
+
             // Calculate and show diff indicators
             DiffInfo diffInfo = calculateDiffInfo(content, action);
             updateDiffIndicators(diffInfo);
-            
-            // Set code content with diff highlighting
-            if (!content.isEmpty()) {
-                codeDiffText.setText(highlightDiff(content));
+
+            if ("delete_file".equalsIgnoreCase(action)) {
+                codeContainer.setVisibility(View.GONE);
+                expandIcon.setVisibility(View.GONE);
+                // Optionally, you can add a specific message for deletion
+                codeDiffText.setText("This file will be deleted.");
+                codeDiffText.setTextColor(ContextCompat.getColor(getContext(), R.color.red_500));
             } else {
-                codeDiffText.setText("No content preview available");
+                codeContainer.setVisibility(isExpanded ? View.VISIBLE : View.GONE);
+                expandIcon.setVisibility(View.VISIBLE);
+                // Set code content with diff highlighting
+                if (!content.isEmpty()) {
+                    codeDiffText.setText(highlightDiff(content));
+                } else {
+                    codeDiffText.setText("No content preview available");
+                }
             }
-            
         } catch (Exception e) {
             filePathText.setText("Error loading file data");
             codeDiffText.setText("Error: " + e.getMessage());
