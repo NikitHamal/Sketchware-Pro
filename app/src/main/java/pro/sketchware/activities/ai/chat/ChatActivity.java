@@ -133,40 +133,6 @@ public class ChatActivity extends AppCompatActivity {
         
         // Handle auto_message from error analysis
         handleAutoMessage();
-        
-        // DEBUG: Add a test proposal message to check if proposal system works
-        addTestProposalMessage();
-    }
-    
-    private void addTestProposalMessage() {
-        try {
-            Log.d(TAG, "=== ADDING TEST PROPOSAL MESSAGE ===");
-            
-            // Create test proposal data
-            JSONObject testActionData = new JSONObject();
-            testActionData.put("action", "delete_file");
-            testActionData.put("file_path", "/test/path/file.jar");
-            testActionData.put("explanation", "Test explanation");
-            
-            ChatMessage testProposal = new ChatMessage(
-                UUID.randomUUID().toString(),
-                "Test proposal message",
-                ChatMessage.TYPE_PROPOSAL,
-                System.currentTimeMillis()
-            );
-            
-            testProposal.setProposalData(testActionData.toString());
-            testProposal.setExplanation("This is a test proposal to verify the proposal system is working.");
-            
-            messages.add(testProposal);
-            chatAdapter.notifyItemInserted(messages.size() - 1);
-            messageStorage.saveMessages(conversationId, messages);
-            
-            Log.d(TAG, "Test proposal message added at position: " + (messages.size() - 1));
-            
-        } catch (JSONException e) {
-            Log.e(TAG, "Error creating test proposal", e);
-        }
     }
     
     private void loadAvailableModels() {
@@ -279,19 +245,6 @@ public class ChatActivity extends AppCompatActivity {
     private void loadMessages() {
         messages.clear();
         messages.addAll(messageStorage.getMessages(conversationId));
-        
-        // Debug: Check if any loaded messages are proposals
-        Log.d(TAG, "=== LOADED MESSAGES DEBUG ===");
-        Log.d(TAG, "Total messages loaded: " + messages.size());
-        for (int i = 0; i < messages.size(); i++) {
-            ChatMessage msg = messages.get(i);
-            Log.d(TAG, "Message " + i + ": Type=" + msg.getType() + ", HasProposalData=" + msg.hasProposalData() + ", Content=" + (msg.getContent() != null ? msg.getContent().substring(0, Math.min(50, msg.getContent().length())) : "null"));
-            if (msg.getType() == ChatMessage.TYPE_PROPOSAL) {
-                Log.d(TAG, "Found proposal message - ProposalData: " + msg.getProposalData());
-                Log.d(TAG, "Proposal explanation: " + msg.getExplanation());
-            }
-        }
-        
         if (chatAdapter != null) {
             chatAdapter.notifyDataSetChanged();
         }

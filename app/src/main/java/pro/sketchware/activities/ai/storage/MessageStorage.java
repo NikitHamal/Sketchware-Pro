@@ -28,37 +28,16 @@ public class MessageStorage {
     }
 
     public void saveMessages(String conversationId, List<ChatMessage> messages) {
-        // Debug: Check if any messages are proposals before saving
-        for (ChatMessage msg : messages) {
-            if (msg.getType() == ChatMessage.TYPE_PROPOSAL) {
-                android.util.Log.d("MessageStorage", "Saving proposal message: ID=" + msg.getId() + ", HasProposalData=" + msg.hasProposalData());
-                android.util.Log.d("MessageStorage", "Proposal data before serialization: " + msg.getProposalData());
-            }
-        }
-        
         String json = gson.toJson(messages);
-        android.util.Log.d("MessageStorage", "Serialized JSON length: " + json.length());
-        
         prefs.edit().putString(conversationId, json).apply();
     }
 
     public List<ChatMessage> getMessages(String conversationId) {
         String json = prefs.getString(conversationId, "[]");
-        android.util.Log.d("MessageStorage", "Loading messages from JSON length: " + json.length());
-        
         List<ChatMessage> messages = gson.fromJson(json, messageListType);
         if (messages == null) {
             return new ArrayList<>();
         }
-        
-        // Debug: Check if any loaded messages are proposals
-        for (ChatMessage msg : messages) {
-            if (msg.getType() == ChatMessage.TYPE_PROPOSAL) {
-                android.util.Log.d("MessageStorage", "Loaded proposal message: ID=" + msg.getId() + ", HasProposalData=" + msg.hasProposalData());
-                android.util.Log.d("MessageStorage", "Proposal data after deserialization: " + msg.getProposalData());
-            }
-        }
-        
         return messages;
     }
 

@@ -275,7 +275,7 @@ public class CompileLogActivity extends BaseAppCompatActivity {
             // Instructions for AI
             contextMessage.append("**🎯 INSTRUCTIONS:**\n");
             contextMessage.append("Please analyze these compile errors and provide solutions. ");
-            contextMessage.append("When you need to create, edit, or delete files, respond with JSON actions in this exact format:\n\n");
+            contextMessage.append("When you need to create, edit, or delete files, respond with JSON actions in this format:\n\n");
             
             contextMessage.append("```json\n");
             contextMessage.append("{\n");
@@ -290,7 +290,7 @@ public class CompileLogActivity extends BaseAppCompatActivity {
             contextMessage.append("}\n");
             contextMessage.append("```\n\n");
             
-            contextMessage.append("**CRITICAL:** You MUST respond with ONLY the JSON format above. Do NOT provide explanations outside the JSON. Do NOT use natural language responses for file operations.\n\n");
+            contextMessage.append("**You can wrap the JSON in markdown code blocks (```json ... ```) or provide it directly.**\n\n");
             
             contextMessage.append("**Available action types for fix_file_error:**\n");
             contextMessage.append("- `create_file`: Create a new file\n");
@@ -299,7 +299,7 @@ public class CompileLogActivity extends BaseAppCompatActivity {
             contextMessage.append("- `create_directory`: Create a directory\n\n");
             
             contextMessage.append("**IMPORTANT:**\n");
-            contextMessage.append("- Use JSON format exactly as shown above\n");
+            contextMessage.append("- Use the JSON structure exactly as shown above\n");
             contextMessage.append("- Include both 'parameters.explanation' and top-level 'explanation'\n");
             contextMessage.append("- Use future tense: 'I'll delete...' not 'I've deleted...'\n");
             contextMessage.append("- All file operations require user approval first\n");

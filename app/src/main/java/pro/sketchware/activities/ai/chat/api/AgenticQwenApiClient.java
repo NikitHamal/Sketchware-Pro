@@ -206,6 +206,13 @@ public class AgenticQwenApiClient extends QwenApiClient {
                         Log.d(TAG, "Response contains 'response_type': " + trimmedResponse.contains("\"response_type\""));
                         Log.d(TAG, "First 200 chars: " + trimmedResponse.substring(0, Math.min(200, trimmedResponse.length())));
                         
+                        // Extract JSON from markdown code blocks if present
+                        String extractedJson = extractJsonFromMarkdown(trimmedResponse);
+                        if (extractedJson != null) {
+                            Log.d(TAG, "Extracted JSON from markdown: " + extractedJson.substring(0, Math.min(200, extractedJson.length())));
+                            trimmedResponse = extractedJson;
+                        }
+                        
                         // Handle multiple JSON objects in response
                         if (trimmedResponse.startsWith("{") && trimmedResponse.contains("\"response_type\"")) {
                             Log.d(TAG, "Detected JSON response with response_type - processing as action(s)");
@@ -1015,5 +1022,91 @@ public class AgenticQwenApiClient extends QwenApiClient {
                 mainHandler.post(() -> callback.onError("Action execution failed: " + e.getMessage()));
             }
         });
+    }
+
+    /**
+     * Extract JSON from markdown code blocks
+     */
+    private String extractJsonFromMarkdown(String response) {
+        if (response == null || response.trim().isEmpty()) {
+            return null;
+        }
+        
+        // Pattern to match ```json ... ``` or ``` ... ``` blocks containing JSON
+        String[] codeBlockPatterns = {
+            "```json\\s*\\n?(.+?)\\n?```",  // ```json ... ```
+            "```\\s*\\n?(.+?)\\n?```"      // ``` ... ```
+        };
+        
+        for (String pattern : codeBlockPatterns) {
+            java.util.regex.Pattern regex = java.util.regex.Pattern.compile(pattern, 
+                java.util.regex.Pattern.DOTALL | java.util.regex.Pattern.CASE_INSENSITIVE);
+            java.util.regex.Matcher matcher = regex.matcher(response);
+            
+            while (matcher.find()) {
+                String extractedContent = matcher.group(1).trim();
+                
+                // Check if the extracted content looks like JSON and contains response_type
+                if (extractedContent.startsWith("{") && 
+                    extractedContent.contains("\"response_type\"") &&
+                    extractedContent.contains("\"action\"")) {
+                    
+                    Log.d(TAG, "Found JSON in markdown code block using pattern: " + pattern);
+                    return extractedContent;
+                }
+            }
+        }
+        
+        // Also check for inline JSON without code blocks but with response_type
+        if (response.contains("\"response_type\"") && response.contains("\"action\"")) {
+            // Try to extract JSON object from the response
+            int startIndex = response.indexOf("{");
+            if (startIndex != -1) {
+                // Find the matching closing brace
+                int braceCount = 0;
+                int endIndex = -1;
+                boolean inString = false;
+                boolean escaped = false;
+                
+                for (int i = startIndex; i < response.length(); i++) {
+                    char c = response.charAt(i);
+                    
+                    if (escaped) {
+                        escaped = false;
+                        continue;
+                    }
+                    
+                    if (c == '\\') {
+                        escaped = true;
+                        continue;
+                    }
+                    
+                    if (c == '"') {
+                        inString = !inString;
+                        continue;
+                    }
+                    
+                    if (!inString) {
+                        if (c == '{') {
+                            braceCount++;
+                        } else if (c == '}') {
+                            braceCount--;
+                            if (braceCount == 0) {
+                                endIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (endIndex != -1) {
+                    String extractedJson = response.substring(startIndex, endIndex + 1);
+                    Log.d(TAG, "Found inline JSON without code blocks");
+                    return extractedJson;
+                }
+            }
+        }
+        
+        return null;
     }
 }
