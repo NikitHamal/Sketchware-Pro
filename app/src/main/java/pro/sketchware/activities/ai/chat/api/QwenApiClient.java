@@ -46,35 +46,28 @@ public class QwenApiClient {
     }
 
     public void sendMessage(String conversationId, String model, String message, ChatCallback callback) {
-        executor.execute(() -> {
-            try {
-                String chatId = chatIdMap.get(conversationId);
-                if (chatId == null) {
-                    Response<QwenResponse> response = createNewChat(model).execute();
+        String chatId = chatIdMap.get(conversationId);
+        if (chatId == null) {
+            createNewChat(model).enqueue(new Callback<QwenResponse>() {
+                @Override
+                public void onResponse(Call<QwenResponse> call, Response<QwenResponse> response) {
                     if (response.isSuccessful() && response.body() != null && response.body().success) {
-                        chatId = response.body().data.id;
-                        chatIdMap.put(conversationId, chatId);
+                        String newChatId = response.body().data.id;
+                        chatIdMap.put(conversationId, newChatId);
+                        sendChatMessage(newChatId, model, message, callback);
                     } else {
-                        mainHandler.post(() -> callback.onError("Failed to create new chat"));
-                        return;
+                        callback.onError("Failed to create new chat");
                     }
                 }
 
-                Response<QwenResponse> response = sendChatMessage(chatId, model, message).execute();
-                if (response.isSuccessful() && response.body() != null) {
-                    StringBuilder fullResponse = new StringBuilder();
-                    for (QwenResponse.Choice choice : response.body().choices) {
-                        fullResponse.append(choice.delta.content);
-                    }
-                    mainHandler.post(() -> callback.onResponse(fullResponse.toString()));
-                } else {
-                    mainHandler.post(() -> callback.onError("Failed to get response"));
+                @Override
+                public void onFailure(Call<QwenResponse> call, Throwable t) {
+                    callback.onError(t.getMessage());
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "Error sending message", e);
-                mainHandler.post(() -> callback.onError(e.getMessage()));
-            }
-        });
+            });
+        } else {
+            sendChatMessage(chatId, model, message, callback);
+        }
     }
 
     private Call<QwenResponse> createNewChat(String model) {
@@ -87,7 +80,7 @@ public class QwenApiClient {
         return apiService.createChat(BASE_URL + "chats/new", "Bearer " + apiConfig.getAuthorization(), request);
     }
 
-    private Call<QwenResponse> sendChatMessage(String chatId, String model, String message) {
+    private void sendChatMessage(String chatId, String model, String message, ChatCallback callback) {
         QwenRequest request = new QwenRequest();
         request.stream = true;
         request.incremental_output = true;
@@ -104,6 +97,28 @@ public class QwenApiClient {
                 )
         );
         request.timestamp = System.currentTimeMillis() / 1000;
-        return apiService.sendMessage(BASE_URL + "chat/completions?chat_id=" + chatId, "Bearer " + apiConfig.getAuthorization(), request);
+
+        apiService.sendMessage(BASE_URL + "chat/completions?chat_id=" + chatId, "Bearer " + apiConfig.getAuthorization(), request)
+                .enqueue(new Callback<QwenResponse>() {
+                    @Override
+                    public void onResponse(Call<QwenResponse> call, Response<QwenResponse> response) {
+                        if (response.isSuccessful() && response.body() != null) {
+                            StringBuilder fullResponse = new StringBuilder();
+                            if (response.body().choices != null) {
+                                for (QwenResponse.Choice choice : response.body().choices) {
+                                    fullResponse.append(choice.delta.content);
+                                }
+                            }
+                            callback.onResponse(fullResponse.toString());
+                        } else {
+                            callback.onError("Failed to get response");
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<QwenResponse> call, Throwable t) {
+                        callback.onError(t.getMessage());
+                    }
+                });
     }
 }

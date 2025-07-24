@@ -76,13 +76,31 @@ public class ChatViewModel extends AndroidViewModel {
                     @Override
                     public void onResponse(String response) {
                         isTyping.postValue(false);
-                        ChatMessage aiMessage = new ChatMessage(
-                                UUID.randomUUID().toString(),
-                                response,
-                                ChatMessage.TYPE_AI,
-                                System.currentTimeMillis()
-                        );
-                        addMessage(aiMessage);
+                        try {
+                            org.json.JSONObject responseJson = new org.json.JSONObject(response);
+                            String content = responseJson.optString("content", response);
+                            ChatMessage aiMessage = new ChatMessage(
+                                    UUID.randomUUID().toString(),
+                                    content,
+                                    ChatMessage.TYPE_AI,
+                                    System.currentTimeMillis()
+                            );
+                            if (responseJson.has("thinking_content")) {
+                                aiMessage.setThinkingContent(responseJson.getString("thinking_content"));
+                            }
+                            if (responseJson.has("web_search_sources")) {
+                                aiMessage.setWebSearchSources(responseJson.getJSONArray("web_search_sources").toString());
+                            }
+                            addMessage(aiMessage);
+                        } catch (org.json.JSONException e) {
+                            ChatMessage aiMessage = new ChatMessage(
+                                    UUID.randomUUID().toString(),
+                                    response,
+                                    ChatMessage.TYPE_AI,
+                                    System.currentTimeMillis()
+                            );
+                            addMessage(aiMessage);
+                        }
                     }
 
                     @Override
