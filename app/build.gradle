@@ -162,7 +162,6 @@ dependencies {
     implementation "com.google.firebase:firebase-analytics"
     implementation "com.google.firebase:firebase-messaging"
     coreLibraryDesugaring "com.android.tools:desugar_jdk_libs_nio:2.1.5"
-}
 
     // Unit testing dependencies
     testImplementation 'junit:junit:4.13.2'
@@ -172,3 +171,4 @@ dependencies {
     testImplementation 'androidx.test.ext:junit:1.1.5'
     testImplementation 'androidx.test:runner:1.5.2'
     testImplementation 'androidx.test:rules:1.5.0'
+}
