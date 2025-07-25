@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
@@ -23,7 +24,32 @@ public class ConversationStorage {
 
     public ConversationStorage(Context context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        gson = new Gson();
+        // Configure Gson to handle Date objects as timestamps (long values)
+        gson = new GsonBuilder()
+                .setDateFormat("yyyy-MM-dd HH:mm:ss") // Fallback format
+                .registerTypeAdapter(Date.class, new com.google.gson.JsonSerializer<Date>() {
+                    @Override
+                    public com.google.gson.JsonElement serialize(Date src, java.lang.reflect.Type typeOfSrc, com.google.gson.JsonSerializationContext context) {
+                        return new com.google.gson.JsonPrimitive(src.getTime());
+                    }
+                })
+                .registerTypeAdapter(Date.class, new com.google.gson.JsonDeserializer<Date>() {
+                    @Override
+                    public Date deserialize(com.google.gson.JsonElement json, java.lang.reflect.Type typeOfT, com.google.gson.JsonDeserializationContext context) {
+                        try {
+                            return new Date(json.getAsLong());
+                        } catch (Exception e) {
+                            // Fallback: try to parse as string
+                            try {
+                                return new Date(Long.parseLong(json.getAsString()));
+                            } catch (Exception ex) {
+                                // Last resort: return current time
+                                return new Date();
+                            }
+                        }
+                    }
+                })
+                .create();
     }
 
     public void saveConversation(Conversation conversation) {

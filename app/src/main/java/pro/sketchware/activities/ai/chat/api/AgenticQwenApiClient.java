@@ -249,7 +249,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
                             // Split multiple JSON objects if they exist using a simpler approach
                             String[] jsonParts = splitJsonObjects(trimmedResponse);
                             
-                            Log.d(TAG, "Split into " + jsonParts.length + " JSON parts");
+                            Log.d(TAG, "Split response into " + jsonParts.length + " JSON parts for dynamic processing");
                             
                             // Group file-related actions together
                             List<JSONObject> fileActions = new ArrayList<>();
@@ -287,37 +287,45 @@ public class AgenticQwenApiClient extends QwenApiClient {
                                 }
                             }
                             
+                            Log.d(TAG, "Action categorization complete - File actions: " + fileActions.size() + ", Other actions: " + otherActions.size());
+                            
                             // Make final variables for lambda usage
                             final String overallExplanation = explanationBuilder;
                             
                             // Process grouped file actions as a single proposal
                             if (!fileActions.isEmpty()) {
-                                Log.d(TAG, "Processing " + fileActions.size() + " file actions as proposal");
+                                Log.d(TAG, "Processing " + fileActions.size() + " file action(s) as grouped proposal (dynamic handling)");
                                 mainHandler.post(() -> callback.onResponse(overallExplanation));
                                 executeGroupedFileActions(fileActions, context, callback);
                                 
                                 // Process other actions normally
+                                if (!otherActions.isEmpty()) {
+                                    Log.d(TAG, "Also processing " + otherActions.size() + " non-file action(s)");
+                                    for (JSONObject action : otherActions) {
+                                        executeAction(action, context, callback);
+                                    }
+                                }
+                                return; // Don't send as regular response
+                            }
+                            
+                            // If no file actions, process other actions normally
+                            if (!otherActions.isEmpty()) {
+                                Log.d(TAG, "Processing " + otherActions.size() + " non-file action(s) individually");
+                                boolean actionProcessed = false;
                                 for (JSONObject action : otherActions) {
+                                    if (!actionProcessed) {
+                                        mainHandler.post(() -> callback.onResponse(overallExplanation));
+                                        actionProcessed = true;
+                                    }
                                     executeAction(action, context, callback);
                                 }
-                                return; // Don't send as regular response
-                            }
-                            
-                            // If no file actions, process normally
-                            boolean actionProcessed = false;
-                            for (JSONObject action : otherActions) {
-                                if (!actionProcessed) {
-                                    mainHandler.post(() -> callback.onResponse(overallExplanation));
-                                    actionProcessed = true;
+                                
+                                if (actionProcessed) {
+                                    Log.d(TAG, "All actions processed, not sending as regular response");
+                                    return; // Don't send as regular response
+                                } else {
+                                    Log.d(TAG, "No valid actions found in JSON response");
                                 }
-                                executeAction(action, context, callback);
-                            }
-                            
-                            if (actionProcessed) {
-                                Log.d(TAG, "Actions processed, not sending as regular response");
-                                return; // Don't send as regular response
-                            } else {
-                                Log.d(TAG, "No valid actions found in JSON response");
                             }
                         } else {
                             Log.d(TAG, "Response not recognized as action JSON - treating as regular response");
@@ -708,7 +716,8 @@ public class AgenticQwenApiClient extends QwenApiClient {
                 try {
                     JSONObject action = new JSONObject(jsonObj.trim());
                     if (action.has("response_type") && "action".equals(action.getString("response_type"))) {
-                        Log.d(TAG, "Found valid JSON action: " + action.optString("action"));
+                        String actionName = action.optString("action", "unknown");
+                        Log.d(TAG, "Found valid JSON action: " + actionName);
                         validActions.add(jsonObj.trim());
                     }
                 } catch (JSONException ex) {
@@ -717,13 +726,15 @@ public class AgenticQwenApiClient extends QwenApiClient {
             }
             
             if (!validActions.isEmpty()) {
+                Log.d(TAG, "Found " + validActions.size() + " valid action(s) to process");
+                
                 if (validActions.size() == 1) {
                     // Single action - return as-is
                     Log.d(TAG, "Returning single action");
                     return validActions.get(0);
                 } else {
                     // Multiple actions - combine them into a single response that will be split again
-                    // This preserves the existing logic while handling multiple actions
+                    // This preserves the existing logic while handling multiple actions dynamically
                     String combinedActions = String.join("\n\n", validActions);
                     Log.d(TAG, "Returning " + validActions.size() + " combined actions");
                     return combinedActions;
@@ -734,7 +745,7 @@ public class AgenticQwenApiClient extends QwenApiClient {
             try {
                 JSONObject singleAction = new JSONObject(responseText);
                 if (singleAction.has("response_type") && "action".equals(singleAction.getString("response_type"))) {
-                    Log.d(TAG, "Found single JSON action, returning as-is");
+                    Log.d(TAG, "Found single JSON action (fallback), returning as-is");
                     return responseText;
                 }
             } catch (JSONException e) {
