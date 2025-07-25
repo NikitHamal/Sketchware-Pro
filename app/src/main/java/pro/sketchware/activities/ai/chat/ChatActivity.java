@@ -759,13 +759,24 @@ public class ChatActivity extends AppCompatActivity {
                     
                     try {
                         JSONObject actionData = new JSONObject(actionJson);
-                        JSONObject parameters = actionData.getJSONObject("parameters");
-                        
                         Log.d(TAG, "Parsed actionData: " + actionData.toString());
-                        Log.d(TAG, "Extracted parameters: " + parameters.toString());
                         
-                        // Create and show fix proposal view
-                        showFixProposal(explanation, parameters, projectId);
+                        // Check if this is a grouped proposal or single proposal
+                        if (actionData.has("grouped_actions")) {
+                            Log.d(TAG, "Processing grouped proposal with " + actionData.optInt("action_count", 0) + " actions");
+                            // For grouped proposals, pass the entire actionData as it contains the grouped_actions array
+                            showFixProposal(explanation, actionData, projectId);
+                        } else if (actionData.has("parameters")) {
+                            Log.d(TAG, "Processing single proposal");
+                            // For single proposals, extract the parameters as before
+                            JSONObject parameters = actionData.getJSONObject("parameters");
+                            Log.d(TAG, "Extracted parameters: " + parameters.toString());
+                            showFixProposal(explanation, parameters, projectId);
+                        } else {
+                            Log.e(TAG, "Invalid proposal structure - no 'grouped_actions' or 'parameters' field");
+                            // Fallback: try to use the actionData as-is
+                            showFixProposal(explanation, actionData, projectId);
+                        }
                         
                     } catch (JSONException e) {
                         Log.e(TAG, "Error parsing fix proposal", e);

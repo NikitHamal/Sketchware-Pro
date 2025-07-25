@@ -72,6 +72,10 @@ public class FixProposalView extends LinearLayout {
     
     public void setProposal(String explanation, JSONObject actionData) {
         try {
+            android.util.Log.d("FixProposalView", "=== SETTING PROPOSAL ===");
+            android.util.Log.d("FixProposalView", "Explanation: " + explanation);
+            android.util.Log.d("FixProposalView", "ActionData: " + actionData.toString());
+            
             // Set explanation
             explanationText.setText(explanation);
             
@@ -80,9 +84,19 @@ public class FixProposalView extends LinearLayout {
             filesContainer.removeAllViews();
             
             // Handle single action or multiple actions
-            if (actionData.has("actions")) {
-                // Multiple actions case
+            if (actionData.has("grouped_actions")) {
+                // Grouped actions case (from API client)
+                JSONArray actions = actionData.getJSONArray("grouped_actions");
+                android.util.Log.d("FixProposalView", "Processing " + actions.length() + " grouped actions");
+                for (int i = 0; i < actions.length(); i++) {
+                    JSONObject action = actions.getJSONObject(i);
+                    proposalDataList.add(action);
+                    addFileChangeView(action);
+                }
+            } else if (actionData.has("actions")) {
+                // Multiple actions case (legacy support)
                 JSONArray actions = actionData.getJSONArray("actions");
+                android.util.Log.d("FixProposalView", "Processing " + actions.length() + " legacy actions");
                 for (int i = 0; i < actions.length(); i++) {
                     JSONObject action = actions.getJSONObject(i);
                     proposalDataList.add(action);
@@ -90,11 +104,15 @@ public class FixProposalView extends LinearLayout {
                 }
             } else {
                 // Single action case
+                android.util.Log.d("FixProposalView", "Processing single action");
                 proposalDataList.add(actionData);
                 addFileChangeView(actionData);
             }
             
+            android.util.Log.d("FixProposalView", "Proposal setup complete with " + proposalDataList.size() + " actions");
+            
         } catch (Exception e) {
+            android.util.Log.e("FixProposalView", "Error parsing proposal", e);
             explanationText.setText("Error parsing proposal: " + e.getMessage());
         }
     }
