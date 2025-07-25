@@ -24,8 +24,19 @@ public class FixFileErrorAction implements AgenticAction {
             Log.d(TAG, "FixFileErrorAction.execute called with parameters: " + parameters.toString());
             Log.d(TAG, "ProjectId: " + projectId);
             
+            // Debug all parameter keys
+            Log.d(TAG, "Available parameter keys: " + parameters.keySet());
+            for (String key : parameters.keySet()) {
+                Log.d(TAG, "Parameter '" + key + "': " + parameters.get(key));
+            }
+            
             String action = (String) parameters.get("action");
             String filePath = (String) parameters.get("file_path");
+            // Fallback to "path" if "file_path" is not found (for compatibility)
+            if (filePath == null) {
+                filePath = (String) parameters.get("path");
+                Log.d(TAG, "Using fallback 'path' parameter: " + filePath);
+            }
             String content = (String) parameters.get("content");
             String explanation = (String) parameters.get("explanation");
             
@@ -34,7 +45,7 @@ public class FixFileErrorAction implements AgenticAction {
             
             if (action == null || filePath == null) {
                 Log.e(TAG, "Missing required parameters - action: " + action + ", filePath: " + filePath);
-                return createErrorResult("Missing required parameters: action or file_path");
+                return createErrorResult("Missing required parameters: action or file_path/path");
             }
             
             // Validate file path is within project

@@ -125,9 +125,11 @@ public class AgenticQwenApiClient extends QwenApiClient {
     private String[] splitJsonObjects(String input) {
         java.util.List<String> jsonObjects = new java.util.ArrayList<>();
         int braceCount = 0;
-        int start = 0;
+        int start = -1;
         boolean inString = false;
         boolean escaped = false;
+        
+        Log.d(TAG, "Splitting JSON objects from input length: " + input.length());
         
         for (int i = 0; i < input.length(); i++) {
             char c = input.charAt(i);
@@ -151,24 +153,51 @@ public class AgenticQwenApiClient extends QwenApiClient {
                 if (c == '{') {
                     if (braceCount == 0) {
                         start = i; // Start of new JSON object
+                        Log.d(TAG, "Found JSON object start at position: " + i);
                     }
                     braceCount++;
                 } else if (c == '}') {
                     braceCount--;
-                    if (braceCount == 0) {
+                    if (braceCount == 0 && start != -1) {
                         // Complete JSON object found
                         String jsonObject = input.substring(start, i + 1).trim();
                         if (!jsonObject.isEmpty()) {
+                            Log.d(TAG, "Found complete JSON object: " + jsonObject.substring(0, Math.min(100, jsonObject.length())) + "...");
                             jsonObjects.add(jsonObject);
                         }
+                        start = -1;
                     }
                 }
             }
         }
         
-        // If no complete JSON objects were found, return the original input
+        Log.d(TAG, "Split into " + jsonObjects.size() + " JSON objects");
+        
+        // If no complete JSON objects were found, try a different approach
         if (jsonObjects.isEmpty()) {
-            return new String[]{input};
+            // Look for patterns like "}\n\n{" which indicate multiple JSON objects
+            String[] possibleObjects = input.split("\\}\\s*\\n\\s*\\{");
+            if (possibleObjects.length > 1) {
+                Log.d(TAG, "Trying split by pattern, found " + possibleObjects.length + " parts");
+                for (int i = 0; i < possibleObjects.length; i++) {
+                    String part = possibleObjects[i].trim();
+                    // Add missing braces
+                    if (i > 0) part = "{" + part;
+                    if (i < possibleObjects.length - 1) part = part + "}";
+                    
+                    // Validate this looks like JSON with required fields
+                    if (part.contains("\"response_type\"") && part.contains("\"action\"")) {
+                        Log.d(TAG, "Adding reconstructed JSON object: " + part.substring(0, Math.min(100, part.length())));
+                        jsonObjects.add(part);
+                    }
+                }
+            }
+        }
+        
+        // Fallback: if still no objects found, return the original input if it looks like JSON
+        if (jsonObjects.isEmpty() && input.trim().startsWith("{") && input.trim().endsWith("}")) {
+            Log.d(TAG, "Fallback: returning original input as single object");
+            return new String[]{input.trim()};
         }
         
         return jsonObjects.toArray(new String[0]);
@@ -664,15 +693,53 @@ public class AgenticQwenApiClient extends QwenApiClient {
         
         String responseText = fullResponse.toString().trim();
         
-        // Check if the response is an action - if so, return it directly without wrapping
-        try {
-            JSONObject possibleAction = new JSONObject(responseText);
-            if (possibleAction.has("response_type") && "action".equals(possibleAction.getString("response_type"))) {
-                // Return the action as-is so the upper level can detect and process it
-                return responseText;
+        Log.d(TAG, "Raw response text length: " + responseText.length());
+        Log.d(TAG, "Raw response first 500 chars: " + responseText.substring(0, Math.min(500, responseText.length())));
+        
+        // Check if response contains multiple JSON objects (common in streaming responses)
+        if (responseText.contains("\"response_type\"") && responseText.contains("\"action\"")) {
+            Log.d(TAG, "Response contains action keywords, checking for JSON structure");
+            
+            // Split into potential JSON objects
+            String[] jsonObjects = splitJsonObjects(responseText);
+            java.util.List<String> validActions = new java.util.ArrayList<>();
+            
+            for (String jsonObj : jsonObjects) {
+                try {
+                    JSONObject action = new JSONObject(jsonObj.trim());
+                    if (action.has("response_type") && "action".equals(action.getString("response_type"))) {
+                        Log.d(TAG, "Found valid JSON action: " + action.optString("action"));
+                        validActions.add(jsonObj.trim());
+                    }
+                } catch (JSONException ex) {
+                    Log.d(TAG, "Invalid JSON object, skipping: " + jsonObj.substring(0, Math.min(100, jsonObj.length())));
+                }
             }
-        } catch (JSONException e) {
-            // Not a JSON action, continue with normal response processing
+            
+            if (!validActions.isEmpty()) {
+                if (validActions.size() == 1) {
+                    // Single action - return as-is
+                    Log.d(TAG, "Returning single action");
+                    return validActions.get(0);
+                } else {
+                    // Multiple actions - combine them into a single response that will be split again
+                    // This preserves the existing logic while handling multiple actions
+                    String combinedActions = String.join("\n\n", validActions);
+                    Log.d(TAG, "Returning " + validActions.size() + " combined actions");
+                    return combinedActions;
+                }
+            }
+            
+            // Try to parse as single JSON first (fallback)
+            try {
+                JSONObject singleAction = new JSONObject(responseText);
+                if (singleAction.has("response_type") && "action".equals(singleAction.getString("response_type"))) {
+                    Log.d(TAG, "Found single JSON action, returning as-is");
+                    return responseText;
+                }
+            } catch (JSONException e) {
+                Log.d(TAG, "Not a valid single JSON object");
+            }
         }
         
         // Enhanced response processing logic
