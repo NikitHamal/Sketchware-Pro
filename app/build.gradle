@@ -1,13 +1,5 @@
-def secrets = System.getenv("GOOGLE_SERVICES_JSON")
-def analyticsEnabled = secrets != null
-
 apply plugin: "com.android.application"
 apply plugin: "kotlin-android"
-
-if (analyticsEnabled) {
-    apply plugin: "com.google.gms.google-services"
-    apply plugin: "com.google.firebase.crashlytics"
-}
 
 android {
     compileSdk 36
@@ -39,12 +31,9 @@ android {
 
     packagingOptions {
         resources.excludes += "license/*"
-        resources.excludes += "META-INF/DEPENDENCIES"
-        resources.pickFirsts += "api_database/*"
     }
 
     compileOptions {
-        coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
@@ -53,9 +42,7 @@ android {
         jvmTarget = "17"
     }
 
-    androidResources {
-        additionalParameters.addAll("--stable-ids", "${rootDir}/public-stable-ids.txt")
-    }
+
 
     signingConfigs {
         debug {
@@ -77,7 +64,6 @@ android {
 }
 
 dependencies {
-    implementation fileTree(dir: "libs", include: ["*.jar", "*.aar"], exclude: "proguard-base-7.2.2.jar")
 
     implementation "androidx.appcompat:appcompat:1.7.1"
     implementation "androidx.core:core-splashscreen:1.0.1"
