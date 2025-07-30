@@ -11,11 +11,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import pro.sketchware.activities.ai.chat.adapters.ChatAdapter;
-import pro.sketchware.activities.ai.chat.models.ChatMessage;
-import pro.sketchware.activities.ai.chat.api.QwenApiClient;
-import pro.sketchware.activities.ai.storage.ConversationStorage;
-import pro.sketchware.activities.ai.storage.MessageStorage;
+import com.stormx.agent.ui.ChatAdapter;
+import com.stormx.agent.model.ChatMessage;
+import com.stormx.agent.api.QwenApiClient;
+import com.stormx.agent.storage.ConversationStorage;
+import com.stormx.agent.storage.MessageStorage;
 import com.stormx.agent.databinding.ActivityChatBinding;
 
 public class ChatActivity extends AppCompatActivity {
