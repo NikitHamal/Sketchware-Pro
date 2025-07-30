@@ -1,4 +1,4 @@
-package pro.sketchware.activities.main.fragments.ai;
+package com.stormx.agent.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -21,12 +21,12 @@ import com.google.android.material.transition.MaterialSharedAxis;
 import java.util.ArrayList;
 import java.util.List;
 
-import pro.sketchware.activities.main.fragments.ai.adapters.ConversationAdapter;
-import pro.sketchware.activities.main.fragments.ai.models.Conversation;
-import pro.sketchware.databinding.FragmentAiBinding;
-import pro.sketchware.activities.ai.chat.ChatActivity;
-import pro.sketchware.activities.ai.storage.ConversationStorage;
-import pro.sketchware.activities.ai.storage.MessageStorage;
+import com.stormx.agent.ui.ConversationAdapter;
+import com.stormx.agent.model.Conversation;
+import com.stormx.agent.databinding.FragmentAiBinding;
+import com.stormx.agent.ChatActivity;
+import com.stormx.agent.storage.ConversationStorage;
+import com.stormx.agent.storage.MessageStorage;
 
 import pro.sketchware.R;
 

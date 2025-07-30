@@ -83,30 +83,14 @@
             android:name="com.besome.sketch.design.DesignActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard"
             android:theme="@style/Theme.SketchwarePro.SmallToolbar" />
+        <!-- New simplified launcher activity -->
         <activity
-            android:name="pro.sketchware.activities.main.activities.MainActivity"
-            android:configChanges="orientation|screenSize"
+            android:name="com.stormx.agent.MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.SketchwarePro.Starting">
+            android:theme="@style/Theme.SketchwarePro">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="file" />
-                <data android:scheme="content" />
-                <data android:mimeType="*/*" />
-                <data android:host="*" />
-                <data android:pathPattern=".*\\.swb" />
-                <data android:pathPattern=".*\\..*\\.swb" />
-                <data android:pathPattern=".*\\..*\\..*\\.swb" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.swb" />
             </intent-filter>
         </activity>
         <activity
