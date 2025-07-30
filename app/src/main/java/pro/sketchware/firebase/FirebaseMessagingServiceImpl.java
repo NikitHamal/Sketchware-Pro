@@ -15,7 +15,7 @@ import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
 import pro.sketchware.R;
-import pro.sketchware.activities.main.activities.MainActivity;
+import com.stormx.agent.MainActivity;
 
 public class FirebaseMessagingServiceImpl extends FirebaseMessagingService {
 

@@ -23,8 +23,8 @@ import java.util.List;
 
 import pro.sketchware.activities.main.fragments.ai.adapters.ConversationAdapter;
 import pro.sketchware.activities.main.fragments.ai.models.Conversation;
-import pro.sketchware.databinding.FragmentAiBinding;
-import pro.sketchware.activities.ai.chat.ChatActivity;
+import com.stormx.agent.databinding.FragmentAiBinding;
+import com.stormx.agent.ChatActivity;
 import pro.sketchware.activities.ai.storage.ConversationStorage;
 import pro.sketchware.activities.ai.storage.MessageStorage;
 

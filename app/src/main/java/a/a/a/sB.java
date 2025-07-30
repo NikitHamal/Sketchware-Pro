@@ -9,7 +9,7 @@ import java.util.HashMap;
 import mod.hey.studios.util.Helper;
 import mod.jbk.build.BuiltInLibraries;
 import pro.sketchware.R;
-import pro.sketchware.activities.main.activities.MainActivity;
+import com.stormx.agent.MainActivity;
 
 public class sB {
     public static void a(Context context, boolean resetOnlySettings) {
