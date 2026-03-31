@@ -166,6 +166,11 @@ tasks.register('createMockGoogleServices') {
 }"""
             mockFile.text = mockContent
         }
+        def mockReleaseFile = file("src/release/google-services.json")
+        if (!mockReleaseFile.exists()) {
+            mockReleaseFile.parentFile.mkdirs()
+            mockReleaseFile.text = mockFile.text
+        }
     }
 }
 
