@@ -2356,7 +2356,7 @@ public class AndroidStudioProjectImporter {
         }
 
         try {
-            a.a.a.jC libraryManager = jC.c(scId);
+            a.a.a.iC libraryManager = jC.c(scId);
             com.besome.sketch.beans.ProjectLibraryBean compatBean = libraryManager.c();
             if (compatBean == null) {
                 compatBean = new com.besome.sketch.beans.ProjectLibraryBean(com.besome.sketch.beans.ProjectLibraryBean.PROJECT_LIB_TYPE_COMPAT);
@@ -2365,7 +2365,7 @@ public class AndroidStudioProjectImporter {
             compatBean.configurations.put("material3", material3Detected);
             compatBean.configurations.put("dynamic_colors", material3Detected && detectDynamicColorsUsage(detectedProject.sourceRoots, detectedProject.resDirectories));
             compatBean.configurations.put("theme", TextUtils.isEmpty(themeMode) ? "DayNight" : themeMode);
-            libraryManager.b(compatBean);
+            libraryManager.a(compatBean);
             libraryManager.k();
             result.warnings.add(material3Detected
                     ? "Enabled AppCompat + Material3 project library settings based on imported Gradle/theme resources."
