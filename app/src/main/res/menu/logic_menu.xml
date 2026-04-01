@@ -29,4 +29,12 @@
         android:title="Blocks collection"
         app:showAsAction="always" />
 
+
+    <item
+        android:id="@+id/menu_logic_edit_generated_java"
+        android:icon="@drawable/ic_mtrl_edit"
+        android:orderInCategory="100"
+        android:title="Edit Generated Java"
+        app:showAsAction="never" />
+
 </menu>

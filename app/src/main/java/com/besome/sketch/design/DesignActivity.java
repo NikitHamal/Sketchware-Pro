@@ -101,6 +101,7 @@ import mod.agus.jcoderz.editor.manage.permission.ManagePermissionActivity;
 import mod.agus.jcoderz.editor.manage.resource.ManageResourceActivity;
 import mod.hey.studios.activity.managers.assets.ManageAssetsActivity;
 import mod.hey.studios.activity.managers.java.ManageJavaActivity;
+import mod.hey.studios.code.SrcCodeEditor;
 import mod.hey.studios.compiler.kotlin.KotlinCompilerBridge;
 import mod.hey.studios.project.custom_blocks.CustomBlocksDialog;
 import mod.hey.studios.project.proguard.ManageProguardActivity;
@@ -127,6 +128,7 @@ import pro.sketchware.activities.editor.view.CodeViewerActivity;
 import pro.sketchware.activities.editor.view.ViewCodeEditorActivity;
 import pro.sketchware.activities.resourceseditor.ResourcesEditorActivity;
 import pro.sketchware.dialogs.BuildSettingsBottomSheet;
+import pro.sketchware.utility.FilePathUtil;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
 import pro.sketchware.utility.ThemeUtils;
@@ -360,10 +362,14 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
      * Opens the debug APK to install.
      */
     private void installBuiltApk() {
+        installBuiltApk(q.finalToInstallApkPath);
+    }
+
+    private void installBuiltApk(String apkPath) {
         if (!ConfigActivity.isSettingEnabled(ConfigActivity.SETTING_ROOT_AUTO_INSTALL_PROJECTS)) {
-            requestPackageInstallerInstall();
+            requestPackageInstallerInstall(apkPath);
         } else {
-            File apkUri = new File(q.finalToInstallApkPath);
+            File apkUri = new File(apkPath);
             long length = apkUri.length();
             Shell.getShell(shell -> {
                 if (shell.isRoot()) {
@@ -389,15 +395,19 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                     });
                 } else {
                     SketchwareUtil.toastError("No root access granted. Continuing using default package install prompt.");
-                    requestPackageInstallerInstall();
+                    requestPackageInstallerInstall(apkPath);
                 }
             });
         }
     }
 
     private void requestPackageInstallerInstall() {
+        requestPackageInstallerInstall(q.finalToInstallApkPath);
+    }
+
+    private void requestPackageInstallerInstall(String apkPath) {
         Intent intent = new Intent(Intent.ACTION_VIEW);
-        Uri apkUri = FileProvider.getUriForFile(getApplicationContext(), getApplicationContext().getPackageName() + ".provider", new File(q.finalToInstallApkPath));
+        Uri apkUri = FileProvider.getUriForFile(getApplicationContext(), getApplicationContext().getPackageName() + ".provider", new File(apkPath));
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
@@ -539,6 +549,14 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             showSignedAabBuildDialog();
             return true;
         });
+        bottomMenu.add(Menu.NONE, 11, Menu.NONE, "Direct activity Java editor").setOnMenuItemClickListener(item -> {
+            openGeneratedJavaEditor();
+            return true;
+        });
+        bottomMenu.add(Menu.NONE, 12, Menu.NONE, "Reset activity Java override").setVisible(false).setOnMenuItemClickListener(item -> {
+            resetGeneratedJavaOverride();
+            return true;
+        });
         bottomPopupMenu.setOnDismissListener(menu -> btnOptions.setChecked(false));
 
         xmlLayoutOrientation = findViewById(R.id.img_orientation);
@@ -620,6 +638,9 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 var isDebugApkExists = isDebugApkExists();
                 bottomMenu.findItem(4).setVisible(isDebugApkExists);
                 bottomMenu.findItem(6).setVisible(isDebugApkExists);
+                boolean canEditGeneratedJava = projectFile != null;
+                bottomMenu.findItem(11).setVisible(canEditGeneratedJava);
+                bottomMenu.findItem(12).setVisible(canEditGeneratedJava && hasGeneratedJavaOverride(projectFile));
             });
         }
     }
@@ -940,6 +961,88 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
      */
     void toJavaManager() {
         launchActivity(ManageJavaActivity.class, null, new Pair<>("pkgName", q.packageName));
+    }
+
+    private String getGeneratedJavaOverridePath(ProjectFileBean file) {
+        if (file == null || q == null) {
+            return null;
+        }
+        return FilePathUtil.getPathJava(sc_id)
+                + File.separator
+                + q.packageName.replace(".", File.separator)
+                + File.separator
+                + file.getActivityName()
+                + ".java";
+    }
+
+    private boolean hasGeneratedJavaOverride(ProjectFileBean file) {
+        String overridePath = getGeneratedJavaOverridePath(file);
+        return overridePath != null && FileUtil.isExistFile(overridePath);
+    }
+
+    private void openGeneratedJavaEditor() {
+        if (projectFile == null) {
+            SketchwareUtil.toast("No screen is selected.");
+            return;
+        }
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Edit generated Java")
+                .setMessage("This creates a manual source override for the current screen. After that, block changes will not update this screen's Java automatically until you reset the override.")
+                .setPositiveButton("Continue", (dialog, which) -> seedAndLaunchGeneratedJavaEditor(projectFile))
+                .setNegativeButton(R.string.common_word_cancel, null)
+                .show();
+    }
+
+    private void seedAndLaunchGeneratedJavaEditor(ProjectFileBean file) {
+        try {
+            String overridePath = getGeneratedJavaOverridePath(file);
+            if (overridePath == null) {
+                return;
+            }
+
+            if (!FileUtil.isExistFile(overridePath)) {
+                String code = new yq(this, sc_id).getFileSrc(file.getJavaName(), jC.b(sc_id), jC.a(sc_id), jC.c(sc_id));
+                File parent = new File(overridePath).getParentFile();
+                if (parent != null && !parent.exists()) {
+                    FileUtil.makeDir(parent.getAbsolutePath());
+                }
+                FileUtil.writeFile(overridePath, code);
+            }
+
+            Intent intent = new Intent(getApplicationContext(), SrcCodeEditor.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            intent.putExtra("sc_id", sc_id);
+            intent.putExtra("title", file.getJavaName());
+            intent.putExtra("content", overridePath);
+            intent.putExtra("java", true);
+            startActivity(intent);
+        } catch (Exception e) {
+            SketchwareUtil.showAnErrorOccurredDialog(this, Log.getStackTraceString(e));
+        }
+    }
+
+    private void resetGeneratedJavaOverride() {
+        if (projectFile == null) {
+            return;
+        }
+
+        String overridePath = getGeneratedJavaOverridePath(projectFile);
+        if (overridePath == null || !FileUtil.isExistFile(overridePath)) {
+            SketchwareUtil.toast("This screen is using the auto-generated Java already.");
+            return;
+        }
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Reset generated Java override")
+                .setMessage("Delete the manual Java override for this screen and go back to the auto-generated code from blocks?")
+                .setPositiveButton("Reset", (dialog, which) -> {
+                    FileUtil.deleteFile(overridePath);
+                    updateBottomMenu();
+                    SketchwareUtil.toast("The screen now uses auto-generated Java again.");
+                })
+                .setNegativeButton(R.string.common_word_cancel, null)
+                .show();
     }
 
     private void showSignedApkBuildDialog() {
@@ -1424,6 +1527,15 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         }
 
         private String signOrCopyArtifact(String inputPath, String outputPath, boolean bundle) throws Exception {
+            File outputFile = new File(outputPath);
+            File parent = outputFile.getParentFile();
+            if (parent != null && !parent.exists()) {
+                FileUtil.makeDir(parent.getAbsolutePath());
+            }
+            if (outputFile.exists()) {
+                FileUtil.deleteFile(outputFile.getAbsolutePath());
+            }
+
             if (buildRequest.signWithTestkey) {
                 if (bundle) {
                     ZipSigner signer = new ZipSigner();
@@ -1502,12 +1614,18 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
 
                     if (buildSucceeded && !canceled && !buildRequest.isDebugRun() && finalArtifactPath != null) {
                         String artifactLabel = buildRequest.isAppBundle() ? "AAB" : "APK";
-                        new MaterialAlertDialogBuilder(activity)
+                        MaterialAlertDialogBuilder dialog = new MaterialAlertDialogBuilder(activity)
                                 .setIcon(R.drawable.open_box_48)
                                 .setTitle("Finished building " + artifactLabel)
-                                .setMessage("You can find the generated " + artifactLabel + " at:\n" + finalArtifactPath)
-                                .setPositiveButton("OK", null)
-                                .show();
+                                .setMessage("You can find the generated " + artifactLabel + " at:\n" + finalArtifactPath);
+
+                        if (!buildRequest.isAppBundle() && finalArtifactPath.endsWith(".apk") && !finalArtifactPath.contains(".unsigned")) {
+                            dialog.setPositiveButton("Install", (v, which) -> activity.installBuiltApk(finalArtifactPath));
+                            dialog.setNegativeButton("OK", null);
+                        } else {
+                            dialog.setPositiveButton("OK", null);
+                        }
+                        dialog.show();
                     }
                 }
             });

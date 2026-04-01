@@ -196,16 +196,81 @@ public class ProjectBuilder {
                 .equals(ProjectSettings.SETTING_GENERIC_VALUE_FALSE)) {
             return;
         }
+
+        pruneGeneratedSourceConflicts();
+
         File outputDirectory = new File(yq.javaFilesPath + File.separator + yq.packageName.replace(".", File.separator) + File.separator + "databinding");
+        if (outputDirectory.exists()) {
+            FileUtil.deleteFile(outputDirectory.getAbsolutePath());
+        }
         outputDirectory.mkdirs();
 
         List<File> layouts = FileUtil.listFiles(yq.layoutFilesPath, "xml").stream()
                 .map(File::new)
                 .collect(Collectors.toList());
 
-        ViewBindingBuilder builder = new ViewBindingBuilder(layouts, outputDirectory, yq.packageName);
-
+        ViewBindingBuilder builder = new ViewBindingBuilder(layouts, outputDirectory, yq.packageName + ".databinding");
         builder.generateBindings();
+    }
+
+    private void pruneGeneratedSourceConflicts() {
+        File customSourceRoot = new File(fpu.getPathJava(yq.sc_id));
+        if (!customSourceRoot.exists()) {
+            return;
+        }
+        pruneGeneratedSourceConflicts(customSourceRoot);
+    }
+
+    private void pruneGeneratedSourceConflicts(File file) {
+        if (file == null || !file.exists()) {
+            return;
+        }
+
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children == null) {
+                return;
+            }
+            for (File child : children) {
+                pruneGeneratedSourceConflicts(child);
+            }
+            return;
+        }
+
+        String name = file.getName();
+        if (!name.endsWith(".java")) {
+            return;
+        }
+
+        boolean suspiciousGeneratedFile =
+                name.endsWith("Binding.java")
+                        || name.equals("BuildConfig.java")
+                        || name.equals("R.java")
+                        || name.startsWith("R$")
+                        || name.equals("BR.java")
+                        || name.startsWith("DataBinderMapper");
+
+        if (!suspiciousGeneratedFile) {
+            return;
+        }
+
+        String content = FileUtil.readFile(file.getAbsolutePath());
+        if (looksLikeGeneratedSource(content)) {
+            FileUtil.deleteFile(file.getAbsolutePath());
+        }
+    }
+
+    private boolean looksLikeGeneratedSource(String content) {
+        if (TextUtils.isEmpty(content)) {
+            return false;
+        }
+        return content.contains("Generated file. Do not modify.")
+                || (content.contains(".databinding") && content.contains("inflate(LayoutInflater"))
+                || content.contains("public final class BuildConfig")
+                || content.contains("public final class R")
+                || content.contains("public class R")
+                || content.contains("class BR")
+                || content.contains("DataBinderMapper");
     }
 
     public boolean isD8Enabled() {

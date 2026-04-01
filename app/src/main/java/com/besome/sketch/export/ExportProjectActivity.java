@@ -568,6 +568,13 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
                     return;
                 }
 
+                publishProgress("Generating view binding...");
+                builder.generateViewBinding();
+                if (canceled) {
+                    cancel(true);
+                    return;
+                }
+
                 KotlinCompilerBridge.compileKotlinCodeIfPossible(this, builder);
                 if (canceled) {
                     cancel(true);
@@ -631,6 +638,7 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
                     String outputPath = signedAppBundleDirectoryPath + File.separator +
                             Uri.fromFile(new File(createdBundlePath)).getLastPathSegment();
 
+                    prepareOutputPath(outputPath);
                     if (signWithTestkey) {
                         ZipSigner signer = new ZipSigner();
                         signer.setKeymode(ZipSigner.KEY_TESTKEY);
@@ -667,6 +675,7 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
 
                     publishProgress("Signing APK...");
                     String outputLocation = getCorrectResultFilename(builder.yq.releaseApkPath);
+                    prepareOutputPath(outputLocation);
                     if (signWithTestkey) {
                         TestkeySignBridge.signWithTestkey(builder.yq.unsignedAlignedApkPath, outputLocation);
                     } else if (isResultJarSigningEnabled()) {
@@ -827,6 +836,17 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
         public boolean isResultJarSigningEnabled() {
             return signingKeystorePath != null && signingKeystorePassword != null &&
                     signingAliasName != null && signingAliasPassword != null && signingAlgorithm != null;
+        }
+
+        private void prepareOutputPath(String outputPath) {
+            File outputFile = new File(outputPath);
+            File parent = outputFile.getParentFile();
+            if (parent != null && !parent.exists()) {
+                FileUtil.makeDir(parent.getAbsolutePath());
+            }
+            if (outputFile.exists()) {
+                FileUtil.deleteFile(outputFile.getAbsolutePath());
+            }
         }
 
         private String getCorrectResultFilename(String oldFormatFilename) {

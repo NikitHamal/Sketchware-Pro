@@ -18,6 +18,7 @@ import android.os.Vibrator;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.util.Pair;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -129,6 +130,7 @@ import pro.sketchware.databinding.ImagePickerItemBinding;
 import pro.sketchware.databinding.SearchWithRecyclerViewBinding;
 import pro.sketchware.menu.ExtraMenuBean;
 import pro.sketchware.utility.FilePathUtil;
+import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SvgUtils;
 
 @SuppressLint({"ClickableViewAccessibility", "RtlHardcoded", "SetTextI18n", "DefaultLocale"})
@@ -1980,9 +1982,56 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
             undo();
         } else if (itemId == R.id.menu_logic_showsource) {
             showSourceCode();
+        } else if (itemId == R.id.menu_logic_edit_generated_java) {
+            editGeneratedJava();
         }
 
         return super.onOptionsItemSelected(menuItem);
+    }
+
+    private void editGeneratedJava() {
+        if (M == null) {
+            return;
+        }
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Edit generated Java")
+                .setMessage("This will create a manual source override for this screen. After that, changes in blocks may no longer be reflected automatically until you reset the override.")
+                .setPositiveButton("Continue", (dialog, which) -> seedAndOpenGeneratedJavaOverride())
+                .setNegativeButton(R.string.common_word_cancel, null)
+                .show();
+    }
+
+    private void seedAndOpenGeneratedJavaOverride() {
+        try {
+            yq metadata = new yq(this, scId);
+            String packageName = metadata.packageName;
+            String overridePath = FilePathUtil.getPathJava(scId)
+                    + File.separator
+                    + packageName.replace(".", File.separator)
+                    + File.separator
+                    + M.getActivityName()
+                    + ".java";
+
+            if (!FileUtil.isExistFile(overridePath)) {
+                String code = metadata.getFileSrc(M.getJavaName(), jC.b(scId), jC.a(scId), jC.c(scId));
+                File parent = new File(overridePath).getParentFile();
+                if (parent != null && !parent.exists()) {
+                    FileUtil.makeDir(parent.getAbsolutePath());
+                }
+                FileUtil.writeFile(overridePath, code);
+            }
+
+            Intent intent = new Intent(getApplicationContext(), SrcCodeEditor.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            intent.putExtra("sc_id", scId);
+            intent.putExtra("title", M.getJavaName());
+            intent.putExtra("content", overridePath);
+            intent.putExtra("java", true);
+            startActivity(intent);
+        } catch (Exception e) {
+            SketchwareUtil.showAnErrorOccurredDialog(this, Log.getStackTraceString(e));
+        }
     }
 
     @Override

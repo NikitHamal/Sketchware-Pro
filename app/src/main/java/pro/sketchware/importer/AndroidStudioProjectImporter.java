@@ -1030,9 +1030,76 @@ public class AndroidStudioProjectImporter {
         FileUtil.makeDir(targetRoot.getAbsolutePath());
         for (File sourceRoot : sourceRoots) {
             if (sourceRoot != null && sourceRoot.isDirectory()) {
-                FileUtil.copyDirectory(sourceRoot, targetRoot);
+                copySourceTree(sourceRoot, targetRoot, sourceRoot);
             }
         }
+    }
+
+    private void copySourceTree(File current, File targetRoot, File sourceRoot) throws IOException {
+        if (current == null || !current.exists()) {
+            return;
+        }
+
+        String relativePath = sourceRoot.toPath().relativize(current.toPath()).toString();
+        if (shouldSkipImportedSource(current, relativePath)) {
+            return;
+        }
+
+        if (current.isDirectory()) {
+            File[] children = current.listFiles();
+            if (children == null) {
+                return;
+            }
+            for (File child : children) {
+                copySourceTree(child, targetRoot, sourceRoot);
+            }
+            return;
+        }
+
+        File destination = relativePath.isEmpty() ? new File(targetRoot, current.getName()) : new File(targetRoot, relativePath);
+        File parent = destination.getParentFile();
+        if (parent != null) {
+            FileUtil.makeDir(parent.getAbsolutePath());
+        }
+        FileUtil.copyFile(current.getAbsolutePath(), destination.getAbsolutePath());
+    }
+
+    private boolean shouldSkipImportedSource(File file, String relativePath) {
+        String normalizedRelativePath = relativePath == null ? "" : relativePath.replace("\\", "/");
+        String lowerCasePath = normalizedRelativePath.toLowerCase(Locale.US);
+        String fileName = file.getName();
+
+        if ("build".equals(lowerCasePath)
+                || "generated".equals(lowerCasePath)
+                || "out".equals(lowerCasePath)
+                || lowerCasePath.contains("/build/")
+                || lowerCasePath.startsWith("build/")
+                || lowerCasePath.contains("/generated/")
+                || lowerCasePath.startsWith("generated/")
+                || lowerCasePath.contains("/out/")
+                || lowerCasePath.startsWith("out/")) {
+            return true;
+        }
+
+        if (file.isDirectory()) {
+            return false;
+        }
+
+        if ("BuildConfig.java".equals(fileName)
+                || "R.java".equals(fileName)
+                || "BR.java".equals(fileName)
+                || fileName.startsWith("R$")
+                || fileName.startsWith("DataBinderMapper")) {
+            return true;
+        }
+
+        if (fileName.endsWith("Binding.java") && lowerCasePath.contains("/databinding/")) {
+            String content = FileUtil.readFile(file.getAbsolutePath());
+            return content.contains("Generated file. Do not modify.")
+                    || content.contains("inflate(LayoutInflater");
+        }
+
+        return false;
     }
 
     private void copyResources(List<File> resDirectories, File targetRoot) throws IOException {

@@ -498,7 +498,7 @@ public class yq {
         N.sc_id = sc_id;
         N.isDebugBuild = exportingType == ExportType.DEBUG_APP;
         isAndroidStudioExport = exportingType == ExportType.ANDROID_STUDIO;
-        generateDataBindingClasses = !(exportingType == ExportType.DEBUG_APP || exportingType == ExportType.ANDROID_STUDIO);
+        generateDataBindingClasses = exportingType == ExportType.SOURCE_CODE_VIEWING;
         if (firebase.useYn.equals(ProjectLibraryBean.LIB_USE_Y)) {
             N.isFirebaseEnabled = true;
             N.addPermission(jq.PERMISSION_INTERNET);
@@ -774,7 +774,7 @@ public class yq {
             FileUtil.copyFile(path, FileUtil.getExternalStorageDir().concat("/.sketchware/temp/commands"));
         }
 
-        var viewBindingBuilder = new ViewBindingBuilder(List.of(), new File("."), packageName);
+        var viewBindingBuilder = new ViewBindingBuilder(List.of(), new File("."), packageName + ".databinding");
 
         // Generate layouts unless a custom version of it exists already
         // at /Internal storage/.sketchware/data/<sc_id>/files/resource/layout/
@@ -792,7 +792,7 @@ public class yq {
                     FileUtil.writeFile(privFile.getAbsolutePath(), CommandBlock.applyCommands(xmlName, ox.b()));
                     var code = viewBindingBuilder.generateBindingForLayout(privFile);
                     srcCodeBeans.add(new SrcCodeBean(
-                            ViewBindingBuilder.generateFileNameForLayout(xmlName.replace(".xml", "")) + ".java",
+                            "databinding/" + ViewBindingBuilder.generateFileNameForLayout(xmlName.replace(".xml", "")) + ".java",
                             CommandBlock.applyCommands(xmlName, code)
                     ));
                 }
@@ -813,7 +813,7 @@ public class yq {
                     FileUtil.writeFile(privFile.getAbsolutePath(), CommandBlock.applyCommands(xmlName, ox.b()));
                     var code = viewBindingBuilder.generateBindingForLayout(privFile);
                     srcCodeBeans.add(new SrcCodeBean(
-                            ViewBindingBuilder.generateFileNameForLayout(xmlName.replace(".xml", "")) + ".java",
+                            "databinding/" + ViewBindingBuilder.generateFileNameForLayout(xmlName.replace(".xml", "")) + ".java",
                             CommandBlock.applyCommands(xmlName, code)
                     ));
                 }
