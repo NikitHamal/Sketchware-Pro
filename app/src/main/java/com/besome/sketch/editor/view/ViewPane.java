@@ -1291,7 +1291,9 @@ public class ViewPane extends RelativeLayout {
         }
         if (viewBean.text.resTextColor == null) {
             textView.setTextColor(
-                    viewBean.text.textColor == 0xffffff ? defaultTextColor : viewBean.text.textColor
+                    !viewBean.text.hasTextColor && viewBean.text.textColor == 0xffffff
+                            ? defaultTextColor
+                            : viewBean.text.textColor
             );
         } else {
             textView.setTextColor(PropertiesUtil.parseColor(colorsEditorManager.getColorValue(context, viewBean.text.resTextColor, 3, material3LibraryManager.canUseNightVariantColors())));
@@ -1334,7 +1336,9 @@ public class ViewPane extends RelativeLayout {
         }
         if (viewBean.text.resHintColor == null) {
             editText.setHintTextColor(
-                    viewBean.text.hintColor == 0xffffff ? defaultHintColor : viewBean.text.hintColor
+                    !viewBean.text.hasHintColor && viewBean.text.hintColor == 0xffffff
+                            ? defaultHintColor
+                            : viewBean.text.hintColor
             );
         } else {
             editText.setHintTextColor(PropertiesUtil.parseColor(colorsEditorManager.getColorValue(context, viewBean.text.resHintColor, 3, material3LibraryManager.canUseNightVariantColors())));

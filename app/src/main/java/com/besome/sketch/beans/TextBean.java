@@ -5,6 +5,8 @@ import android.os.Parcelable;
 
 import com.google.gson.annotations.Expose;
 
+import java.util.Objects;
+
 import a.a.a.nA;
 
 public class TextBean extends nA implements Parcelable {
@@ -43,6 +45,8 @@ public class TextBean extends nA implements Parcelable {
     @Expose
     public int hintColor;
     @Expose
+    public boolean hasHintColor;
+    @Expose
     public String resHintColor;
     @Expose
     public int imeOption;
@@ -56,6 +60,8 @@ public class TextBean extends nA implements Parcelable {
     public String text;
     @Expose
     public int textColor;
+    @Expose
+    public boolean hasTextColor;
     @Expose
     public String resTextColor;
     @Expose
@@ -72,6 +78,8 @@ public class TextBean extends nA implements Parcelable {
         textColor = 0xffffff;
         hint = "";
         hintColor = 0xffffff;
+        hasTextColor = false;
+        hasHintColor = false;
         singleLine = 0;
         line = 0;
         inputType = INPUT_TYPE_TEXT;
@@ -83,10 +91,12 @@ public class TextBean extends nA implements Parcelable {
         text = parcel.readString();
         textSize = parcel.readInt();
         textColor = parcel.readInt();
+        hasTextColor = parcel.readInt() != 0;
         textType = parcel.readInt();
         textFont = parcel.readString();
         hint = parcel.readString();
         hintColor = parcel.readInt();
+        hasHintColor = parcel.readInt() != 0;
         singleLine = parcel.readInt();
         line = parcel.readInt();
         inputType = parcel.readInt();
@@ -103,10 +113,12 @@ public class TextBean extends nA implements Parcelable {
         text = textBean.text;
         textSize = textBean.textSize;
         textColor = textBean.textColor;
+        hasTextColor = textBean.hasTextColor;
         textType = textBean.textType;
         textFont = textBean.textFont;
         hint = textBean.hint;
         hintColor = textBean.hintColor;
+        hasHintColor = textBean.hasHintColor;
         singleLine = textBean.singleLine;
         line = textBean.line;
         inputType = textBean.inputType;
@@ -121,37 +133,21 @@ public class TextBean extends nA implements Parcelable {
     }
 
     public boolean isEqual(TextBean textBean) {
-        String str = text;
-        if (str != null) {
-            String str2 = textBean.text;
-            if (!str.equals(str2)) {
-                return false;
-            }
-        } else if (textBean.text != null) {
-            return false;
-        }
-        if (textSize != textBean.textSize || textColor != textBean.textColor || textType != textBean.textType || resTextColor != textBean.resTextColor || resHintColor != textBean.resTextColor) { //new
-            return false;
-        }
-        String str3 = textFont;
-        if (str3 != null) {
-            String str4 = textBean.textFont;
-            if (!str3.equals(str4)) {
-                return false;
-            }
-        } else if (textBean.textFont != null) {
-            return false;
-        }
-        String str5 = hint;
-        if (str5 != null) {
-            String str6 = textBean.hint;
-            if (!str5.equals(str6)) {
-                return false;
-            }
-        } else if (textBean.hint != null) {
-            return false;
-        }
-        return hintColor == textBean.hintColor && singleLine == textBean.singleLine && line == textBean.line && inputType == textBean.inputType && imeOption == textBean.imeOption || resTextColor == textBean.resTextColor || resHintColor == textBean.resTextColor; //new
+        return Objects.equals(text, textBean.text)
+                && textSize == textBean.textSize
+                && textColor == textBean.textColor
+                && hasTextColor == textBean.hasTextColor
+                && textType == textBean.textType
+                && Objects.equals(resTextColor, textBean.resTextColor)
+                && Objects.equals(textFont, textBean.textFont)
+                && Objects.equals(hint, textBean.hint)
+                && hintColor == textBean.hintColor
+                && hasHintColor == textBean.hasHintColor
+                && singleLine == textBean.singleLine
+                && line == textBean.line
+                && inputType == textBean.inputType
+                && imeOption == textBean.imeOption
+                && Objects.equals(resHintColor, textBean.resHintColor);
     }
 
     public void print() {
@@ -162,10 +158,12 @@ public class TextBean extends nA implements Parcelable {
         parcel.writeString(text);
         parcel.writeInt(textSize);
         parcel.writeInt(textColor);
+        parcel.writeInt(hasTextColor ? 1 : 0);
         parcel.writeInt(textType);
         parcel.writeString(textFont);
         parcel.writeString(hint);
         parcel.writeInt(hintColor);
+        parcel.writeInt(hasHintColor ? 1 : 0);
         parcel.writeInt(singleLine);
         parcel.writeInt(line);
         parcel.writeInt(inputType);

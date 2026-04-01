@@ -10,12 +10,14 @@ import static mod.hey.studios.util.ProjectFile.getDefaultColor;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Environment;
 import android.text.TextUtils;
 import android.util.Log;
 
 import com.besome.sketch.beans.ProjectFileBean;
+import com.besome.sketch.beans.ProjectResourceBean;
 import com.besome.sketch.beans.ViewBean;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -244,8 +246,10 @@ public class AndroidStudioProjectImporter {
         result.importedDependencies.addAll(gradle.dependencies);
         result.unsupportedFeatures.addAll(gradle.warnings);
 
-        normalizeImportedProjectResources(scId, manifest, new File(filePathUtil.getPathJava(scId)),
-                new File(filePathUtil.getPathResource(scId)), result);
+        File importedJavaRoot = new File(filePathUtil.getPathJava(scId));
+        File importedResourceRoot = new File(filePathUtil.getPathResource(scId));
+        normalizeImportedProjectResources(scId, manifest, importedJavaRoot, importedResourceRoot, result);
+        registerImportedVisualAssets(scId, importedResourceRoot, result);
         materializeActivitiesAndCustomViews(scId, manifest, detectedProject, result);
         writeImportMetadata(scId, sourceType, false);
         writeImportReport(result);
@@ -802,6 +806,166 @@ public class AndroidStudioProjectImporter {
             return null;
         }
         return filename.substring(0, extensionIndex);
+    }
+
+    private void registerImportedVisualAssets(String scId, File resourceRoot, ImportResult result) {
+        if (resourceRoot == null || !resourceRoot.isDirectory()) {
+            return;
+        }
+
+        String imageStorePath = jC.d(scId).l();
+        File imageStore = new File(imageStorePath);
+        File svgStore = new File(filePathUtil.getPathSvg(scId));
+        imageStore.mkdirs();
+        svgStore.mkdirs();
+
+        Map<String, List<File>> visualAssetsByName = collectVisualAssetsByName(resourceRoot);
+        ArrayList<ProjectResourceBean> importedImages = new ArrayList<>();
+        int registeredCount = 0;
+
+        for (Map.Entry<String, List<File>> entry : visualAssetsByName.entrySet()) {
+            String resourceName = entry.getKey();
+            if (TextUtils.isEmpty(resourceName) || "default_image".equals(resourceName)) {
+                continue;
+            }
+
+            File selectedAsset = chooseBestVisualAssetCandidate(entry.getValue());
+            if (selectedAsset == null) {
+                continue;
+            }
+
+            String storedFilename = materializeVisualAssetForImageManager(scId, selectedAsset, imageStore, svgStore, result);
+            if (TextUtils.isEmpty(storedFilename)) {
+                continue;
+            }
+
+            importedImages.add(new ProjectResourceBean(
+                    ProjectResourceBean.PROJECT_RES_TYPE_FILE,
+                    resourceName,
+                    storedFilename
+            ));
+            registeredCount++;
+        }
+
+        jC.d(scId).b(importedImages);
+        jC.d(scId).y();
+
+        if (registeredCount > 0) {
+            result.warnings.add("Registered " + registeredCount + " drawable asset(s) in Sketchware's image manager for visual-editor compatibility.");
+        }
+    }
+
+    private Map<String, List<File>> collectVisualAssetsByName(File resourceRoot) {
+        Map<String, List<File>> assets = new LinkedHashMap<>();
+        File[] resourceDirectories = resourceRoot.listFiles();
+        if (resourceDirectories == null) {
+            return assets;
+        }
+
+        for (File resourceDirectory : resourceDirectories) {
+            if (resourceDirectory == null || !resourceDirectory.isDirectory()) {
+                continue;
+            }
+            String baseType = getBaseResourceType(resourceDirectory.getName());
+            if (!"drawable".equals(baseType) && !"mipmap".equals(baseType)) {
+                continue;
+            }
+
+            File[] children = resourceDirectory.listFiles();
+            if (children == null) {
+                continue;
+            }
+            for (File child : children) {
+                if (child == null || !child.isFile()) {
+                    continue;
+                }
+                String resourceName = getResourceName(child.getName());
+                if (resourceName == null || !isImportableVisualAsset(child)) {
+                    continue;
+                }
+                assets.computeIfAbsent(resourceName, unused -> new ArrayList<>()).add(child);
+            }
+        }
+        return assets;
+    }
+
+    private boolean isImportableVisualAsset(File file) {
+        return isRasterIconFile(file) || isVectorDrawableFile(file);
+    }
+
+    private boolean isVectorDrawableFile(File file) {
+        if (file == null || !file.isFile() || !file.getName().toLowerCase(Locale.US).endsWith(".xml")) {
+            return false;
+        }
+        String content = FileUtil.readFile(file.getAbsolutePath());
+        return content.contains("<vector");
+    }
+
+    private File chooseBestVisualAssetCandidate(List<File> files) {
+        ArrayList<File> rasters = new ArrayList<>();
+        ArrayList<File> vectors = new ArrayList<>();
+        for (File file : files) {
+            if (isRasterIconFile(file)) {
+                rasters.add(file);
+            } else if (isVectorDrawableFile(file)) {
+                vectors.add(file);
+            }
+        }
+
+        if (!rasters.isEmpty()) {
+            rasters.sort(Comparator.comparingInt(this::getDrawableDensityScore).reversed());
+            return rasters.get(0);
+        }
+        if (!vectors.isEmpty()) {
+            vectors.sort(Comparator.comparingInt(this::getDrawableDensityScore).reversed());
+            return vectors.get(0);
+        }
+        return null;
+    }
+
+    private String materializeVisualAssetForImageManager(String scId, File sourceAsset, File imageStore,
+                                                         File svgStore, ImportResult result) {
+        try {
+            String lowerName = sourceAsset.getName().toLowerCase(Locale.US);
+            String resourceName = getResourceName(sourceAsset.getName());
+            if (TextUtils.isEmpty(resourceName)) {
+                return null;
+            }
+
+            if (isVectorDrawableFile(sourceAsset)) {
+                File xmlTarget = new File(imageStore, resourceName + ".xml");
+                FileUtil.copyFile(sourceAsset.getAbsolutePath(), xmlTarget.getAbsolutePath());
+                String svg = new mod.bobur.VectorDrawableParser(FileUtil.readFile(sourceAsset.getAbsolutePath())).toSvg();
+                FileUtil.writeFile(new File(svgStore, resourceName + ".svg").getAbsolutePath(), svg);
+                return xmlTarget.getName();
+            }
+
+            boolean isNinePatch = lowerName.endsWith(".9.png");
+            String storedName = resourceName + (isNinePatch ? ".9.png" : ".png");
+            File targetFile = new File(imageStore, storedName);
+
+            if (isNinePatch || lowerName.endsWith(".png")) {
+                FileUtil.copyFile(sourceAsset.getAbsolutePath(), targetFile.getAbsolutePath());
+                return targetFile.getName();
+            }
+
+            Bitmap bitmap = BitmapFactory.decodeFile(sourceAsset.getAbsolutePath());
+            if (bitmap != null) {
+                try (FileOutputStream outputStream = new FileOutputStream(targetFile, false)) {
+                    if (bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)) {
+                        return targetFile.getName();
+                    }
+                }
+            }
+
+            String fallbackName = resourceName + lowerName.substring(lowerName.lastIndexOf('.'));
+            File fallbackTarget = new File(imageStore, fallbackName);
+            FileUtil.copyFile(sourceAsset.getAbsolutePath(), fallbackTarget.getAbsolutePath());
+            return fallbackTarget.getName();
+        } catch (Throwable throwable) {
+            result.warnings.add("Failed to register drawable asset " + sourceAsset.getName() + " in Sketchware's image manager (" + throwable.getMessage() + ")");
+            return null;
+        }
     }
 
     private void resolveAndRegisterDependencies(String scId, List<String> dependencies) {

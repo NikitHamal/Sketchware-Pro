@@ -521,6 +521,7 @@ public class ViewBeanFactory {
 
         var textColor = attributes.getOrDefault("android:textColor", null);
         if (textColor != null) {
+            bean.hasTextColor = true;
             if (PropertiesUtil.isHexColor(textColor)) {
                 bean.textColor = PropertiesUtil.parseColor(textColor);
             } else if (textColor.startsWith("@color/") || textColor.startsWith("?")) {
@@ -540,6 +541,7 @@ public class ViewBeanFactory {
 
                 var hintColor = attributes.getOrDefault("android:textColorHint", null);
                 if (hintColor != null) {
+                    bean.hasHintColor = true;
                     if (PropertiesUtil.isHexColor(hintColor)) {
                         bean.hintColor = PropertiesUtil.parseColor(hintColor);
                     } else if (hintColor.startsWith("@color/") || hintColor.startsWith("?")) {
@@ -615,13 +617,15 @@ public class ViewBeanFactory {
 
     private void applyImage(Map<String, String> attributes, Map<String, String> injectAttributes) {
         var bean = this.bean.image;
-        var src = attributes.getOrDefault("android:src", null);
+        var compatSrc = attributes.getOrDefault("app:srcCompat", null);
+        var src = compatSrc != null ? compatSrc : attributes.getOrDefault("android:src", null);
+        bean.useCompatSrc = compatSrc != null;
         if (src != null) {
-            if (src.startsWith("@drawable/")) {
+            if (isManagedImageResourceReference(src)) {
                 bean.resName = parseReferName(src, "/");
             } else {
                 bean.resName = "default_image";
-                injectAttributes.put("android:src", src);
+                injectAttributes.put(bean.useCompatSrc ? "app:srcCompat" : "android:src", src);
             }
         } else {
             bean.resName = "default_image";
@@ -678,17 +682,24 @@ public class ViewBeanFactory {
         if (background != null) {
             if (PropertiesUtil.isHexColor(background)) {
                 bean.backgroundColor = PropertiesUtil.parseColor(background);
+                bean.hasBackgroundColor = true;
             } else if (background.startsWith("@color/") || background.startsWith("?")) {
                 bean.backgroundResColor = background;
                 bean.backgroundColor = 0xFFFFFFFF;
-            } else if (background.startsWith("@drawable/")) {
+                bean.hasBackgroundColor = true;
+            } else if (isManagedImageResourceReference(background)) {
                 bean.backgroundResource = parseReferName(background, "/");
             } else if (background.equals("@android:color/transparent")) {
                 bean.backgroundColor = 0;
+                bean.hasBackgroundColor = true;
             } else {
                 injectAttributes.put(name, background);
             }
         }
+    }
+
+    private boolean isManagedImageResourceReference(String value) {
+        return value.startsWith("@drawable/") || value.startsWith("@mipmap/");
     }
 
     private int getFlag(String attribute, String value, Map<String, String> injectAttributes) {

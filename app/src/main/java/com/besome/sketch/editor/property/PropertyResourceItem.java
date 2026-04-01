@@ -287,6 +287,13 @@ public class PropertyResourceItem extends RelativeLayout implements View.OnClick
         try {
             if ("default_image".equals(image)) {
                 imageView.setImageResource(getResources().getIdentifier(image, "drawable", getContext().getPackageName()));
+            } else if (jC.d(a).h(image) == ProjectResourceBean.PROJECT_RES_TYPE_RESOURCE) {
+                int resourceId = getResources().getIdentifier(image, "drawable", getContext().getPackageName());
+                if (resourceId != 0) {
+                    imageView.setImageResource(resourceId);
+                } else {
+                    imageView.setImageResource(R.drawable.ic_remove_grey600_24dp);
+                }
             } else {
                 File file = new File(jC.d(a).f(image));
                 if (file.exists()) {

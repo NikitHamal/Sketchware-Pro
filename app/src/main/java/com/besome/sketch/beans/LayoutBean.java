@@ -5,6 +5,8 @@ import android.os.Parcelable;
 
 import com.google.gson.annotations.Expose;
 
+import java.util.Objects;
+
 import a.a.a.nA;
 
 public class LayoutBean extends nA implements Parcelable {
@@ -38,6 +40,8 @@ public class LayoutBean extends nA implements Parcelable {
     public static final int VALUE_TRUE = -1;
     @Expose
     public int backgroundColor;
+    @Expose
+    public boolean hasBackgroundColor;
     @Expose
     public String backgroundResColor;
     @Expose
@@ -82,6 +86,7 @@ public class LayoutBean extends nA implements Parcelable {
         layoutGravity = GRAVITY_NONE;
         orientation = ORIENTATION_NONE;
         backgroundColor = 0xffffff;
+        hasBackgroundColor = false;
         borderColor = 0xff008dcd;
     }
 
@@ -102,6 +107,7 @@ public class LayoutBean extends nA implements Parcelable {
         weightSum = parcel.readInt();
         layoutGravity = parcel.readInt();
         backgroundColor = parcel.readInt();
+        hasBackgroundColor = parcel.readInt() != 0;
         borderColor = parcel.readInt();
         backgroundResource = parcel.readString();
         backgroundResColor = parcel.readString();
@@ -128,6 +134,7 @@ public class LayoutBean extends nA implements Parcelable {
         weightSum = layoutBean.weightSum;
         layoutGravity = layoutBean.layoutGravity;
         backgroundColor = layoutBean.backgroundColor;
+        hasBackgroundColor = layoutBean.hasBackgroundColor;
         borderColor = layoutBean.borderColor;
         backgroundResource = layoutBean.backgroundResource;
         backgroundResColor = layoutBean.backgroundResColor;
@@ -139,14 +146,26 @@ public class LayoutBean extends nA implements Parcelable {
     }
 
     public boolean isEqual(LayoutBean layoutBean) {
-        if (width != layoutBean.width || height != layoutBean.height || orientation != layoutBean.orientation || gravity != layoutBean.gravity || paddingLeft != layoutBean.paddingLeft || paddingTop != layoutBean.paddingTop || paddingRight != layoutBean.paddingRight || paddingBottom != layoutBean.paddingBottom || marginLeft != layoutBean.marginLeft || marginTop != layoutBean.marginTop || marginRight != layoutBean.marginRight || marginBottom != layoutBean.marginBottom || weight != layoutBean.weight || weightSum != layoutBean.weightSum || layoutGravity != layoutBean.layoutGravity || backgroundColor != layoutBean.backgroundColor || borderColor != layoutBean.borderColor) {
-            return false;
-        }
-        if (backgroundResource != null) {
-            return backgroundResource.equals(layoutBean.backgroundResource);
-        } else {
-            return layoutBean.backgroundResource == null;
-        }
+        return width == layoutBean.width
+                && height == layoutBean.height
+                && orientation == layoutBean.orientation
+                && gravity == layoutBean.gravity
+                && paddingLeft == layoutBean.paddingLeft
+                && paddingTop == layoutBean.paddingTop
+                && paddingRight == layoutBean.paddingRight
+                && paddingBottom == layoutBean.paddingBottom
+                && marginLeft == layoutBean.marginLeft
+                && marginTop == layoutBean.marginTop
+                && marginRight == layoutBean.marginRight
+                && marginBottom == layoutBean.marginBottom
+                && weight == layoutBean.weight
+                && weightSum == layoutBean.weightSum
+                && layoutGravity == layoutBean.layoutGravity
+                && backgroundColor == layoutBean.backgroundColor
+                && hasBackgroundColor == layoutBean.hasBackgroundColor
+                && borderColor == layoutBean.borderColor
+                && Objects.equals(backgroundResource, layoutBean.backgroundResource)
+                && Objects.equals(backgroundResColor, layoutBean.backgroundResColor);
     }
 
     public void print() {
@@ -170,6 +189,7 @@ public class LayoutBean extends nA implements Parcelable {
         parcel.writeInt(weightSum);
         parcel.writeInt(layoutGravity);
         parcel.writeInt(backgroundColor);
+        parcel.writeInt(hasBackgroundColor ? 1 : 0);
         parcel.writeInt(borderColor);
         parcel.writeString(backgroundResource);
         parcel.writeString(backgroundResColor);
