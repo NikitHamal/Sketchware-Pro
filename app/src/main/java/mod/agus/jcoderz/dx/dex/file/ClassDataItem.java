@@ -199,12 +199,14 @@ public final class ClassDataItem extends OffsettedItem {
 
         int sz = staticFields.size();
         for (int i = 0; i < sz; i++) {
-            pw.println("  sfields[" + i + "]: " + staticFields.get(i));
+            pw.print("  sfields[" + i + "]: ");
+            staticFields.get(i).debugPrint(pw, verbose);
         }
 
         sz = instanceFields.size();
         for (int i = 0; i < sz; i++) {
-            pw.println("  ifields[" + i + "]: " + instanceFields.get(i));
+            pw.print("  ifields[" + i + "]: ");
+            instanceFields.get(i).debugPrint(pw, verbose);
         }
 
         sz = directMethods.size();
