@@ -9,6 +9,7 @@ import static mod.hey.studios.util.ProjectFile.getDefaultColor;
 
 import android.content.ContentResolver;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Environment;
 import android.text.TextUtils;
@@ -24,6 +25,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.w3c.dom.NamedNodeMap;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
@@ -31,12 +33,15 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,6 +57,11 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 import a.a.a.GB;
 import a.a.a.jC;
@@ -78,8 +88,17 @@ public class AndroidStudioProjectImporter {
     private static final Pattern LAYOUT_REFERENCE_PATTERN = Pattern.compile("R\\.layout\\.([A-Za-z0-9_]+)");
     private static final Pattern SET_CONTENT_VIEW_PATTERN = Pattern.compile("setContentView\\s*\\(\\s*R\\.layout\\.([A-Za-z0-9_]+)\\s*\\)");
     private static final Pattern INFLATE_PATTERN = Pattern.compile("inflate\\s*\\(\\s*R\\.layout\\.([A-Za-z0-9_]+)\\s*\\)");
+    private static final Pattern JAVA_RESOURCE_REFERENCE_PATTERN = Pattern.compile("\\bR\\.([A-Za-z_][A-Za-z0-9_]*)\\.([A-Za-z0-9_]+)\\b");
+    private static final Pattern XML_RESOURCE_REFERENCE_PATTERN = Pattern.compile("@\\+?(?:(?:[A-Za-z0-9_.]+):)?([A-Za-z_][A-Za-z0-9_]*)/([A-Za-z0-9_]+)");
     private static final long MAX_EXTRACTED_BYTES = 512L * 1024L * 1024L;
     private static final int MAX_EXTRACTED_FILES = 20000;
+    private static final Set<String> TEST_SOURCE_SET_NAMES = new HashSet<>(Arrays.asList(
+            "test",
+            "androidTest",
+            "androidtest",
+            "benchmark",
+            "testFixtures"
+    ));
 
     private final Context context;
     private final Gson gson = new Gson();
@@ -176,8 +195,8 @@ public class AndroidStudioProjectImporter {
     }
 
     private ImportResult importGenericAndroidProject(DetectedProject detectedProject, String sourceType, String preferredProjectName) throws Exception {
-        GradleSummary gradle = parseGradle(detectedProject.gradleFile);
-        ManifestSummary manifest = parseManifest(detectedProject.manifestFile, detectedProject.resDirectory);
+        GradleSummary gradle = parseGradle(detectedProject);
+        ManifestSummary manifest = parseManifest(detectedProject);
 
         String projectName = chooseProjectName(preferredProjectName, manifest.applicationLabel, detectedProject.rootDirectory.getName());
         String applicationId = chooseApplicationId(gradle.applicationId, gradle.namespace, manifest.packageName, projectName);
@@ -201,9 +220,9 @@ public class AndroidStudioProjectImporter {
         ensureProjectDirectories(scId);
 
         copySourceTree(detectedProject.sourceRoots, new File(filePathUtil.getPathJava(scId)));
-        copyResources(detectedProject.resDirectory, new File(filePathUtil.getPathResource(scId)));
-        copyIfDirectoryExists(detectedProject.assetsDirectory, new File(filePathUtil.getPathAssets(scId)));
-        copyIfDirectoryExists(detectedProject.jniLibsDirectory, new File(filePathUtil.getPathNativelibs(scId)));
+        copyResources(detectedProject.resDirectories, new File(filePathUtil.getPathResource(scId)));
+        copyDirectories(detectedProject.assetsDirectories, new File(filePathUtil.getPathAssets(scId)));
+        copyDirectories(detectedProject.jniLibsDirectories, new File(filePathUtil.getPathNativelibs(scId)));
         importLocalJarsAndAars(detectedProject.libsDirectories, scId);
 
         resolveAndRegisterDependencies(scId, gradle.dependencies);
@@ -225,15 +244,18 @@ public class AndroidStudioProjectImporter {
         result.importedDependencies.addAll(gradle.dependencies);
         result.unsupportedFeatures.addAll(gradle.warnings);
 
-        materializeActivities(scId, manifest, detectedProject, result);
+        normalizeImportedProjectResources(scId, manifest, new File(filePathUtil.getPathJava(scId)),
+                new File(filePathUtil.getPathResource(scId)), result);
+        materializeActivitiesAndCustomViews(scId, manifest, detectedProject, result);
         writeImportMetadata(scId, sourceType, false);
         writeImportReport(result);
         result.summary = buildSummary(result, manifest);
         return result;
     }
 
-    private void materializeActivities(String scId, ManifestSummary manifest, DetectedProject detectedProject, ImportResult result) {
+    private void materializeActivitiesAndCustomViews(String scId, ManifestSummary manifest, DetectedProject detectedProject, ImportResult result) {
         Set<String> usedScreenNames = new HashSet<>();
+        Set<String> importedActivityLayouts = new HashSet<>();
         jC.b(scId);
         jC.a(scId);
         InjectRootLayoutManager rootLayoutManager = new InjectRootLayoutManager(scId);
@@ -256,21 +278,24 @@ public class AndroidStudioProjectImporter {
                 layoutName = detectLayoutName(source);
             }
             if (layoutName == null) {
-                File guessed = new File(detectedProject.layoutDirectory, fileBean.getXmlName());
-                if (guessed.exists()) {
+                File guessed = findLayoutFile(detectedProject.layoutDirectories, fileBean.getXmlName().replace(".xml", ""));
+                if (guessed != null && guessed.exists()) {
                     layoutName = screenName;
                 }
             }
 
             if (!TextUtils.isEmpty(layoutName)) {
-                File originalLayout = new File(detectedProject.layoutDirectory, layoutName + ".xml");
-                if (originalLayout.exists()) {
+                File originalLayout = findLayoutFile(detectedProject.layoutDirectories, layoutName);
+                if (originalLayout != null && originalLayout.exists()) {
+                    importedActivityLayouts.add(layoutName);
                     importLayoutForScreen(scId, fileBean, layoutName, originalLayout, rootLayoutManager, result);
                 }
             } else {
                 result.codeOnlyFiles.add(simpleClassName + " (no XML layout was detected)");
             }
         }
+
+        materializeCustomViews(scId, detectedProject, usedScreenNames, importedActivityLayouts, rootLayoutManager, result);
         jC.b(scId).j();
         jC.b(scId).l();
     }
@@ -301,6 +326,482 @@ public class AndroidStudioProjectImporter {
         } catch (Exception e) {
             result.warnings.add(fileBean.fileName + ": layout imported as code-only because visual parsing failed (" + e.getMessage() + ")");
         }
+    }
+
+    private void materializeCustomViews(String scId, DetectedProject detectedProject, Set<String> usedScreenNames,
+                                        Set<String> importedActivityLayouts, InjectRootLayoutManager rootLayoutManager,
+                                        ImportResult result) {
+        for (String layoutName : collectLayoutNames(detectedProject.layoutDirectories)) {
+            if (usedScreenNames.contains(layoutName) || importedActivityLayouts.contains(layoutName)) {
+                continue;
+            }
+
+            File layoutFile = findLayoutFile(detectedProject.layoutDirectories, layoutName);
+            if (layoutFile == null || !layoutFile.isFile()) {
+                continue;
+            }
+
+            ProjectFileBean fileBean = new ProjectFileBean(ProjectFileBean.PROJECT_FILE_TYPE_CUSTOM_VIEW, layoutName);
+            jC.b(scId).a(fileBean);
+            result.visualCustomViews.add(layoutName);
+            importLayoutForScreen(scId, fileBean, layoutName, layoutFile, rootLayoutManager, result);
+        }
+    }
+
+    private Set<String> collectLayoutNames(List<File> layoutDirectories) {
+        Set<String> layoutNames = new LinkedHashSet<>();
+        for (File layoutDirectory : layoutDirectories) {
+            if (layoutDirectory == null || !layoutDirectory.isDirectory()) {
+                continue;
+            }
+            File[] layoutFiles = layoutDirectory.listFiles();
+            if (layoutFiles == null) {
+                continue;
+            }
+            for (File layoutFile : layoutFiles) {
+                if (layoutFile.isFile() && layoutFile.getName().endsWith(".xml")) {
+                    layoutNames.add(FileUtil.getFileNameNoExtension(layoutFile.getName()));
+                }
+            }
+        }
+        return layoutNames;
+    }
+
+    private File findLayoutFile(List<File> layoutDirectories, String layoutName) {
+        for (int i = layoutDirectories.size() - 1; i >= 0; i--) {
+            File layoutDirectory = layoutDirectories.get(i);
+            if (layoutDirectory == null || !layoutDirectory.isDirectory()) {
+                continue;
+            }
+            File candidate = new File(layoutDirectory, layoutName + ".xml");
+            if (candidate.isFile()) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private void normalizeImportedProjectResources(String scId, ManifestSummary manifest, File javaRoot,
+                                                   File resourceRoot, ImportResult result) throws IOException {
+        Set<String> referencedResources = collectReferencedResources(javaRoot, resourceRoot, manifest);
+        Map<String, List<File>> availableResources = collectResourcesByTypeAndName(resourceRoot);
+        mirrorCompatibleResourceTypes(resourceRoot, referencedResources, availableResources, result);
+        importAppIcon(scId, manifest, resourceRoot, availableResources, result);
+    }
+
+    private Set<String> collectReferencedResources(File javaRoot, File resourceRoot, ManifestSummary manifest) {
+        Set<String> references = new LinkedHashSet<>();
+        if (javaRoot != null && javaRoot.isDirectory()) {
+            for (File sourceFile : collectFilesRecursively(javaRoot)) {
+                if (!sourceFile.isFile()) {
+                    continue;
+                }
+                String name = sourceFile.getName().toLowerCase(Locale.US);
+                if (name.endsWith(".java") || name.endsWith(".kt")) {
+                    collectResourceReferences(FileUtil.readFile(sourceFile.getAbsolutePath()), references);
+                }
+            }
+        }
+        if (resourceRoot != null && resourceRoot.isDirectory()) {
+            for (File resFile : collectFilesRecursively(resourceRoot)) {
+                if (resFile.isFile() && resFile.getName().toLowerCase(Locale.US).endsWith(".xml")) {
+                    collectResourceReferences(FileUtil.readFile(resFile.getAbsolutePath()), references);
+                }
+            }
+        }
+        if (manifest != null) {
+            if (!TextUtils.isEmpty(manifest.applicationIconRef)) {
+                references.add(manifest.applicationIconRef);
+            }
+            if (!TextUtils.isEmpty(manifest.roundIconRef)) {
+                references.add(manifest.roundIconRef);
+            }
+            if (!TextUtils.isEmpty(manifest.rawXml)) {
+                collectResourceReferences(manifest.rawXml, references);
+            }
+        }
+        return references;
+    }
+
+    private void collectResourceReferences(String content, Set<String> out) {
+        if (TextUtils.isEmpty(content)) {
+            return;
+        }
+        Matcher javaMatcher = JAVA_RESOURCE_REFERENCE_PATTERN.matcher(content);
+        while (javaMatcher.find()) {
+            out.add(javaMatcher.group(1) + ":" + javaMatcher.group(2));
+        }
+        Matcher xmlMatcher = XML_RESOURCE_REFERENCE_PATTERN.matcher(content);
+        while (xmlMatcher.find()) {
+            out.add(xmlMatcher.group(1) + ":" + xmlMatcher.group(2));
+        }
+    }
+
+    private Map<String, List<File>> collectResourcesByTypeAndName(File resourceRoot) {
+        Map<String, List<File>> resources = new LinkedHashMap<>();
+        File[] resFolders = resourceRoot.listFiles();
+        if (resFolders == null) {
+            return resources;
+        }
+
+        for (File resFolder : resFolders) {
+            if (!resFolder.isDirectory()) {
+                continue;
+            }
+            String baseType = getBaseResourceType(resFolder.getName());
+            File[] children = resFolder.listFiles();
+            if (children == null) {
+                continue;
+            }
+            for (File child : children) {
+                if (!child.isFile()) {
+                    continue;
+                }
+                String resourceName = getResourceName(child.getName());
+                if (resourceName == null) {
+                    continue;
+                }
+                resources.computeIfAbsent(baseType + ":" + resourceName, unused -> new ArrayList<>()).add(child);
+            }
+        }
+        return resources;
+    }
+
+    private void mirrorCompatibleResourceTypes(File resourceRoot, Set<String> referencedResources,
+                                               Map<String, List<File>> availableResources,
+                                               ImportResult result) throws IOException {
+        Set<String> mirroredKeys = new LinkedHashSet<>();
+        for (String referencedResource : referencedResources) {
+            String[] parts = referencedResource.split(":", 2);
+            if (parts.length != 2) {
+                continue;
+            }
+            String referenceType = parts[0];
+            String referenceName = parts[1];
+            String resourceKey = referenceType + ":" + referenceName;
+            if (availableResources.containsKey(resourceKey)) {
+                continue;
+            }
+
+            String compatibleType = getCompatibleResourceType(referenceType);
+            if (compatibleType == null) {
+                continue;
+            }
+            String compatibleKey = compatibleType + ":" + referenceName;
+            List<File> compatibleFiles = availableResources.get(compatibleKey);
+            if (compatibleFiles == null || compatibleFiles.isEmpty()) {
+                continue;
+            }
+
+            for (File compatibleFile : compatibleFiles) {
+                File parent = compatibleFile.getParentFile();
+                if (parent == null) {
+                    continue;
+                }
+                String aliasDirectoryName = compatibleFile.getParentFile().getName()
+                        .replaceFirst("^" + Pattern.quote(compatibleType), referenceType);
+                File aliasDirectory = new File(resourceRoot, aliasDirectoryName);
+                File aliasFile = new File(aliasDirectory, compatibleFile.getName());
+                if (!aliasFile.exists()) {
+                    aliasDirectory.mkdirs();
+                    FileUtil.copyFile(compatibleFile.getAbsolutePath(), aliasFile.getAbsolutePath());
+                }
+                availableResources.computeIfAbsent(resourceKey, unused -> new ArrayList<>()).add(aliasFile);
+            }
+
+            if (mirroredKeys.add(resourceKey)) {
+                result.warnings.add("Mirrored @" + compatibleType + "/" + referenceName + " into @" + referenceType + "/" + referenceName + " for compatibility.");
+            }
+        }
+    }
+
+    private String getCompatibleResourceType(String referenceType) {
+        if ("drawable".equals(referenceType)) {
+            return "mipmap";
+        }
+        if ("mipmap".equals(referenceType)) {
+            return "drawable";
+        }
+        return null;
+    }
+
+    private void importAppIcon(String scId, ManifestSummary manifest, File resourceRoot,
+                               Map<String, List<File>> availableResources, ImportResult result) {
+        String iconReference = !TextUtils.isEmpty(manifest.applicationIconRef) ? manifest.applicationIconRef : manifest.roundIconRef;
+        if (TextUtils.isEmpty(iconReference)) {
+            return;
+        }
+
+        String[] parts = iconReference.split(":", 2);
+        if (parts.length != 2) {
+            return;
+        }
+
+        List<File> iconFiles = availableResources.get(parts[0] + ":" + parts[1]);
+        if (iconFiles == null || iconFiles.isEmpty()) {
+            return;
+        }
+
+        String iconStoreRoot = wq.e() + File.separator + scId;
+        FileUtil.makeDir(iconStoreRoot);
+
+        boolean adaptive = false;
+        for (File iconFile : iconFiles) {
+            if (isAdaptiveIconFile(iconFile)) {
+                adaptive = true;
+                break;
+            }
+        }
+
+        if (adaptive) {
+            String targetMipmaps = iconStoreRoot + File.separator + "mipmaps";
+            FileUtil.deleteFile(targetMipmaps);
+            Set<File> filesToCopy = new LinkedHashSet<>(iconFiles);
+            AdaptiveIconSpec previewSpec = null;
+            for (File iconFile : iconFiles) {
+                AdaptiveIconSpec spec = parseAdaptiveIconSpec(iconFile);
+                if (previewSpec == null && spec != null) {
+                    previewSpec = spec;
+                }
+                filesToCopy.addAll(findAdaptiveIconDependencies(iconFile, availableResources));
+            }
+            for (File iconFile : filesToCopy) {
+                copyIconFileToProjectStore(iconFile, targetMipmaps);
+            }
+            for (File iconFile : iconFiles) {
+                copyAdaptiveLauncherXml(iconFile, targetMipmaps);
+            }
+            File previewIcon = findPreviewIconForAdaptiveIcon(previewSpec, filesToCopy, availableResources);
+            if (previewIcon != null) {
+                if (isRasterIconFile(previewIcon)) {
+                    FileUtil.copyFile(previewIcon.getAbsolutePath(), iconStoreRoot + File.separator + "icon.png");
+                } else {
+                    rasterizeVectorDrawable(previewIcon, new File(iconStoreRoot, "icon.png"), scId);
+                }
+            }
+            if (!new File(iconStoreRoot, "icon.png").isFile()) {
+                result.warnings.add("Imported adaptive icon resources, but Sketchware could not generate a preview icon automatically.");
+            }
+        } else {
+            File bestIcon = chooseBestRasterIcon(iconFiles);
+            if (bestIcon == null) {
+                File vectorPreview = chooseBestVectorDrawable(iconFiles);
+                if (vectorPreview != null && rasterizeVectorDrawable(vectorPreview, new File(iconStoreRoot, "icon.png"), scId)) {
+                    bestIcon = new File(iconStoreRoot, "icon.png");
+                }
+            } else {
+                FileUtil.copyFile(bestIcon.getAbsolutePath(), iconStoreRoot + File.separator + "icon.png");
+            }
+            if (bestIcon == null) {
+                result.warnings.add("Imported icon reference " + iconReference.replace(':', '/') + " uses XML/vector resources that Sketchware's project-icon preview could not rasterize automatically.");
+                return;
+            }
+        }
+
+        HashMap<String, Object> metadata = lC.b(scId);
+        metadata.put("custom_icon", true);
+        metadata.put("isIconAdaptive", adaptive);
+        lC.b(scId, metadata);
+        result.warnings.add("Imported application icon from " + iconReference.replace(':', '/'));
+    }
+
+    private boolean isAdaptiveIconFile(File iconFile) {
+        if (iconFile == null || !iconFile.isFile() || !iconFile.getName().toLowerCase(Locale.US).endsWith(".xml")) {
+            return false;
+        }
+        return FileUtil.readFile(iconFile.getAbsolutePath()).contains("<adaptive-icon");
+    }
+
+    private AdaptiveIconSpec parseAdaptiveIconSpec(File iconFile) {
+        if (!isAdaptiveIconFile(iconFile)) {
+            return null;
+        }
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            Document document = factory.newDocumentBuilder().parse(iconFile);
+            NodeList backgrounds = document.getElementsByTagName("background");
+            NodeList foregrounds = document.getElementsByTagName("foreground");
+            NodeList monochromes = document.getElementsByTagName("monochrome");
+            AdaptiveIconSpec spec = new AdaptiveIconSpec();
+            if (backgrounds.getLength() > 0) {
+                spec.backgroundRef = normalizeResourceReference(getAndroidAttribute((Element) backgrounds.item(0), "drawable"));
+            }
+            if (foregrounds.getLength() > 0) {
+                spec.foregroundRef = normalizeResourceReference(getAndroidAttribute((Element) foregrounds.item(0), "drawable"));
+            }
+            if (monochromes.getLength() > 0) {
+                spec.monochromeRef = normalizeResourceReference(getAndroidAttribute((Element) monochromes.item(0), "drawable"));
+            }
+            return spec;
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to inspect adaptive icon " + iconFile.getAbsolutePath(), e);
+            return null;
+        }
+    }
+
+    private List<File> findAdaptiveIconDependencies(File iconFile, Map<String, List<File>> resourcesByTypeAndName) {
+        ArrayList<File> dependencies = new ArrayList<>();
+        AdaptiveIconSpec spec = parseAdaptiveIconSpec(iconFile);
+        if (spec == null) {
+            return dependencies;
+        }
+        for (String reference : spec.getReferences()) {
+            List<File> files = resourcesByTypeAndName.get(reference);
+            if (files != null) {
+                dependencies.addAll(files);
+            }
+        }
+        return dependencies;
+    }
+
+    private void copyAdaptiveLauncherXml(File iconFile, String targetMipmaps) {
+        if (!isAdaptiveIconFile(iconFile)) {
+            return;
+        }
+        copyIconFileToProjectStore(iconFile, targetMipmaps, "ic_launcher.xml");
+    }
+
+    private void copyIconFileToProjectStore(File iconFile, String targetMipmaps) {
+        copyIconFileToProjectStore(iconFile, targetMipmaps, null);
+    }
+
+    private void copyIconFileToProjectStore(File iconFile, String targetMipmaps, String targetNameOverride) {
+        if (iconFile == null || !iconFile.isFile()) {
+            return;
+        }
+        File qualifierDirectory = iconFile.getParentFile();
+        if (qualifierDirectory == null) {
+            return;
+        }
+        File targetDirectory = new File(targetMipmaps, qualifierDirectory.getName());
+        targetDirectory.mkdirs();
+        String targetName = TextUtils.isEmpty(targetNameOverride) ? iconFile.getName() : targetNameOverride;
+        FileUtil.copyFile(iconFile.getAbsolutePath(), new File(targetDirectory, targetName).getAbsolutePath());
+    }
+
+    private File chooseBestRasterIcon(List<File> iconFiles) {
+        ArrayList<File> files = new ArrayList<>(iconFiles);
+        files.sort(Comparator.comparingInt(this::getDrawableDensityScore).reversed());
+        for (File file : files) {
+            if (isRasterIconFile(file)) {
+                return file;
+            }
+        }
+        return null;
+    }
+
+    private boolean isRasterIconFile(File file) {
+        if (file == null) {
+            return false;
+        }
+        String lowerName = file.getName().toLowerCase(Locale.US);
+        return lowerName.endsWith(".png") || lowerName.endsWith(".webp")
+                || lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg");
+    }
+
+    private File chooseBestVectorDrawable(List<File> iconFiles) {
+        ArrayList<File> files = new ArrayList<>(iconFiles);
+        files.sort(Comparator.comparingInt(this::getDrawableDensityScore).reversed());
+        for (File file : files) {
+            if (!file.getName().toLowerCase(Locale.US).endsWith(".xml")) {
+                continue;
+            }
+            String content = FileUtil.readFile(file.getAbsolutePath());
+            if (content.contains("<vector")) {
+                return file;
+            }
+        }
+        return null;
+    }
+
+    private boolean rasterizeVectorDrawable(File vectorFile, File targetFile, String scId) {
+        String previousScId = com.besome.sketch.design.DesignActivity.sc_id;
+        try {
+            com.besome.sketch.design.DesignActivity.sc_id = scId;
+            String svg = new mod.bobur.VectorDrawableParser(FileUtil.readFile(vectorFile.getAbsolutePath())).toSvg();
+            com.bobur.androidsvg.SVG svgObject = com.bobur.androidsvg.SVG.getFromString(svg);
+            android.graphics.Picture picture = svgObject.renderToPicture();
+            int width = Math.max(picture.getWidth(), 432);
+            int height = Math.max(picture.getHeight(), 432);
+            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            bitmap.eraseColor(0);
+            new android.graphics.Canvas(bitmap).drawPicture(picture);
+            targetFile.getParentFile().mkdirs();
+            try (FileOutputStream outputStream = new FileOutputStream(targetFile, false)) {
+                return bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+            }
+        } catch (Throwable throwable) {
+            Log.e(TAG, "Failed to rasterize vector icon " + vectorFile.getAbsolutePath(), throwable);
+            return false;
+        } finally {
+            com.besome.sketch.design.DesignActivity.sc_id = previousScId;
+        }
+    }
+
+    private File findPreviewIconForAdaptiveIcon(AdaptiveIconSpec spec, Set<File> copiedFiles,
+                                                Map<String, List<File>> availableResources) {
+        if (spec != null) {
+            File preferred = chooseBestRasterIcon(resolveAdaptivePreviewCandidates(spec, availableResources));
+            if (preferred != null) {
+                return preferred;
+            }
+            File vectorPreview = chooseBestVectorDrawable(resolveAdaptivePreviewCandidates(spec, availableResources));
+            if (vectorPreview != null) {
+                return vectorPreview;
+            }
+        }
+        File rasterFallback = chooseBestRasterIcon(new ArrayList<>(copiedFiles));
+        if (rasterFallback != null) {
+            return rasterFallback;
+        }
+        return chooseBestVectorDrawable(new ArrayList<>(copiedFiles));
+    }
+
+    private List<File> resolveAdaptivePreviewCandidates(AdaptiveIconSpec spec, Map<String, List<File>> availableResources) {
+        ArrayList<File> candidates = new ArrayList<>();
+        addPreviewCandidates(candidates, availableResources.get(spec.foregroundRef));
+        addPreviewCandidates(candidates, availableResources.get(spec.monochromeRef));
+        addPreviewCandidates(candidates, availableResources.get(spec.backgroundRef));
+        return candidates;
+    }
+
+    private void addPreviewCandidates(List<File> out, List<File> candidates) {
+        if (candidates == null) {
+            return;
+        }
+        out.addAll(candidates);
+    }
+
+    private int getDrawableDensityScore(File file) {
+        File parent = file.getParentFile();
+        if (parent == null) {
+            return 0;
+        }
+        String qualifier = parent.getName();
+        if (qualifier.contains("xxxhdpi")) return 6;
+        if (qualifier.contains("xxhdpi")) return 5;
+        if (qualifier.contains("xhdpi")) return 4;
+        if (qualifier.contains("hdpi")) return 3;
+        if (qualifier.contains("mdpi")) return 2;
+        if (qualifier.contains("ldpi")) return 1;
+        return 0;
+    }
+
+    private String getBaseResourceType(String folderName) {
+        int qualifierIndex = folderName.indexOf('-');
+        return qualifierIndex < 0 ? folderName : folderName.substring(0, qualifierIndex);
+    }
+
+    private String getResourceName(String filename) {
+        if (filename.endsWith(".9.png")) {
+            return filename.substring(0, filename.length() - ".9.png".length());
+        }
+        int extensionIndex = filename.lastIndexOf('.');
+        if (extensionIndex <= 0) {
+            return null;
+        }
+        return filename.substring(0, extensionIndex);
     }
 
     private void resolveAndRegisterDependencies(String scId, List<String> dependencies) {
@@ -403,6 +904,19 @@ public class AndroidStudioProjectImporter {
         return files;
     }
 
+    private void addUniqueFile(List<File> files, File candidate) {
+        if (candidate == null) {
+            return;
+        }
+        String candidatePath = candidate.getAbsolutePath();
+        for (File existing : files) {
+            if (candidatePath.equals(existing.getAbsolutePath())) {
+                return;
+            }
+        }
+        files.add(candidate);
+    }
+
     private void importAarAsLocalLibrary(String scId, File aarFile) throws IOException {
         String libraryName = sanitizeLibraryName(FileUtil.getFileNameNoExtension(aarFile.getName()));
         String localLibraryRoot = FileUtil.getExternalStorageDir() + "/.sketchware/libs/local_libs/" + libraryName;
@@ -466,15 +980,21 @@ public class AndroidStudioProjectImporter {
         }
     }
 
-    private void copyResources(File resDirectory, File targetRoot) throws IOException {
-        if (resDirectory != null && resDirectory.isDirectory()) {
-            FileUtil.copyDirectory(resDirectory, targetRoot);
+    private void copyResources(List<File> resDirectories, File targetRoot) throws IOException {
+        FileUtil.makeDir(targetRoot.getAbsolutePath());
+        for (File resDirectory : resDirectories) {
+            if (resDirectory != null && resDirectory.isDirectory()) {
+                FileUtil.copyDirectory(resDirectory, targetRoot);
+            }
         }
     }
 
-    private void copyIfDirectoryExists(File source, File target) throws IOException {
-        if (source != null && source.isDirectory()) {
-            FileUtil.copyDirectory(source, target);
+    private void copyDirectories(List<File> sources, File target) throws IOException {
+        FileUtil.makeDir(target.getAbsolutePath());
+        for (File source : sources) {
+            if (source != null && source.isDirectory()) {
+                FileUtil.copyDirectory(source, target);
+            }
         }
     }
 
@@ -484,6 +1004,7 @@ public class AndroidStudioProjectImporter {
 
     private String buildSummary(ImportResult result, ManifestSummary manifest) {
         return "Imported " + result.visualScreens.size() + " screen(s), "
+                + result.visualCustomViews.size() + " custom view(s), "
                 + result.importedDependencies.size() + " dependency declaration(s), and "
                 + manifest.permissions.size() + " manifest permission(s).";
     }
@@ -506,6 +1027,7 @@ public class AndroidStudioProjectImporter {
         }
         sb.append("Type: ").append(result.sourceType).append('\n').append('\n');
         appendSection(sb, "Visual / registered screens", result.visualScreens);
+        appendSection(sb, "Visual / registered custom views", result.visualCustomViews);
         appendSection(sb, "Code-only notes", result.codeOnlyFiles);
         appendSection(sb, "Dependencies", result.importedDependencies);
         appendSection(sb, "Warnings", result.warnings);
@@ -640,92 +1162,326 @@ public class AndroidStudioProjectImporter {
     }
 
     private DetectedProject detectProject(File extractedRoot) {
+        Map<String, AndroidModule> modulesByPath = new LinkedHashMap<>();
         List<File> manifestFiles = FileUtil.listFilesRecursively(extractedRoot, "AndroidManifest.xml");
         for (File manifestFile : manifestFiles) {
-            File appMain = manifestFile.getParentFile();
-            if (appMain == null || !"main".equals(appMain.getName())) {
+            File sourceSetDir = manifestFile.getParentFile();
+            if (sourceSetDir == null) {
                 continue;
             }
-            File srcDir = appMain.getParentFile();
+            File srcDir = sourceSetDir.getParentFile();
             if (srcDir == null || !"src".equals(srcDir.getName())) {
                 continue;
             }
-            File appDir = srcDir.getParentFile();
-            if (appDir == null) {
+            File moduleDir = srcDir.getParentFile();
+            if (moduleDir == null) {
                 continue;
             }
-            File projectRoot = appDir.getParentFile();
-            if (projectRoot == null) {
+            AndroidModule module = modulesByPath.computeIfAbsent(moduleDir.getAbsolutePath(), unused -> createModule(moduleDir));
+            module.manifestsBySourceSet.put(sourceSetDir.getName(), manifestFile);
+        }
+
+        if (modulesByPath.isEmpty()) {
+            return null;
+        }
+
+        ArrayList<AndroidModule> modules = new ArrayList<>(modulesByPath.values());
+        AndroidModule primaryModule = choosePrimaryModule(modules);
+        if (primaryModule == null) {
+            return null;
+        }
+
+        DetectedProject detectedProject = new DetectedProject();
+        detectedProject.rootDirectory = determineProjectRoot(extractedRoot, modules);
+        detectedProject.archiveLabel = detectedProject.rootDirectory.getName();
+        detectedProject.appDirectory = primaryModule.moduleDirectory;
+        detectedProject.primaryManifestFile = primaryModule.getMainManifest();
+        detectedProject.primaryGradleFile = primaryModule.gradleFile;
+        detectedProject.modules = new ArrayList<>();
+        detectedProject.gradleFiles = new ArrayList<>();
+        detectedProject.primaryManifestOverlayFiles = new ArrayList<>();
+        detectedProject.sourceRoots = new ArrayList<>();
+        detectedProject.resDirectories = new ArrayList<>();
+        detectedProject.layoutDirectories = new ArrayList<>();
+        detectedProject.assetsDirectories = new ArrayList<>();
+        detectedProject.jniLibsDirectories = new ArrayList<>();
+        detectedProject.libsDirectories = new ArrayList<>();
+        detectedProject.libraryManifestFiles = new ArrayList<>();
+
+        for (AndroidModule module : modules) {
+            if (!(module == primaryModule || module.applicationModule || module.libraryModule || module.dynamicFeatureModule)) {
                 continue;
             }
-            DetectedProject detectedProject = new DetectedProject();
-            detectedProject.rootDirectory = projectRoot;
-            detectedProject.archiveLabel = projectRoot.getName();
-            detectedProject.appDirectory = appDir;
-            detectedProject.manifestFile = manifestFile;
-            detectedProject.resDirectory = new File(appMain, "res");
-            detectedProject.layoutDirectory = new File(detectedProject.resDirectory, "layout");
-            detectedProject.assetsDirectory = new File(appMain, "assets");
-            detectedProject.jniLibsDirectory = new File(appMain, "jniLibs");
-            detectedProject.gradleFile = new File(appDir, "build.gradle");
-            if (!detectedProject.gradleFile.exists()) {
-                detectedProject.gradleFile = new File(appDir, "build.gradle.kts");
+            detectedProject.modules.add(module);
+            if (module.gradleFile != null && module.gradleFile.isFile()) {
+                addUniqueFile(detectedProject.gradleFiles, module.gradleFile);
             }
-            detectedProject.sourceRoots = new ArrayList<>();
-            File javaRoot = new File(appMain, "java");
-            if (javaRoot.isDirectory()) {
-                detectedProject.sourceRoots.add(javaRoot);
-            }
-            File kotlinRoot = new File(appMain, "kotlin");
-            if (kotlinRoot.isDirectory()) {
-                detectedProject.sourceRoots.add(kotlinRoot);
-            }
-            detectedProject.libsDirectories = new ArrayList<>();
-            File appLibs = new File(appDir, "libs");
-            if (appLibs.isDirectory()) {
-                detectedProject.libsDirectories.add(appLibs);
-            }
-            File rootLibs = new File(projectRoot, "libs");
-            if (rootLibs.isDirectory()) {
-                detectedProject.libsDirectories.add(rootLibs);
-            }
-            File skproDir = new File(projectRoot, ".skpro");
-            File roundTripMetadata = new File(skproDir, "project_metadata.json");
-            if (roundTripMetadata.isFile()) {
-                detectedProject.roundTripMetadataJson = roundTripMetadata;
-                File roundTripData = new File(skproDir, "data_snapshot/data");
-                if (roundTripData.isDirectory()) {
-                    detectedProject.roundTripDataDir = roundTripData;
+            collectModuleSources(detectedProject, module);
+            if (module != primaryModule) {
+                for (File manifestFile : getOrderedManifestFiles(module)) {
+                    if (manifestFile != null && manifestFile.isFile()) {
+                        addUniqueFile(detectedProject.libraryManifestFiles, manifestFile);
+                    }
                 }
             }
-            return detectedProject;
+        }
+
+        for (File manifestFile : getOrderedManifestFiles(primaryModule)) {
+            if (manifestFile != null && manifestFile.isFile() && !manifestFile.equals(detectedProject.primaryManifestFile)) {
+                addUniqueFile(detectedProject.primaryManifestOverlayFiles, manifestFile);
+            }
+        }
+
+        for (AndroidModule module : modules) {
+            File moduleLibs = new File(module.moduleDirectory, "libs");
+            if (moduleLibs.isDirectory()) {
+                addUniqueFile(detectedProject.libsDirectories, moduleLibs);
+            }
+        }
+
+        File rootLibs = new File(detectedProject.rootDirectory, "libs");
+        if (rootLibs.isDirectory()) {
+            addUniqueFile(detectedProject.libsDirectories, rootLibs);
+        }
+
+        File skproDir = new File(detectedProject.rootDirectory, ".skpro");
+        File roundTripMetadata = new File(skproDir, "project_metadata.json");
+        if (roundTripMetadata.isFile()) {
+            detectedProject.roundTripMetadataJson = roundTripMetadata;
+            File roundTripData = new File(skproDir, "data_snapshot/data");
+            if (roundTripData.isDirectory()) {
+                detectedProject.roundTripDataDir = roundTripData;
+            }
+        }
+        return detectedProject;
+    }
+
+    private File determineProjectRoot(File extractedRoot, List<AndroidModule> modules) {
+        File commonAncestor = null;
+        for (AndroidModule module : modules) {
+            commonAncestor = commonAncestor == null
+                    ? module.moduleDirectory
+                    : getCommonAncestor(commonAncestor, module.moduleDirectory);
+        }
+        if (commonAncestor == null) {
+            return extractedRoot;
+        }
+
+        File settingsDir = commonAncestor;
+        while (settingsDir != null && settingsDir.getAbsolutePath().startsWith(extractedRoot.getAbsolutePath())) {
+            if (new File(settingsDir, "settings.gradle").isFile()
+                    || new File(settingsDir, "settings.gradle.kts").isFile()) {
+                return settingsDir;
+            }
+            settingsDir = settingsDir.getParentFile();
+        }
+        return commonAncestor;
+    }
+
+    private File getCommonAncestor(File left, File right) {
+        if (left == null) {
+            return right;
+        }
+        if (right == null) {
+            return left;
+        }
+        File candidate = left;
+        while (candidate != null) {
+            String candidatePath = candidate.getAbsolutePath();
+            String rightPath = right.getAbsolutePath();
+            if (rightPath.equals(candidatePath) || rightPath.startsWith(candidatePath + File.separator)) {
+                return candidate;
+            }
+            candidate = candidate.getParentFile();
         }
         return null;
     }
 
-    private ManifestSummary parseManifest(File manifestFile, File resDirectory) throws Exception {
+    private List<File> getOrderedManifestFiles(AndroidModule module) {
+        ArrayList<String> sourceSetNames = new ArrayList<>(module.manifestsBySourceSet.keySet());
+        sourceSetNames.sort(this::compareSourceSetNames);
+        ArrayList<File> files = new ArrayList<>();
+        for (String sourceSetName : sourceSetNames) {
+            File manifestFile = module.manifestsBySourceSet.get(sourceSetName);
+            if (manifestFile != null && manifestFile.isFile()) {
+                files.add(manifestFile);
+            }
+        }
+        return files;
+    }
+
+    private AndroidModule createModule(File moduleDir) {
+        AndroidModule module = new AndroidModule();
+        module.moduleDirectory = moduleDir;
+        module.gradleFile = new File(moduleDir, "build.gradle");
+        if (!module.gradleFile.isFile()) {
+            module.gradleFile = new File(moduleDir, "build.gradle.kts");
+        }
+        String gradleContent = module.gradleFile.isFile() ? FileUtil.readFile(module.gradleFile.getAbsolutePath()) : "";
+        module.applicationModule = gradleContent.contains("com.android.application");
+        module.libraryModule = gradleContent.contains("com.android.library");
+        module.dynamicFeatureModule = gradleContent.contains("com.android.dynamic-feature");
+        return module;
+    }
+
+    private AndroidModule choosePrimaryModule(List<AndroidModule> modules) {
+        for (AndroidModule module : modules) {
+            if (module.applicationModule && hasLauncherManifest(module.getMainManifest())) {
+                return module;
+            }
+        }
+        for (AndroidModule module : modules) {
+            if (module.applicationModule && "app".equals(module.moduleDirectory.getName())) {
+                return module;
+            }
+        }
+        for (AndroidModule module : modules) {
+            if (module.applicationModule) {
+                return module;
+            }
+        }
+        for (AndroidModule module : modules) {
+            if (hasLauncherManifest(module.getMainManifest())) {
+                return module;
+            }
+        }
+        return modules.isEmpty() ? null : modules.get(0);
+    }
+
+    private boolean hasLauncherManifest(File manifestFile) {
+        return manifestFile != null && manifestFile.isFile()
+                && FileUtil.readFile(manifestFile.getAbsolutePath()).contains("android.intent.category.LAUNCHER");
+    }
+
+    private void collectModuleSources(DetectedProject detectedProject, AndroidModule module) {
+        File srcDirectory = new File(module.moduleDirectory, "src");
+        File[] sourceSetDirectories = srcDirectory.listFiles(File::isDirectory);
+        if (sourceSetDirectories == null) {
+            return;
+        }
+
+        ArrayList<File> sortedSourceSets = new ArrayList<>(Arrays.asList(sourceSetDirectories));
+        sortedSourceSets.sort(this::compareSourceSets);
+
+        for (File sourceSetDirectory : sortedSourceSets) {
+            if (isTestSourceSet(sourceSetDirectory.getName())) {
+                continue;
+            }
+
+            File javaRoot = new File(sourceSetDirectory, "java");
+            if (javaRoot.isDirectory()) {
+                addUniqueFile(detectedProject.sourceRoots, javaRoot);
+            }
+            File kotlinRoot = new File(sourceSetDirectory, "kotlin");
+            if (kotlinRoot.isDirectory()) {
+                addUniqueFile(detectedProject.sourceRoots, kotlinRoot);
+            }
+            File resRoot = new File(sourceSetDirectory, "res");
+            if (resRoot.isDirectory()) {
+                addUniqueFile(detectedProject.resDirectories, resRoot);
+                for (File layoutDirectory : findLayoutDirectories(resRoot)) {
+                    addUniqueFile(detectedProject.layoutDirectories, layoutDirectory);
+                }
+            }
+            File assetsRoot = new File(sourceSetDirectory, "assets");
+            if (assetsRoot.isDirectory()) {
+                addUniqueFile(detectedProject.assetsDirectories, assetsRoot);
+            }
+            File jniLibsRoot = new File(sourceSetDirectory, "jniLibs");
+            if (jniLibsRoot.isDirectory()) {
+                addUniqueFile(detectedProject.jniLibsDirectories, jniLibsRoot);
+            }
+        }
+    }
+
+    private int compareSourceSets(File left, File right) {
+        int priorityCompare = compareSourceSetNames(left.getName(), right.getName());
+        if (priorityCompare != 0) {
+            return priorityCompare;
+        }
+        return left.getAbsolutePath().compareTo(right.getAbsolutePath());
+    }
+
+    private int compareSourceSetNames(String left, String right) {
+        int priorityCompare = Integer.compare(sourceSetPriority(left), sourceSetPriority(right));
+        if (priorityCompare != 0) {
+            return priorityCompare;
+        }
+        return left.compareTo(right);
+    }
+
+    private int sourceSetPriority(String name) {
+        String lowerName = name.toLowerCase(Locale.US);
+        if ("main".equals(lowerName)) {
+            return 0;
+        }
+        if ("debug".equals(lowerName) || lowerName.endsWith("debug")) {
+            return 2;
+        }
+        if ("release".equals(lowerName) || lowerName.endsWith("release")) {
+            return 3;
+        }
+        return 1;
+    }
+
+    private boolean isTestSourceSet(String sourceSetName) {
+        if (TEST_SOURCE_SET_NAMES.contains(sourceSetName)) {
+            return true;
+        }
+        String normalized = sourceSetName.toLowerCase(Locale.US);
+        return normalized.endsWith("test") || normalized.contains("androidtest");
+    }
+
+    private List<File> findLayoutDirectories(File resRoot) {
+        File[] children = resRoot.listFiles(File::isDirectory);
+        if (children == null) {
+            return Collections.emptyList();
+        }
+        ArrayList<File> layoutDirectories = new ArrayList<>();
+        for (File child : children) {
+            if (child.getName().startsWith("layout")) {
+                layoutDirectories.add(child);
+            }
+        }
+        layoutDirectories.sort((left, right) -> {
+            int qualifierCompare = Integer.compare(layoutDirectoryPreference(left), layoutDirectoryPreference(right));
+            if (qualifierCompare != 0) {
+                return qualifierCompare;
+            }
+            return left.getName().compareTo(right.getName());
+        });
+        return layoutDirectories;
+    }
+
+    private int layoutDirectoryPreference(File directory) {
+        return "layout".equals(directory.getName()) ? 1 : 0;
+    }
+
+    private ManifestSummary parseManifest(DetectedProject detectedProject) throws Exception {
         ManifestSummary summary = new ManifestSummary();
-        summary.rawXml = FileUtil.readFile(manifestFile.getAbsolutePath());
+        if (detectedProject.primaryManifestFile == null || !detectedProject.primaryManifestFile.isFile()) {
+            throw new IOException("No AndroidManifest.xml was found for the selected project");
+        }
+        summary.rawXml = buildMergedManifestXml(detectedProject.primaryManifestFile,
+                detectedProject.primaryManifestOverlayFiles, detectedProject.libraryManifestFiles);
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);
-        Document document = factory.newDocumentBuilder().parse(manifestFile);
+        Document document = factory.newDocumentBuilder().parse(
+                new java.io.ByteArrayInputStream(summary.rawXml.getBytes(StandardCharsets.UTF_8)));
         Element manifestElement = document.getDocumentElement();
         summary.packageName = manifestElement.getAttribute("package");
 
-        NodeList usesPermissions = document.getElementsByTagName("uses-permission");
-        for (int i = 0; i < usesPermissions.getLength(); i++) {
-            Element permissionElement = (Element) usesPermissions.item(i);
-            String permissionName = getAndroidAttribute(permissionElement, "name");
-            if (!TextUtils.isEmpty(permissionName)) {
-                summary.permissions.add(permissionName);
-            }
-        }
+        collectManifestPermissions(summary.permissions, document, "uses-permission");
+        collectManifestPermissions(summary.permissions, document, "uses-permission-sdk-23");
+        collectManifestPermissions(summary.permissions, document, "uses-permission-sdk-m");
 
         NodeList applicationNodes = document.getElementsByTagName("application");
         if (applicationNodes.getLength() > 0) {
             Element applicationElement = (Element) applicationNodes.item(0);
             String label = getAndroidAttribute(applicationElement, "label");
-            summary.applicationLabel = resolveManifestLabel(label, resDirectory);
+            summary.applicationLabel = resolveManifestLabel(label, detectedProject.resDirectories);
+            summary.applicationIconRef = normalizeResourceReference(getAndroidAttribute(applicationElement, "icon"));
+            summary.roundIconRef = normalizeResourceReference(getAndroidAttribute(applicationElement, "roundIcon"));
             NodeList childNodes = applicationElement.getChildNodes();
             for (int i = 0; i < childNodes.getLength(); i++) {
                 Node child = childNodes.item(i);
@@ -742,6 +1498,212 @@ public class AndroidStudioProjectImporter {
             }
         }
         return summary;
+    }
+
+    private void collectManifestPermissions(List<String> out, Document document, String tagName) {
+        NodeList usesPermissions = document.getElementsByTagName(tagName);
+        for (int i = 0; i < usesPermissions.getLength(); i++) {
+            Element permissionElement = (Element) usesPermissions.item(i);
+            String permissionName = getAndroidAttribute(permissionElement, "name");
+            if (!TextUtils.isEmpty(permissionName) && !out.contains(permissionName)) {
+                out.add(permissionName);
+            }
+        }
+    }
+
+    private String buildMergedManifestXml(File baseManifestFile, List<File> overlayManifestFiles,
+                                          List<File> libraryManifestFiles) {
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            Document baseDocument = factory.newDocumentBuilder().parse(baseManifestFile);
+            Element baseManifest = baseDocument.getDocumentElement();
+            Element baseApplication = (Element) baseDocument.getElementsByTagName("application").item(0);
+            for (File overlayManifest : overlayManifestFiles) {
+                baseApplication = mergeManifestInto(baseDocument, baseManifest, baseApplication, overlayManifest, true);
+            }
+            for (File libraryManifest : libraryManifestFiles) {
+                baseApplication = mergeManifestInto(baseDocument, baseManifest, baseApplication, libraryManifest, false);
+            }
+            return documentToString(baseDocument);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to merge manifests", e);
+            return FileUtil.readFile(baseManifestFile.getAbsolutePath());
+        }
+    }
+
+    private Element mergeManifestInto(Document baseDocument, Element baseManifest, Element baseApplication,
+                                      File manifestFile, boolean overrideExisting) throws Exception {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        Document overlayDocument = factory.newDocumentBuilder().parse(manifestFile);
+        Element overlayManifestElement = overlayDocument.getDocumentElement();
+        mergeManifestAttributes(baseManifest, overlayManifestElement, overrideExisting);
+
+        NodeList overlayChildren = overlayManifestElement.getChildNodes();
+        for (int i = 0; i < overlayChildren.getLength(); i++) {
+            Node node = overlayChildren.item(i);
+            if (!(node instanceof Element overlayElement)) {
+                continue;
+            }
+            if ("application".equals(overlayElement.getTagName())) {
+                if (baseApplication == null) {
+                    baseApplication = (Element) baseDocument.importNode(overlayElement, true);
+                    baseManifest.appendChild(baseApplication);
+                } else {
+                    mergeApplicationElement(baseDocument, baseApplication, overlayElement, overrideExisting);
+                }
+                continue;
+            }
+            if ("queries".equals(overlayElement.getTagName())) {
+                mergeContainerElement(baseDocument, baseManifest, overlayElement);
+                continue;
+            }
+            Element existingElement = findManifestElement(baseManifest, overlayElement);
+            if (existingElement != null) {
+                mergeManifestElement(baseDocument, existingElement, overlayElement, overrideExisting);
+            } else {
+                baseManifest.appendChild(baseDocument.importNode(overlayElement, true));
+            }
+        }
+        return baseApplication;
+    }
+
+    private void mergeManifestAttributes(Element baseManifest, Element overlayManifest, boolean overrideExisting) {
+        NamedNodeMap attributes = overlayManifest.getAttributes();
+        for (int i = 0; i < attributes.getLength(); i++) {
+            Node attribute = attributes.item(i);
+            if ("package".equals(attribute.getNodeName()) && baseManifest.hasAttribute("package")) {
+                continue;
+            }
+            if (overrideExisting || !baseManifest.hasAttribute(attribute.getNodeName())) {
+                baseManifest.setAttribute(attribute.getNodeName(), attribute.getNodeValue());
+            }
+        }
+    }
+
+    private void mergeApplicationElement(Document baseDocument, Element baseApplication, Element overlayApplication,
+                                         boolean overrideExisting) {
+        NamedNodeMap attributes = overlayApplication.getAttributes();
+        for (int i = 0; i < attributes.getLength(); i++) {
+            Node attribute = attributes.item(i);
+            if (overrideExisting || !baseApplication.hasAttribute(attribute.getNodeName())) {
+                baseApplication.setAttribute(attribute.getNodeName(), attribute.getNodeValue());
+            }
+        }
+        NodeList applicationChildren = overlayApplication.getChildNodes();
+        for (int i = 0; i < applicationChildren.getLength(); i++) {
+            Node node = applicationChildren.item(i);
+            if (!(node instanceof Element element)) {
+                continue;
+            }
+            Element existingChild = findManifestElement(baseApplication, element);
+            if (existingChild != null) {
+                mergeManifestElement(baseDocument, existingChild, element, overrideExisting);
+            } else {
+                baseApplication.appendChild(baseDocument.importNode(element, true));
+            }
+        }
+    }
+
+    private Element findManifestElement(Element parent, Element candidate) {
+        String candidateTag = candidate.getTagName();
+        String candidateName = getAndroidAttribute(candidate, "name");
+        NodeList children = parent.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (!(child instanceof Element childElement)) {
+                continue;
+            }
+            if (!candidateTag.equals(childElement.getTagName())) {
+                continue;
+            }
+            String childName = getAndroidAttribute(childElement, "name");
+            if (!TextUtils.isEmpty(candidateName) && candidateName.equals(childName)) {
+                return childElement;
+            }
+            if (TextUtils.isEmpty(candidateName) && attributesSignature(candidate).equals(attributesSignature(childElement))) {
+                return childElement;
+            }
+        }
+        return null;
+    }
+
+    private void mergeManifestElement(Document baseDocument, Element baseElement, Element overlayElement,
+                                      boolean overrideExisting) {
+        NamedNodeMap attributes = overlayElement.getAttributes();
+        for (int i = 0; i < attributes.getLength(); i++) {
+            Node attribute = attributes.item(i);
+            if (overrideExisting || !baseElement.hasAttribute(attribute.getNodeName())) {
+                baseElement.setAttribute(attribute.getNodeName(), attribute.getNodeValue());
+            }
+        }
+
+        NodeList children = overlayElement.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (!(child instanceof Element childElement)) {
+                continue;
+            }
+            Element existingChild = findManifestElement(baseElement, childElement);
+            if (existingChild != null) {
+                mergeManifestElement(baseDocument, existingChild, childElement, overrideExisting);
+            } else {
+                baseElement.appendChild(baseDocument.importNode(childElement, true));
+            }
+        }
+    }
+
+    private void mergeContainerElement(Document baseDocument, Element parent, Element overlayContainer) {
+        Element targetContainer = null;
+        NodeList children = parent.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (child instanceof Element childElement && overlayContainer.getTagName().equals(childElement.getTagName())) {
+                targetContainer = childElement;
+                break;
+            }
+        }
+        if (targetContainer == null) {
+            parent.appendChild(baseDocument.importNode(overlayContainer, true));
+            return;
+        }
+        NodeList containerChildren = overlayContainer.getChildNodes();
+        for (int i = 0; i < containerChildren.getLength(); i++) {
+            Node child = containerChildren.item(i);
+            if (!(child instanceof Element childElement)) {
+                continue;
+            }
+            Element existingChild = findManifestElement(targetContainer, childElement);
+            if (existingChild != null) {
+                mergeManifestElement(baseDocument, existingChild, childElement, true);
+            } else {
+                targetContainer.appendChild(baseDocument.importNode(childElement, true));
+            }
+        }
+    }
+
+    private boolean containsManifestElement(Element parent, Element candidate) {
+        return findManifestElement(parent, candidate) != null;
+    }
+
+    private String attributesSignature(Element element) {
+        NamedNodeMap attributes = element.getAttributes();
+        StringBuilder signature = new StringBuilder(element.getTagName());
+        for (int i = 0; i < attributes.getLength(); i++) {
+            Node attribute = attributes.item(i);
+            signature.append('|').append(attribute.getNodeName()).append('=').append(attribute.getNodeValue());
+        }
+        return signature.toString();
+    }
+
+    private String documentToString(Document document) throws Exception {
+        Transformer transformer = TransformerFactory.newInstance().newTransformer();
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+        transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
+        StringWriter writer = new StringWriter();
+        transformer.transform(new DOMSource(document), new StreamResult(writer));
+        return writer.toString();
     }
 
     private ManifestActivity parseManifestActivity(Element activityElement, String packageName) {
@@ -805,7 +1767,7 @@ public class AndroidStudioProjectImporter {
         return value;
     }
 
-    private String resolveManifestLabel(String labelValue, File resDirectory) {
+    private String resolveManifestLabel(String labelValue, List<File> resDirectories) {
         if (TextUtils.isEmpty(labelValue)) {
             return null;
         }
@@ -813,24 +1775,42 @@ public class AndroidStudioProjectImporter {
             return labelValue;
         }
         String key = labelValue.substring("@string/".length());
-        File stringsXml = new File(resDirectory, "values/strings.xml");
-        if (!stringsXml.isFile()) {
-            return key;
-        }
-        try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setNamespaceAware(true);
-            Document document = factory.newDocumentBuilder().parse(stringsXml);
-            NodeList strings = document.getElementsByTagName("string");
-            for (int i = 0; i < strings.getLength(); i++) {
-                Element element = (Element) strings.item(i);
-                if (key.equals(element.getAttribute("name"))) {
-                    return element.getTextContent();
-                }
+        for (int i = resDirectories.size() - 1; i >= 0; i--) {
+            File stringsXml = new File(resDirectories.get(i), "values/strings.xml");
+            if (!stringsXml.isFile()) {
+                continue;
             }
-        } catch (Exception ignored) {
+            try {
+                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+                factory.setNamespaceAware(true);
+                Document document = factory.newDocumentBuilder().parse(stringsXml);
+                NodeList strings = document.getElementsByTagName("string");
+                for (int j = 0; j < strings.getLength(); j++) {
+                    Element element = (Element) strings.item(j);
+                    if (key.equals(element.getAttribute("name"))) {
+                        return element.getTextContent();
+                    }
+                }
+            } catch (Exception ignored) {
+            }
         }
         return key;
+    }
+
+    private String normalizeResourceReference(String value) {
+        if (TextUtils.isEmpty(value) || !value.startsWith("@")) {
+            return null;
+        }
+        String normalized = value.substring(1);
+        int packageSeparator = normalized.indexOf(':');
+        if (packageSeparator >= 0) {
+            normalized = normalized.substring(packageSeparator + 1);
+        }
+        int typeSeparator = normalized.indexOf('/');
+        if (typeSeparator <= 0 || typeSeparator + 1 >= normalized.length()) {
+            return null;
+        }
+        return normalized.substring(0, typeSeparator) + ":" + normalized.substring(typeSeparator + 1);
     }
 
     private String resolveClassName(String manifestPackage, String value) {
@@ -846,54 +1826,63 @@ public class AndroidStudioProjectImporter {
         return value;
     }
 
-    private GradleSummary parseGradle(File gradleFile) {
+    private GradleSummary parseGradle(DetectedProject detectedProject) {
         GradleSummary summary = new GradleSummary();
-        if (gradleFile == null || !gradleFile.isFile()) {
+        if (detectedProject.primaryGradleFile == null || !detectedProject.primaryGradleFile.isFile()) {
             summary.warnings.add("No module Gradle file was found; SDK versions and dependency import may be incomplete.");
             return summary;
         }
-        String content = FileUtil.readFile(gradleFile.getAbsolutePath());
-        summary.applicationId = findFirstValue(content, Arrays.asList("applicationId"));
-        summary.namespace = findFirstValue(content, Arrays.asList("namespace"));
-        summary.versionCode = findFirstNumeric(content, Arrays.asList("versionCode"));
-        summary.versionName = findFirstValue(content, Arrays.asList("versionName"));
-        summary.minSdk = parseInt(findFirstNumeric(content, Arrays.asList("minSdk", "minSdkVersion")), 0);
-        summary.targetSdk = parseInt(findFirstNumeric(content, Arrays.asList("targetSdk", "targetSdkVersion")), 0);
-        if (content.contains("compose = true") || content.contains("buildFeatures.compose") || content.contains("androidx.compose")) {
-            summary.warnings.add("Jetpack Compose was detected. The project is imported in code mode; Compose is preserved but not reconstructed visually.");
-        }
-        if (content.contains("ksp(") || content.contains("com.google.devtools.ksp")) {
-            summary.warnings.add("KSP-generated sources were detected. Generated code may need regeneration outside Sketchware Pro.");
-        }
-        if (content.contains("dagger.hilt") || content.contains("com.google.dagger.hilt")) {
-            summary.warnings.add("Hilt was detected. Manifest and generated code are preserved, but project-specific Hilt tooling may still need review.");
-        }
-        File settingsGradle = new File(gradleFile.getParentFile().getParentFile(), "settings.gradle");
-        if (!settingsGradle.exists()) {
-            settingsGradle = new File(gradleFile.getParentFile().getParentFile(), "settings.gradle.kts");
-        }
-        if (settingsGradle.exists()) {
-            String settingsContent = FileUtil.readFile(settingsGradle.getAbsolutePath());
-            if (settingsContent.contains("include(") || settingsContent.contains("include ':") || settingsContent.contains("include \":")) {
-                int moduleCount = 0;
-                Matcher matcher = Pattern.compile("[:][A-Za-z0-9_\\-]+").matcher(settingsContent);
-                while (matcher.find()) {
-                    moduleCount++;
-                }
-                if (moduleCount > 1) {
-                    summary.warnings.add("Multiple Gradle modules were detected. Only the primary app module was imported.");
-                }
-            }
-        }
-
-        Matcher dependencyMatcher = DEPENDENCY_PATTERN.matcher(content);
         LinkedHashSet<String> dependencies = new LinkedHashSet<>();
-        while (dependencyMatcher.find()) {
-            String configuration = dependencyMatcher.group(1);
-            if ("compileOnly".equals(configuration)) {
+
+        for (File gradleFile : detectedProject.gradleFiles) {
+            if (gradleFile == null || !gradleFile.isFile()) {
                 continue;
             }
-            dependencies.add(dependencyMatcher.group(2) + ":" + dependencyMatcher.group(3) + ":" + dependencyMatcher.group(4));
+            String content = FileUtil.readFile(gradleFile.getAbsolutePath());
+            if (summary.applicationId == null) {
+                summary.applicationId = findFirstValue(content, Arrays.asList("applicationId"));
+            }
+            if (summary.namespace == null) {
+                summary.namespace = findFirstValue(content, Arrays.asList("namespace"));
+            }
+            if (summary.versionCode == null) {
+                summary.versionCode = findFirstNumeric(content, Arrays.asList("versionCode"));
+            }
+            if (summary.versionName == null) {
+                summary.versionName = findFirstValue(content, Arrays.asList("versionName"));
+            }
+            if (summary.minSdk <= 0) {
+                summary.minSdk = parseInt(findFirstNumeric(content, Arrays.asList("minSdk", "minSdkVersion")), 0);
+            }
+            if (summary.targetSdk <= 0) {
+                summary.targetSdk = parseInt(findFirstNumeric(content, Arrays.asList("targetSdk", "targetSdkVersion")), 0);
+            }
+            if ((content.contains("compose = true") || content.contains("buildFeatures.compose") || content.contains("androidx.compose"))
+                    && !summary.warnings.contains("Jetpack Compose was detected. The project is imported in code mode; Compose is preserved but not reconstructed visually.")) {
+                summary.warnings.add("Jetpack Compose was detected. The project is imported in code mode; Compose is preserved but not reconstructed visually.");
+            }
+            if ((content.contains("ksp(") || content.contains("com.google.devtools.ksp"))
+                    && !summary.warnings.contains("KSP-generated sources were detected. Generated code may need regeneration outside Sketchware Pro.")) {
+                summary.warnings.add("KSP-generated sources were detected. Generated code may need regeneration outside Sketchware Pro.");
+            }
+            if ((content.contains("dagger.hilt") || content.contains("com.google.dagger.hilt"))
+                    && !summary.warnings.contains("Hilt was detected. Manifest and generated code are preserved, but project-specific Hilt tooling may still need review.")) {
+                summary.warnings.add("Hilt was detected. Manifest and generated code are preserved, but project-specific Hilt tooling may still need review.");
+            }
+            if ((content.contains("externalNativeBuild") || content.contains("cmake") || content.contains("ndkBuild"))
+                    && detectedProject.jniLibsDirectories.isEmpty()
+                    && !summary.warnings.contains("Native source builds were detected. Checked-in/prebuilt jniLibs are imported, but compiling NDK/CMake sources still requires Android Studio or another external native build environment.")) {
+                summary.warnings.add("Native source builds were detected. Checked-in/prebuilt jniLibs are imported, but compiling NDK/CMake sources still requires Android Studio or another external native build environment.");
+            }
+
+            Matcher dependencyMatcher = DEPENDENCY_PATTERN.matcher(content);
+            while (dependencyMatcher.find()) {
+                String configuration = dependencyMatcher.group(1);
+                if ("compileOnly".equals(configuration)) {
+                    continue;
+                }
+                dependencies.add(dependencyMatcher.group(2) + ":" + dependencyMatcher.group(3) + ":" + dependencyMatcher.group(4));
+            }
         }
         summary.dependencies.addAll(dependencies);
         return summary;
@@ -1065,6 +2054,7 @@ public class AndroidStudioProjectImporter {
         public String sourceLabel;
         public String summary;
         public final ArrayList<String> visualScreens = new ArrayList<>();
+        public final ArrayList<String> visualCustomViews = new ArrayList<>();
         public final ArrayList<String> codeOnlyFiles = new ArrayList<>();
         public final ArrayList<String> importedDependencies = new ArrayList<>();
         public final ArrayList<String> warnings = new ArrayList<>();
@@ -1090,6 +2080,12 @@ public class AndroidStudioProjectImporter {
                     sb.append("• ").append(visualScreen).append('\n');
                 }
             }
+            if (!visualCustomViews.isEmpty()) {
+                sb.append("\nCustom views:\n");
+                for (String customView : visualCustomViews) {
+                    sb.append("• ").append(customView).append('\n');
+                }
+            }
             if (!warnings.isEmpty()) {
                 sb.append("\nWarnings:\n");
                 for (String warning : warnings) {
@@ -1109,17 +2105,38 @@ public class AndroidStudioProjectImporter {
     private static class DetectedProject {
         File rootDirectory;
         File appDirectory;
-        File gradleFile;
-        File manifestFile;
-        File resDirectory;
-        File layoutDirectory;
-        File assetsDirectory;
-        File jniLibsDirectory;
+        File primaryGradleFile;
+        File primaryManifestFile;
+        ArrayList<File> gradleFiles;
+        ArrayList<File> primaryManifestOverlayFiles;
         ArrayList<File> sourceRoots;
+        ArrayList<File> resDirectories;
+        ArrayList<File> layoutDirectories;
+        ArrayList<File> assetsDirectories;
+        ArrayList<File> jniLibsDirectories;
         ArrayList<File> libsDirectories;
+        ArrayList<File> libraryManifestFiles;
+        ArrayList<AndroidModule> modules;
         File roundTripMetadataJson;
         File roundTripDataDir;
         String archiveLabel;
+    }
+
+    private static class AndroidModule {
+        File moduleDirectory;
+        File gradleFile;
+        boolean applicationModule;
+        boolean libraryModule;
+        boolean dynamicFeatureModule;
+        final LinkedHashMap<String, File> manifestsBySourceSet = new LinkedHashMap<>();
+
+        File getMainManifest() {
+            File mainManifest = manifestsBySourceSet.get("main");
+            if (mainManifest != null) {
+                return mainManifest;
+            }
+            return manifestsBySourceSet.isEmpty() ? null : manifestsBySourceSet.values().iterator().next();
+        }
     }
 
     private static class GradleSummary {
@@ -1136,6 +2153,8 @@ public class AndroidStudioProjectImporter {
     private static class ManifestSummary {
         String packageName;
         String applicationLabel;
+        String applicationIconRef;
+        String roundIconRef;
         String rawXml;
         final ArrayList<String> permissions = new ArrayList<>();
         final ArrayList<ManifestActivity> activities = new ArrayList<>();
@@ -1147,6 +2166,26 @@ public class AndroidStudioProjectImporter {
     private static class ManifestActivity {
         String fullyQualifiedName;
         boolean launcher;
+    }
+
+    private static class AdaptiveIconSpec {
+        String foregroundRef;
+        String backgroundRef;
+        String monochromeRef;
+
+        List<String> getReferences() {
+            ArrayList<String> references = new ArrayList<>();
+            if (!TextUtils.isEmpty(foregroundRef)) {
+                references.add(foregroundRef);
+            }
+            if (!TextUtils.isEmpty(backgroundRef)) {
+                references.add(backgroundRef);
+            }
+            if (!TextUtils.isEmpty(monochromeRef)) {
+                references.add(monochromeRef);
+            }
+            return references;
+        }
     }
 
     private static class GitHubRepoSpec {
