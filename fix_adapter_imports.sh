@@ -1,0 +1,1 @@
+sed -i 's/import java.io.File;/import java.io.File;\nimport java.util.HashSet;\nimport java.util.Set;\nimport android.graphics.Color;/g' app/src/main/java/pro/sketchware/activities/importicon/adapters/IconAdapter.java

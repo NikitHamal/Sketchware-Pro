@@ -1,0 +1,52 @@
+--- app/src/main/java/pro/sketchware/activities/importicon/adapters/IconAdapter.java
++++ app/src/main/java/pro/sketchware/activities/importicon/adapters/IconAdapter.java
+@@ -36,7 +36,7 @@
+     private final OnIconSelectedListener listener;
+     private String selected_icon_type;
+     private int selected_color;
+-    private final Set<Integer> selectedItems = new HashSet<>();
++    private final Set<Pair<String, String>> selectedItems = new HashSet<>();
+
+     public IconAdapter(Context context, String selected_icon_type, int selected_color, OnIconSelectedListener listener) {
+         super(DIFF_CALLBACK);
+@@ -52,24 +52,23 @@
+     }
+
+     public void toggleSelection(int position) {
+-        if (selectedItems.contains(position)) {
+-            selectedItems.remove(position);
++        Pair<String, String> item = getItem(position);
++        if (selectedItems.contains(item)) {
++            selectedItems.remove(item);
+         } else {
+-            selectedItems.add(position);
++            selectedItems.add(item);
+         }
+         notifyItemChanged(position);
+     }
+
+     public void clearSelection() {
+-        Set<Integer> oldSelection = new HashSet<>(selectedItems);
+         selectedItems.clear();
+-        for (int position : oldSelection) {
+-            notifyItemChanged(position);
+-        }
++        notifyDataSetChanged();
+     }
+
+-    public Set<Integer> getSelectedItems() {
++    public Set<Pair<String, String>> getSelectedItems() {
+         return selectedItems;
+     }
+
+     @Override
+     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+         String filePath = getItem(position).second + File.separator + selected_icon_type + ".svg";
+         svgUtils.loadImage(holder.itemBinding.img, filePath);
+         holder.itemBinding.img.setColorFilter(selected_color, PorterDuff.Mode.SRC_IN);
+         holder.itemBinding.title.setText(getItem(position).first);
+-        if (selectedItems.contains(position)) {
++        if (selectedItems.contains(getItem(position))) {
+             holder.itemView.setBackgroundColor(Color.parseColor("#40000000")); // Semi-transparent grey
+         } else {
+             holder.itemView.setBackgroundColor(Color.TRANSPARENT);
