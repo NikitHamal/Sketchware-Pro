@@ -67,7 +67,7 @@ public abstract class BasePermissionAppCompatActivity extends BaseAppCompatActiv
     public abstract void m();
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         if (pendingStorageRequestCode != -1 && isStoragePermissionGranted()) {
             int requestCode = pendingStorageRequestCode;
