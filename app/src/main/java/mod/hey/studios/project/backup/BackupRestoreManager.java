@@ -1,7 +1,6 @@
 package mod.hey.studios.project.backup;
 
 import android.app.Activity;
-import android.os.AsyncTask;
 import android.view.LayoutInflater;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -19,6 +18,7 @@ import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.List;
 
+import a.a.a.MA;
 import a.a.a.lC;
 import dev.pranav.filepicker.FilePickerCallback;
 import dev.pranav.filepicker.FilePickerDialogFragment;
@@ -124,7 +124,7 @@ public class BackupRestoreManager {
 
     private void doBackup(String sc_id, String project_name) {
         new BackupAsyncTask(new WeakReference<>(act), sc_id, project_name, backupDialogStates)
-                .execute("");
+                .execute();
     }
 
     /*** Restore ***/
@@ -164,10 +164,10 @@ public class BackupRestoreManager {
     }
 
     public void doRestore(String file, boolean restoreLocalLibs) {
-        new RestoreAsyncTask(new WeakReference<>(act), file, restoreLocalLibs, projectsFragment).execute("");
+        new RestoreAsyncTask(new WeakReference<>(act), file, restoreLocalLibs, projectsFragment).execute();
     }
 
-    private static class BackupAsyncTask extends AsyncTask<String, Integer, String> {
+    private static class BackupAsyncTask extends MA {
 
         private final String sc_id;
         private final String project_name;
@@ -177,6 +177,7 @@ public class BackupRestoreManager {
         private AlertDialog dlg;
 
         BackupAsyncTask(WeakReference<Activity> activityWeakReference, String sc_id, String project_name, HashMap<Integer, Boolean> options) {
+            super(activityWeakReference.get());
             this.activityWeakReference = activityWeakReference;
             this.sc_id = sc_id;
             this.project_name = project_name;
@@ -196,18 +197,15 @@ public class BackupRestoreManager {
         }
 
         @Override
-        protected String doInBackground(String... params) {
+        public void b() {
             bm = new BackupFactory(sc_id);
             bm.setBackupLocalLibs(options.get(0));
             bm.setBackupCustomBlocks(options.get(1));
-
             bm.backup(activityWeakReference.get(), project_name);
-
-            return "";
         }
 
         @Override
-        protected void onPostExecute(String _result) {
+        public void a() {
             dlg.dismiss();
 
             if (bm.getOutFile() != null) {
@@ -216,9 +214,15 @@ public class BackupRestoreManager {
                 SketchwareUtil.toastError("Error: " + bm.error, Toast.LENGTH_LONG);
             }
         }
+
+        @Override
+        public void a(String errorMessage) {
+            if (dlg != null) dlg.dismiss();
+            SketchwareUtil.toastError(errorMessage, Toast.LENGTH_LONG);
+        }
     }
 
-    private static class RestoreAsyncTask extends AsyncTask<String, Integer, String> {
+    private static class RestoreAsyncTask extends MA {
 
         private final WeakReference<Activity> activityWeakReference;
         private final String file;
@@ -229,6 +233,7 @@ public class BackupRestoreManager {
         private boolean error = false;
 
         RestoreAsyncTask(WeakReference<Activity> activityWeakReference, String file, boolean restoreLocalLibraries, ProjectsFragment projectsFragment) {
+            super(activityWeakReference.get());
             this.activityWeakReference = activityWeakReference;
             this.file = file;
             this.projectsFragment = projectsFragment;
@@ -248,7 +253,7 @@ public class BackupRestoreManager {
         }
 
         @Override
-        protected String doInBackground(String... params) {
+        public void b() {
             bm = new BackupFactory(lC.b());
             bm.setBackupLocalLibs(restoreLocalLibs);
 
@@ -258,12 +263,10 @@ public class BackupRestoreManager {
                 bm.error = e.getMessage();
                 error = true;
             }
-
-            return "";
         }
 
         @Override
-        protected void onPostExecute(String _result) {
+        public void a() {
             dlg.dismiss();
 
             if (!bm.isRestoreSuccess() || error) {
@@ -274,6 +277,12 @@ public class BackupRestoreManager {
             } else {
                 SketchwareUtil.toast("Restored successfully. Refresh to see the project", Toast.LENGTH_LONG);
             }
+        }
+
+        @Override
+        public void a(String errorMessage) {
+            if (dlg != null) dlg.dismiss();
+            SketchwareUtil.toastError(errorMessage, Toast.LENGTH_LONG);
         }
     }
 }

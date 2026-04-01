@@ -1,6 +1,5 @@
 package pro.sketchware.activities.main.activities;
 
-import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
@@ -20,7 +19,6 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.IdRes;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBarDrawerToggle;
-import androidx.core.app.ActivityCompat;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
@@ -447,7 +445,7 @@ public class MainActivity extends BasePermissionAppCompatActivity {
         dialog.setMessage(Helper.getResString(R.string.common_message_permission_need_load_project));
         dialog.setPositiveButton(Helper.getResString(R.string.common_word_ok), (v, which) -> {
             v.dismiss();
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE}, 9501);
+            i(9501);
         });
         dialog.show();
     }
@@ -466,7 +464,7 @@ public class MainActivity extends BasePermissionAppCompatActivity {
             storageAccessDenied = Snackbar.make(binding.layoutCoordinator, Helper.getResString(R.string.common_message_permission_denied), Snackbar.LENGTH_INDEFINITE);
             storageAccessDenied.setAction(Helper.getResString(R.string.common_word_settings), v -> {
                 storageAccessDenied.dismiss();
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE}, 9501);
+                i(9501);
             });
             storageAccessDenied.setActionTextColor(Color.YELLOW);
             storageAccessDenied.show();

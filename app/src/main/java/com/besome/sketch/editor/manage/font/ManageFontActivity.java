@@ -1,7 +1,6 @@
 package com.besome.sketch.editor.manage.font;
 
 import android.os.Bundle;
-import android.os.Handler;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -38,7 +37,7 @@ public class ManageFontActivity extends BaseAppCompatActivity {
         } else {
             k();
             try {
-                new Handler().postDelayed(() -> new SaveAsyncTask(this).execute(), 500L);
+                new SaveAsyncTask(this).schedule(500L);
             } catch (Exception e) {
                 h();
             }

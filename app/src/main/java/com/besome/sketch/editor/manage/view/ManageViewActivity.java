@@ -4,7 +4,6 @@ import static pro.sketchware.utility.SketchwareUtil.dpToPx;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.Handler;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -220,7 +219,7 @@ public class ManageViewActivity extends BaseAppCompatActivity implements OnClick
             k();
 
             try {
-                new Handler().postDelayed(() -> new a(this).execute(), 500L);
+                new a(this).schedule(500L);
             } catch (Exception e) {
                 e.printStackTrace();
                 h();

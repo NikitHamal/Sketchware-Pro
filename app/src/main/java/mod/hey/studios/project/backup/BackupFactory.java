@@ -137,31 +137,34 @@ public class BackupFactory {
     /************************ UTILITIES ************************/
 
     public static boolean unzip(File zipFile, File destinationDir) {
-        int DEFAULT_BUFFER = 2048;
+        int DEFAULT_BUFFER = 8192;
         try (ZipFile zip = new ZipFile(zipFile)) {
-            destinationDir.mkdirs();
+            if (!destinationDir.exists() && !destinationDir.mkdirs()) {
+                return false;
+            }
             Enumeration<? extends ZipEntry> zipFileEntries = zip.entries();
             while (zipFileEntries.hasMoreElements()) {
                 ZipEntry entry = zipFileEntries.nextElement();
-                String entryName = entry.getName();
-                File destFile = new File(destinationDir, entryName);
-                File destinationParent = destFile.getParentFile();
-                if (destinationParent != null && !destinationParent.exists()) {
-                    destinationParent.mkdirs();
-                }
-                if (!entry.isDirectory()) {
-                    try (BufferedInputStream is = new BufferedInputStream(zip.getInputStream(entry))) {
-                        int currentByte;
-                        byte[] data = new byte[DEFAULT_BUFFER];
-                        try (FileOutputStream fos = new FileOutputStream(destFile)) {
-                            try (BufferedOutputStream dest = new BufferedOutputStream(fos, DEFAULT_BUFFER)) {
-                                while ((currentByte = is.read(data, 0, DEFAULT_BUFFER)) != -1 /*EOF*/) {
-                                    dest.write(data, 0, currentByte);
-                                }
-                                dest.flush();
-                            }
-                        }
+                File destFile = FileUtil.getSafeZipEntryTarget(destinationDir, entry.getName());
+                if (entry.isDirectory()) {
+                    if (!destFile.exists() && !destFile.mkdirs()) {
+                        return false;
                     }
+                    continue;
+                }
+                File destinationParent = destFile.getParentFile();
+                if (destinationParent != null && !destinationParent.exists() && !destinationParent.mkdirs()) {
+                    return false;
+                }
+                try (BufferedInputStream is = new BufferedInputStream(zip.getInputStream(entry));
+                     FileOutputStream fos = new FileOutputStream(destFile);
+                     BufferedOutputStream dest = new BufferedOutputStream(fos, DEFAULT_BUFFER)) {
+                    int currentByte;
+                    byte[] data = new byte[DEFAULT_BUFFER];
+                    while ((currentByte = is.read(data, 0, DEFAULT_BUFFER)) != -1) {
+                        dest.write(data, 0, currentByte);
+                    }
+                    dest.flush();
                 }
             }
         } catch (IOException e) {
@@ -253,26 +256,16 @@ public class BackupFactory {
     }
 
     public static boolean zipContainsFile(String zipPath, String fileName) {
-
-        try {
-            ZipInputStream zp = new ZipInputStream(new FileInputStream(zipPath));
-
+        try (ZipInputStream zp = new ZipInputStream(new FileInputStream(zipPath))) {
             ZipEntry en;
-
             while ((en = zp.getNextEntry()) != null) {
                 String name = en.getName();
-
                 if (name.equals(fileName) || name.startsWith(fileName + File.separator)) {
-                    zp.close();
                     return true;
                 }
             }
-
-            zp.close();
-
         } catch (Exception ignored) {
         }
-
         return false;
     }
 

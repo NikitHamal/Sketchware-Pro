@@ -3,8 +3,6 @@ package mod.jbk.editor.manage.library;
 import android.content.res.TypedArray;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.Handler;
-import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
@@ -49,10 +47,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import a.a.a.MA;
+import a.a.a.jC;
 import mod.hey.studios.util.Helper;
 import mod.jbk.build.BuiltInLibraries;
 import mod.jbk.util.LogUtil;
 import pro.sketchware.R;
+import pro.sketchware.util.library.BuiltInLibraryCompatibilityMatrix;
 import pro.sketchware.databinding.DialogSelectLibrariesBinding;
 import pro.sketchware.databinding.ManageLibraryExcludeBuiltinLibrariesBinding;
 import pro.sketchware.utility.FileUtil;
@@ -110,6 +110,15 @@ public class ExcludeBuiltInLibrariesActivity extends BaseAppCompatActivity {
             LogUtil.e(TAG, "Couldn't parse config: " + errorMessage);
         }
         return null;
+    }
+
+    @NonNull
+    public static Pair<Boolean, List<BuiltInLibraries.BuiltInLibrary>> readConfigCompat(String sc_id) {
+        Pair<Boolean, List<BuiltInLibraries.BuiltInLibrary>> config = readConfig(sc_id);
+        if (config != null) {
+            return config;
+        }
+        return new Pair<>(false, Collections.emptyList());
     }
 
     public static boolean isExcludingEnabled(String sc_id) {
@@ -205,14 +214,25 @@ public class ExcludeBuiltInLibrariesActivity extends BaseAppCompatActivity {
     public void onBackPressed() {
         if (config != null && config.first.equals(isExcludingEnabled) && config.second.equals(excludedLibraries)) {
             super.onBackPressed();
-        } else {
-            k();
-            try {
-                new Handler(Looper.myLooper()).postDelayed(() ->
-                        new SaveConfigTask(this).execute(), 500);
-            } catch (Exception e) {
-                onSaveError(e);
-            }
+            return;
+        }
+
+        BuiltInLibraryCompatibilityMatrix.ValidationResult validationResult =
+                BuiltInLibraryCompatibilityMatrix.validate(sc_id, jC.c(sc_id).c(), jC.c(sc_id).d(), jC.c(sc_id).b(), jC.c(sc_id).e(), isExcludingEnabled, excludedLibraries);
+        if (!validationResult.isValid()) {
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle("Can't save library exclusions")
+                    .setMessage(validationResult.formatErrors())
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+            return;
+        }
+
+        k();
+        try {
+            new SaveConfigTask(this).schedule(500L);
+        } catch (Exception e) {
+            onSaveError(e);
         }
     }
 

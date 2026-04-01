@@ -5,7 +5,6 @@ import static android.text.TextUtils.isEmpty;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.Handler;
 import android.view.View;
 import android.widget.LinearLayout;
 
@@ -35,7 +34,9 @@ import a.a.a.mB;
 import dev.aldi.sayuti.editor.manage.ManageLocalLibraryActivity;
 import mod.hey.studios.activity.managers.nativelib.ManageNativelibsActivity;
 import mod.hey.studios.util.Helper;
+import mod.jbk.build.BuiltInLibraries;
 import mod.jbk.editor.manage.library.ExcludeBuiltInLibrariesActivity;
+import pro.sketchware.util.library.BuiltInLibraryCompatibilityMatrix;
 import mod.jbk.editor.manage.library.ExcludeBuiltInLibrariesLibraryItemView;
 import pro.sketchware.R;
 import pro.sketchware.utility.UI;
@@ -247,9 +248,21 @@ public class ManageLibraryActivity extends BaseAppCompatActivity implements View
 
     @Override
     public void onBackPressed() {
+        android.util.Pair<Boolean, java.util.List<BuiltInLibraries.BuiltInLibrary>> excludedLibrariesConfig = ExcludeBuiltInLibrariesActivity.readConfigCompat(sc_id);
+        BuiltInLibraryCompatibilityMatrix.ValidationResult validationResult =
+                BuiltInLibraryCompatibilityMatrix.validate(sc_id, compatLibraryBean, firebaseLibraryBean, admobLibraryBean, googleMapLibraryBean, excludedLibrariesConfig.first, excludedLibrariesConfig.second);
+        if (!validationResult.isValid()) {
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle("Can't save libraries")
+                    .setMessage(validationResult.formatErrors())
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+            return;
+        }
+
         k();
         try {
-            new Handler().postDelayed(() -> new SaveLibraryTask(this).execute(), 500L);
+            new SaveLibraryTask(this).schedule(500L);
         } catch (Exception e) {
             e.printStackTrace();
             h();

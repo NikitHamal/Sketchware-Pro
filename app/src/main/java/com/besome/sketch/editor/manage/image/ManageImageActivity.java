@@ -3,7 +3,6 @@ package com.besome.sketch.editor.manage.image;
 import android.app.Activity;
 import android.content.Context;
 import android.os.Bundle;
-import android.os.Handler;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -65,7 +64,7 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
             binding.layoutBtnImport.setVisibility(View.GONE);
         } else {
             k();
-            new Handler().postDelayed(() -> new SaveImagesAsyncTask(this).execute(), 500L);
+            new SaveImagesAsyncTask(this).schedule(500L);
         }
     }
 

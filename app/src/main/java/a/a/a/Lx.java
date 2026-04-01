@@ -1132,26 +1132,33 @@ public class Lx {
     /**
      * @return Initializer for a Component that'd appear in <code>_initialize(Bundle)</code>
      */
-    public static String getComponentInitializerCode(String componentNameId, String
-            componentName, String... parameters) {
+    public static String getComponentInitializerCode(String componentNameId, String componentName, String... parameters) {
+        return getComponentInitializerCode(componentNameId, componentName, false, parameters);
+    }
+
+    public static String getComponentInitializerCode(String componentNameId, String componentName, boolean isFragment, String... parameters) {
+        String contextExpression = isFragment ? "getActivity()" : "this";
+        String applicationContextExpression = isFragment ? "getActivity().getApplicationContext()" : "getApplicationContext()";
+        String layoutInflaterContextExpression = isFragment ? "getActivity()" : "this";
+        String fragmentManagerExpression = isFragment ? "getChildFragmentManager()" : "getSupportFragmentManager()";
         switch (componentNameId) {
             case "SharedPreferences":
                 String preferenceFilename = "";
                 if (parameters[0] != null && !parameters[0].isEmpty()) {
                     preferenceFilename = parameters[0].replace(";", "");
                 }
-                return componentName + " = getSharedPreferences(\"" + preferenceFilename + "\", Activity.MODE_PRIVATE);";
+                return componentName + " = " + contextExpression + ".getSharedPreferences(\"" + preferenceFilename + "\", Activity.MODE_PRIVATE);";
 
             case "Vibrator":
-                return componentName + " = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);";
+                return componentName + " = (Vibrator) " + contextExpression + ".getSystemService(Context.VIBRATOR_SERVICE);";
 
             case "Dialog":
-                return componentName + " = new AlertDialog.Builder(this);";
+                return componentName + " = new AlertDialog.Builder(" + contextExpression + ");";
 
             case "Gyroscope":
-                return componentName + " = (SensorManager) getSystemService(Context.SENSOR_SERVICE);\r\n" +
+                return componentName + " = (SensorManager) " + contextExpression + ".getSystemService(Context.SENSOR_SERVICE);\r\n" +
                         "if (" + componentName + ".getDefaultSensor(Sensor.TYPE_GYROSCOPE) == null) {\r\n" +
-                        "SketchwareUtil.showMessage(getApplicationContext(), \"Gyroscope is not supported on this device\");\r\n" +
+                        "SketchwareUtil.showMessage(" + applicationContextExpression + ", \"Gyroscope is not supported on this device\");\r\n" +
                         "}";
 
             case "FirebaseAuth":
@@ -1168,52 +1175,50 @@ public class Lx {
                         componentName + ".putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);";
 
             case "Camera":
-                return "_file_" + componentName + " = FileUtil.createNewPictureFile(getApplicationContext());\r\n" +
+                return "_file_" + componentName + " = FileUtil.createNewPictureFile(" + applicationContextExpression + ");\r\n" +
                         "Uri _uri_" + componentName + ";\r\n" +
                         "if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {\r\n" +
-                        "_uri_" + componentName + " = FileProvider.getUriForFile(getApplicationContext(), getApplicationContext().getPackageName() + \".provider\", _file_" + componentName + ");\r\n" +
+                        "_uri_" + componentName + " = FileProvider.getUriForFile(" + contextExpression + ", " + contextExpression + ".getPackageName() + \".provider\", _file_" + componentName + ");\r\n" +
                         "} else {\r\n" +
                         "_uri_" + componentName + " = Uri.fromFile(_file_" + componentName + ");\r\n" +
                         "}\r\n" +
                         componentName + ".putExtra(MediaStore.EXTRA_OUTPUT, _uri_" + componentName + ");\r\n" +
-                        componentName + ".addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);";
+                        componentName + ".addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);";
 
             case "RequestNetwork":
-                return componentName + " = new RequestNetwork(this);";
+                return componentName + " = new RequestNetwork(" + contextExpression + ");";
 
             case "TextToSpeech":
-                return componentName + " = new TextToSpeech(getApplicationContext(), null);";
+                return componentName + " = new TextToSpeech(" + applicationContextExpression + ", null);";
 
             case "SpeechToText":
-                return componentName + " = SpeechRecognizer.createSpeechRecognizer(this);";
+                return componentName + " = SpeechRecognizer.createSpeechRecognizer(" + contextExpression + ");";
 
             case "BluetoothConnect":
-                return componentName + " = new BluetoothConnect(this);";
+                return componentName + " = new BluetoothConnect(" + contextExpression + ");";
 
             case "LocationManager":
-                return componentName + " = (LocationManager) getSystemService(Context.LOCATION_SERVICE);";
+                return componentName + " = (LocationManager) " + contextExpression + ".getSystemService(Context.LOCATION_SERVICE);";
 
             case "TimePickerDialog":
-                return componentName + " = new TimePickerDialog(this, " + componentName + "_listener, Calendar.HOUR_OF_DAY, Calendar.MINUTE, false);";
+                return componentName + " = new TimePickerDialog(" + contextExpression + ", " + componentName + "_listener, Calendar.HOUR_OF_DAY, Calendar.MINUTE, false);";
 
             case "FragmentStatePagerAdapter":
-                return componentName + " = new " + a(componentName + "Fragment", false) + "(getApplicationContext(), getSupportFragmentManager());";
+                return componentName + " = new " + a(componentName + "Fragment", false) + "(" + layoutInflaterContextExpression + ", " + fragmentManagerExpression + ");";
 
             case "Videos":
-                return "file_" + componentName + " = FileUtil.createNewPictureFile(getApplicationContext());\r\n"
+                return "file_" + componentName + " = FileUtil.createNewPictureFile(" + applicationContextExpression + ");\r\n"
                         + "Uri _uri_" + componentName + " = null;\r\n"
                         + "if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {\r\n"
-                        + "_uri_" + componentName + " = FileProvider.getUriForFile(getApplicationContext(), " +
-                        "getApplicationContext().getPackageName() + \".provider\", file_" + componentName + ");\r\n"
-                        + "}\r\n"
-                        + "else {\r\n"
+                        + "_uri_" + componentName + " = FileProvider.getUriForFile(" + contextExpression + ", " + contextExpression + ".getPackageName() + \".provider\", file_" + componentName + ");\r\n"
+                        + "} else {\r\n"
                         + "_uri_" + componentName + " = Uri.fromFile(file_" + componentName + ");\r\n"
                         + "}\r\n"
                         + componentName + ".putExtra(MediaStore.EXTRA_OUTPUT, _uri_" + componentName + ");\r\n"
-                        + componentName + ".addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);";
+                        + componentName + ".addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);";
 
             case "DatePickerDialog":
-                return componentName + " = new DatePickerDialog(this);";
+                return componentName + " = new DatePickerDialog(" + contextExpression + ");";
 
             default:
                 return ComponentsHandler.defineExtraVar(componentNameId, componentName);
@@ -3242,6 +3247,12 @@ public class Lx {
     public static String pagerAdapter(Ox ox, String pagerName, String
                                               pagerItemLayoutName, ArrayList<ViewBean> pagerItemViews, String onBindCustomViewLogic,
                                       boolean isViewBindingEnabled) {
+        return pagerAdapter(ox, pagerName, pagerItemLayoutName, pagerItemViews, onBindCustomViewLogic, isViewBindingEnabled, false);
+    }
+
+    public static String pagerAdapter(Ox ox, String pagerName, String
+                                              pagerItemLayoutName, ArrayList<ViewBean> pagerItemViews, String onBindCustomViewLogic,
+                                      boolean isViewBindingEnabled, boolean isFragmentHost) {
         String adapterName = a(pagerName, isViewBindingEnabled);
 
         String viewsInitializer = "";
@@ -3265,7 +3276,7 @@ public class Lx {
                 "}\r\n" +
                 "\r\n" +
                 "public " + adapterName + "(ArrayList<HashMap<String, Object>> _arr) {\r\n" +
-                "_context = getApplicationContext();\r\n" +
+                "_context = " + (isFragmentHost ? "getActivity()" : "getLayoutInflater().getContext()") + ";\r\n" +
                 "_data = _arr;\r\n" +
                 "}\r\n" +
                 "\r\n" +
@@ -3332,6 +3343,12 @@ public class Lx {
     public static String recyclerViewAdapter(Ox ox, String recyclerViewName, String
                                                      itemLayoutName, ArrayList<ViewBean> itemViews, String onBindCustomViewLogic,
                                              boolean isViewBindingEnabled) {
+        return recyclerViewAdapter(ox, recyclerViewName, itemLayoutName, itemViews, onBindCustomViewLogic, isViewBindingEnabled, false);
+    }
+
+    public static String recyclerViewAdapter(Ox ox, String recyclerViewName, String
+                                                     itemLayoutName, ArrayList<ViewBean> itemViews, String onBindCustomViewLogic,
+                                             boolean isViewBindingEnabled, boolean isFragmentHost) {
         String adapterName = a(recyclerViewName, isViewBindingEnabled);
         String viewsInitializer = "";
         StringBuilder viewInitBuilder = new StringBuilder(viewsInitializer);
@@ -3353,8 +3370,8 @@ public class Lx {
                 "\r\n" +
                 "@Override\r\n" +
                 "public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {\r\n" +
-                "LayoutInflater _inflater = getLayoutInflater();\r\n" +
-                "View _v = _inflater.inflate(R.layout." + itemLayoutName + ", null);\r\n" +
+                "LayoutInflater _inflater = LayoutInflater.from(parent.getContext());\r\n" +
+                "View _v = _inflater.inflate(R.layout." + itemLayoutName + ", parent, false);\r\n" +
                 "RecyclerView.LayoutParams _lp = new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);\r\n" +
                 "_v.setLayoutParams(_lp);\r\n" +
                 "return new ViewHolder(_v);\r\n" +

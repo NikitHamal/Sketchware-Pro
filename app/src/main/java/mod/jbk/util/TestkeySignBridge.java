@@ -11,6 +11,8 @@ public class TestkeySignBridge {
 
     public static void signWithTestkey(String inputPath, String outputPath) throws GeneralSecurityException, IOException, ClassNotFoundException, IllegalAccessException, InstantiationException {
         ApkSigner signer = new ApkSigner();
-        signer.signWithTestKey(inputPath, outputPath, null);
+        if (!signer.signWithTestKey(inputPath, outputPath, null)) {
+            throw new IOException("APK signing failed");
+        }
     }
 }

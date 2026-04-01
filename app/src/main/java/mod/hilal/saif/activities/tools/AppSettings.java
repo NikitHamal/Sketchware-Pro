@@ -226,6 +226,7 @@ public class AppSettings extends BaseAppCompatActivity {
             String output_apk_file_name = Uri.fromFile(new File(input_apk_path)).getLastPathSegment();
             String output_apk_path = new File(Environment.getExternalStorageDirectory(),
                     "sketchware/signed_apk/" + output_apk_file_name).getAbsolutePath();
+            FileUtil.makeDir(new File(output_apk_path).getParent());
 
             if (new File(output_apk_path).exists()) {
                 MaterialAlertDialogBuilder confirmOverwrite = new MaterialAlertDialogBuilder(this);
@@ -278,15 +279,17 @@ public class AppSettings extends BaseAppCompatActivity {
                 ApkSigner.LogCallback callback = line -> runOnUiThread(() ->
                         tv_log.setText(Helper.getText(tv_log) + line));
 
+                boolean signingSucceeded;
                 if (useTestkey) {
-                    signer.signWithTestKey(inputApkPath, outputApkPath, callback);
+                    signingSucceeded = signer.signWithTestKey(inputApkPath, outputApkPath, callback);
                 } else {
-                    signer.signWithKeyStore(inputApkPath, outputApkPath,
+                    signingSucceeded = signer.signWithKeyStore(inputApkPath, outputApkPath,
                             keyStorePath, keyStorePassword, keyStoreKeyAlias, keyPassword, callback);
                 }
 
+                boolean finalSigningSucceeded = signingSucceeded;
                 runOnUiThread(() -> {
-                    if (ApkSigner.LogCallback.errorCount.get() == 0) {
+                    if (finalSigningSucceeded && ApkSigner.LogCallback.errorCount.get() == 0) {
                         building_dialog.dismiss();
                         SketchwareUtil.toast("Successfully saved signed APK to: /Internal storage/sketchware/signed_apk/"
                                         + Uri.fromFile(new File(outputApkPath)).getLastPathSegment(),

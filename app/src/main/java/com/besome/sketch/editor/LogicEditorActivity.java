@@ -448,7 +448,7 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
 
     public void L() {
         try {
-            new Handler().postDelayed(() -> new ProjectSaver(this).execute(), 500L);
+            new ProjectSaver(this).schedule(500L);
         } catch (Exception e) {
             crashlytics.recordException(e);
         }

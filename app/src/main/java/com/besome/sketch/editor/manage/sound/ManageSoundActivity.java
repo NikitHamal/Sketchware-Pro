@@ -1,7 +1,6 @@
 package com.besome.sketch.editor.manage.sound;
 
 import android.os.Bundle;
-import android.os.Handler;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
@@ -49,7 +48,7 @@ public class ManageSoundActivity extends BaseAppCompatActivity implements ViewPa
             try {
                 projectSounds.stopPlayback();
                 collectionSounds.stopPlayback();
-                new Handler().postDelayed(() -> new SaveAsyncTask(this).execute(), 500L);
+                new SaveAsyncTask(this).schedule(500L);
             } catch (Exception e) {
                 h();
             }

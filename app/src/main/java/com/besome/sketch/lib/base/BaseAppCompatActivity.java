@@ -5,7 +5,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.DialogInterface.OnCancelListener;
 import android.graphics.Color;
-import android.os.AsyncTask.Status;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Menu;
@@ -63,7 +62,7 @@ public abstract class BaseAppCompatActivity extends AppCompatActivity {
 
     public void g() {
         for (MA task : taskList) {
-            if (task.getStatus() != Status.FINISHED && !task.isCancelled()) {
+            if (task.getStatus() != MA.Status.FINISHED && !task.isCancelled()) {
                 task.cancel(true);
             }
         }
@@ -94,7 +93,7 @@ public abstract class BaseAppCompatActivity extends AppCompatActivity {
     }
 
     public boolean isStoragePermissionGranted() {
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == 0 && ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == 0;
+        return pro.sketchware.utility.FileUtil.hasStorageAccess(this);
     }
 
     public boolean j() {

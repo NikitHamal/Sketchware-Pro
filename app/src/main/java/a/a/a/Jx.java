@@ -577,30 +577,12 @@ public class Jx {
         }
         if (!isFragment && !settings.getValue(ProjectSettings.SETTING_DISABLE_OLD_METHODS, BuildSettings.SETTING_GENERIC_VALUE_TRUE)
                 .equals(BuildSettings.SETTING_GENERIC_VALUE_TRUE)) {
-            sb.append(getDeprecatedMethodsCode());
+            sb.append(getDeprecatedMethodsCode(false));
         }
         sb.append("}").append(EOL);
         String code = sb.toString();
 
-        if (isFragment) {
-            code = code.replaceAll("getApplicationContext\\(\\)", "getContext().getApplicationContext()")
-                    .replaceAll("getBaseContext\\(\\)", "getActivity().getBaseContext()")
-                    .replaceAll("\\(ClipboardManager\\) getSystemService", "(ClipboardManager) getContext().getSystemService")
-                    .replaceAll("\\(Vibrator\\) getSystemService", "(Vibrator) getContext().getSystemService")
-                    .replaceAll("\\(SensorManager\\) getSystemService", "(SensorManager) getContext().getSystemService")
-                    .replaceAll("Typeface.createFromAsset\\(getAssets\\(\\)", "Typeface.createFromAsset(getContext().getAssets()")
-                    .replaceAll("= getAssets\\(\\).open", "= getContext().getAssets().open")
-                    .replaceAll("getSharedPreferences", "getContext().getSharedPreferences")
-                    .replaceAll("AlertDialog.Builder\\(this\\);", "AlertDialog.Builder(getActivity());")
-                    .replaceAll("SpeechRecognizer.createSpeechRecognizer\\(this\\);", "SpeechRecognizer.createSpeechRecognizer(getContext());")
-                    .replaceAll("new RequestNetwork\\(this\\);", "new RequestNetwork((Activity) getContext());")
-                    .replaceAll("new BluetoothConnect\\(this\\);", "new BluetoothConnect((Activity) getContext());")
-                    .replaceAll("MobileAds.getRewardedVideoAdInstance\\(this\\);", "MobileAds.getRewardedVideoAdInstance(getContext());")
-                    .replaceAll("runOnUiThread\\(new", "getActivity().runOnUiThread(new")
-                    .replaceAll(".setLayoutManager\\(new LinearLayoutManager\\(this", ".setLayoutManager(new LinearLayoutManager(getContext()")
-                    .replaceAll("getLayoutInflater\\(\\)", "getActivity().getLayoutInflater()")
-                    .replaceAll("getSupportFragmentManager\\(\\)", "getActivity().getSupportFragmentManager()");
-        } else if (buildConfig.g) {
+        if (!isFragment && buildConfig.g) {
             code = code.replaceAll("getFragmentManager", "getSupportFragmentManager");
         }
 
@@ -648,11 +630,11 @@ public class Jx {
         return Lx.a(viewType, viewBean.id, Lx.AccessModifier.PRIVATE, isViewBindingEnabled);
     }
 
-    private String getDeprecatedMethodsCode() {
+    private String getDeprecatedMethodsCode(boolean isFragment) {
         return EOL +
                 "@Deprecated" + EOL +
                 "public void showMessage(String _s) {" + EOL +
-                "Toast.makeText(getApplicationContext(), _s, Toast.LENGTH_SHORT).show();" + EOL +
+                "Toast.makeText(" + (isFragment ? "getActivity().getApplicationContext()" : "getApplicationContext()") + ", _s, Toast.LENGTH_SHORT).show();" + EOL +
                 "}" + EOL +
                 EOL +
                 "@Deprecated" + EOL +
@@ -720,7 +702,7 @@ public class Jx {
      * @see Lx#getComponentInitializerCode(String, String, String...)
      */
     private String getComponentBeanInitializer(ComponentBean componentBean) {
-        return Lx.getComponentInitializerCode(mq.a(componentBean.type), componentBean.componentId, componentBean.param1, componentBean.param2, componentBean.param3);
+        return Lx.getComponentInitializerCode(mq.a(componentBean.type), componentBean.componentId, projectFileBean.fileName.contains("_fragment"), componentBean.param1, componentBean.param2, componentBean.param3);
     }
 
     private void handleAppCompat() {
@@ -862,9 +844,9 @@ public class Jx {
             String adapterLogic = new Fx(projectFileBean.getActivityName(), buildConfig, projectDataManager.a(projectFileBean.getJavaName(), eventName), isViewBindingEnabled).a();
             String adapterCode;
             if (viewBean.type == ViewBeans.VIEW_TYPE_LAYOUT_VIEWPAGER) {
-                adapterCode = Lx.pagerAdapter(ox, viewBean.id, viewBean.customView, projectDataManager.d(xmlName), adapterLogic, isViewBindingEnabled);
+                adapterCode = Lx.pagerAdapter(ox, viewBean.id, viewBean.customView, projectDataManager.d(xmlName), adapterLogic, isViewBindingEnabled, projectFileBean.fileName.contains("_fragment"));
             } else if (viewBean.type == ViewBeans.VIEW_TYPE_WIDGET_RECYCLERVIEW) {
-                adapterCode = Lx.recyclerViewAdapter(ox, viewBean.id, viewBean.customView, projectDataManager.d(xmlName), adapterLogic, isViewBindingEnabled);
+                adapterCode = Lx.recyclerViewAdapter(ox, viewBean.id, viewBean.customView, projectDataManager.d(xmlName), adapterLogic, isViewBindingEnabled, projectFileBean.fileName.contains("_fragment"));
                 addImport("androidx.recyclerview.widget.LinearLayoutManager");
                 addImport("androidx.recyclerview.widget.RecyclerView");
             } else {

@@ -34,42 +34,54 @@ class SingleCopyTask(private val context: Context, private val callback: CallBac
     }
 
     @SuppressLint("Range")
-    private fun copyFileInBackground(uri: Uri): Triple<String, Boolean, String> {
-        var pathPlusName = ""
+    private suspend fun copyFileInBackground(uri: Uri): Triple<String, Boolean, String> {
+        var outputPath = ""
         var errorReason = ""
         var success = false
 
         try {
             val folder = context.cacheDir
             val returnCursor: Cursor? = context.contentResolver.query(uri, null, null, null, null)
-            val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
+            val inputStream: InputStream = context.contentResolver.openInputStream(uri)
+                ?: throw IOException("Unable to open input stream")
             val size = returnCursor?.use {
-                if (it.moveToFirst()) {
+                if (!it.moveToFirst()) {
+                    -1L
+                } else {
                     when (uri.scheme) {
-                        "content" -> it.getLong(it.getColumnIndex(OpenableColumns.SIZE)).toInt()
-                        "file" -> File(uri.path!!).length().toInt()
-                        else -> -1
+                        "content" -> it.getLong(it.getColumnIndex(OpenableColumns.SIZE))
+                        "file" -> File(uri.path ?: throw IOException("Invalid file Uri")).length()
+                        else -> -1L
                     }
-                } else -1
-            } ?: -1
+                }
+            } ?: -1L
 
-            if (size == 0) throw IOException("Empty file (size = 0)")
+            if (size == 0L) throw IOException("Empty file (size = 0)")
 
-            pathPlusName = "${folder}/${getFileName(uri)}"
-            val file = File(pathPlusName)
+            val sanitizedFileName = sanitizeFileName(getFileName(uri))
+            val file = createUniqueTarget(folder, sanitizedFileName)
+            outputPath = file.absolutePath
 
-            inputStream?.use { input ->
+            inputStream.use { input ->
                 BufferedInputStream(input).use { bis ->
                     FileOutputStream(file).use { fos ->
-                        val data = ByteArray(1024)
-                        var total: Long = 0
-                        var count: Int
-                        while (bis.read(data).also { count = it } != -1) {
-                            total += count
-                            if (size != -1) {
-                                callback.onCopyProgressUpdate((total * 100 / size).toInt())
-                            }
+                        val data = ByteArray(DEFAULT_BUFFER_SIZE)
+                        var total = 0L
+                        var lastProgress = -1
+                        while (true) {
+                            val count = bis.read(data)
+                            if (count == -1) break
+                            total += count.toLong()
                             fos.write(data, 0, count)
+                            if (size > 0L) {
+                                val progress = ((total * 100L) / size).toInt().coerceIn(0, 100)
+                                if (progress != lastProgress) {
+                                    lastProgress = progress
+                                    withContext(Dispatchers.Main.immediate) {
+                                        callback.onCopyProgressUpdate(progress)
+                                    }
+                                }
+                            }
                         }
                         fos.flush()
                     }
@@ -80,7 +92,7 @@ class SingleCopyTask(private val context: Context, private val callback: CallBac
             errorReason = e.message ?: "Unknown error"
         }
 
-        return Triple(pathPlusName, success, errorReason)
+        return Triple(outputPath, success, errorReason)
     }
 
     @SuppressLint("Range")
@@ -102,5 +114,25 @@ class SingleCopyTask(private val context: Context, private val callback: CallBac
             }
         }
         return result ?: "unknown"
+    }
+
+    private fun sanitizeFileName(name: String): String {
+        val trimmed = name.substringAfterLast('/').substringAfterLast('\\').trim()
+        return trimmed.replace(Regex("[\r\n]"), "_").ifBlank { "unknown" }
+    }
+
+    private fun createUniqueTarget(folder: File, fileName: String): File {
+        var candidate = File(folder, fileName)
+        if (!candidate.exists()) {
+            return candidate
+        }
+        val baseName = candidate.nameWithoutExtension.ifBlank { "file" }
+        val extension = candidate.extension.takeIf { it.isNotBlank() }?.let { ".${it}" } ?: ""
+        var index = 1
+        while (candidate.exists()) {
+            candidate = File(folder, "$baseName ($index)$extension")
+            index++
+        }
+        return candidate
     }
 }

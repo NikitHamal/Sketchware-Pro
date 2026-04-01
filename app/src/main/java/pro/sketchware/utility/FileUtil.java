@@ -1,10 +1,12 @@
 package pro.sketchware.utility;
 
+import android.Manifest;
 import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -30,6 +32,7 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
@@ -405,6 +408,14 @@ public class FileUtil {
 
     public static String getExternalStorageDir() {
         return Environment.getExternalStorageDirectory().getAbsolutePath();
+    }
+
+    public static boolean hasStorageAccess(Context context) {
+        if (Build.VERSION.SDK_INT > 29) {
+            return Environment.isExternalStorageManager();
+        }
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+                && ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
     }
 
     public static String getPackageDataDir(Context context) {
@@ -788,22 +799,39 @@ public class FileUtil {
 
     public static void extractZipTo(ZipInputStream input, String outPath) throws IOException {
         File outDir = new File(outPath);
-        if (!outDir.exists()) {
-            outDir.mkdirs();
+        if (!outDir.exists() && !outDir.mkdirs()) {
+            throw new IOException("Could not create output directory " + outDir.getAbsolutePath());
         }
 
         ZipEntry entry = input.getNextEntry();
         while (entry != null) {
-            String entryPathExtracted = new File(outPath, entry.getName()).getAbsolutePath();
+            File extractedTarget = getSafeZipEntryTarget(outDir, entry.getName());
 
-            if (!entry.isDirectory()) {
-                new File(entryPathExtracted).getParentFile().mkdirs();
-                writeBytes(new File(entryPathExtracted), readFromInputStream(input));
+            if (entry.isDirectory()) {
+                if (!extractedTarget.exists() && !extractedTarget.mkdirs()) {
+                    throw new IOException("Could not create directory " + extractedTarget.getAbsolutePath());
+                }
+            } else {
+                File parent = extractedTarget.getParentFile();
+                if (parent != null && !parent.exists() && !parent.mkdirs()) {
+                    throw new IOException("Could not create parent directory " + parent.getAbsolutePath());
+                }
+                writeBytes(extractedTarget, readFromInputStream(input));
             }
             input.closeEntry();
             entry = input.getNextEntry();
         }
         input.close();
+    }
+
+    public static File getSafeZipEntryTarget(File outDir, String entryName) throws IOException {
+        File target = new File(outDir, entryName);
+        String canonicalOutDir = outDir.getCanonicalPath() + File.separator;
+        String canonicalTarget = target.getCanonicalPath();
+        if (!canonicalTarget.startsWith(canonicalOutDir) && !canonicalTarget.equals(outDir.getCanonicalPath())) {
+            throw new IOException("Refusing to extract unsafe ZIP entry: " + entryName);
+        }
+        return target;
     }
 
     /**
