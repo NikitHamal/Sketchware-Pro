@@ -92,6 +92,9 @@ public class AndroidStudioProjectImporter {
     private static final Pattern INFLATE_PATTERN = Pattern.compile("inflate\\s*\\(\\s*R\\.layout\\.([A-Za-z0-9_]+)\\s*\\)");
     private static final Pattern JAVA_RESOURCE_REFERENCE_PATTERN = Pattern.compile("\\bR\\.([A-Za-z_][A-Za-z0-9_]*)\\.([A-Za-z0-9_]+)\\b");
     private static final Pattern XML_RESOURCE_REFERENCE_PATTERN = Pattern.compile("@\\+?(?:(?:[A-Za-z0-9_.]+):)?([A-Za-z_][A-Za-z0-9_]*)/([A-Za-z0-9_]+)");
+    private static final Pattern GRADLE_PROJECT_DEPENDENCY_PATTERN = Pattern.compile("project\\s*\\(\\s*(?:path\\s*:\\s*)?['\"](:[^'\"]+)['\"]\\s*\\)");
+    private static final Pattern QUOTED_COLON_PATH_PATTERN = Pattern.compile("['\"](:[^'\"]+)['\"]");
+    private static final Pattern FLAVOR_DIMENSION_PATTERN = Pattern.compile("(?m)\\bdimension\\s*(?:=)?\\s*['\"]([^'\"]+)['\"]");
     private static final long MAX_EXTRACTED_BYTES = 512L * 1024L * 1024L;
     private static final int MAX_EXTRACTED_FILES = 20000;
     private static final Set<String> TEST_SOURCE_SET_NAMES = new HashSet<>(Arrays.asList(
@@ -1357,6 +1360,10 @@ public class AndroidStudioProjectImporter {
 
         DetectedProject detectedProject = new DetectedProject();
         detectedProject.rootDirectory = determineProjectRoot(extractedRoot, modules);
+        for (AndroidModule module : modules) {
+            module.modulePath = computeModulePath(detectedProject.rootDirectory, module.moduleDirectory);
+        }
+        ArrayList<AndroidModule> includedModules = collectReferencedModules(modules, primaryModule);
         detectedProject.archiveLabel = detectedProject.rootDirectory.getName();
         detectedProject.appDirectory = primaryModule.moduleDirectory;
         detectedProject.primaryManifestFile = primaryModule.getMainManifest();
@@ -1372,7 +1379,7 @@ public class AndroidStudioProjectImporter {
         detectedProject.libsDirectories = new ArrayList<>();
         detectedProject.libraryManifestFiles = new ArrayList<>();
 
-        for (AndroidModule module : modules) {
+        for (AndroidModule module : includedModules) {
             if (!(module == primaryModule || module.applicationModule || module.libraryModule || module.dynamicFeatureModule)) {
                 continue;
             }
@@ -1396,7 +1403,7 @@ public class AndroidStudioProjectImporter {
             }
         }
 
-        for (AndroidModule module : modules) {
+        for (AndroidModule module : includedModules) {
             File moduleLibs = new File(module.moduleDirectory, "libs");
             if (moduleLibs.isDirectory()) {
                 addUniqueFile(detectedProject.libsDirectories, moduleLibs);
@@ -1418,6 +1425,55 @@ public class AndroidStudioProjectImporter {
             }
         }
         return detectedProject;
+    }
+
+    private String computeModulePath(File projectRoot, File moduleDirectory) {
+        try {
+            String rootPath = projectRoot.getCanonicalPath();
+            String modulePath = moduleDirectory.getCanonicalPath();
+            if (rootPath.equals(modulePath)) {
+                return ":";
+            }
+            if (modulePath.startsWith(rootPath + File.separator)) {
+                String relative = modulePath.substring(rootPath.length() + 1).replace(File.separatorChar, ':');
+                return ":" + relative;
+            }
+        } catch (IOException ignored) {
+        }
+        return ":" + moduleDirectory.getName();
+    }
+
+    private ArrayList<AndroidModule> collectReferencedModules(List<AndroidModule> modules, AndroidModule primaryModule) {
+        LinkedHashMap<String, AndroidModule> modulesByGradlePath = new LinkedHashMap<>();
+        for (AndroidModule module : modules) {
+            if (!TextUtils.isEmpty(module.modulePath)) {
+                modulesByGradlePath.put(module.modulePath, module);
+            }
+        }
+
+        LinkedHashSet<AndroidModule> included = new LinkedHashSet<>();
+        ArrayList<AndroidModule> queue = new ArrayList<>();
+        queue.add(primaryModule);
+        included.add(primaryModule);
+        boolean discoveredDependency = false;
+
+        for (int i = 0; i < queue.size(); i++) {
+            AndroidModule current = queue.get(i);
+            for (String dependencyPath : current.projectDependencies) {
+                AndroidModule dependencyModule = modulesByGradlePath.get(dependencyPath);
+                if (dependencyModule != null) {
+                    discoveredDependency = true;
+                    if (included.add(dependencyModule)) {
+                        queue.add(dependencyModule);
+                    }
+                }
+            }
+        }
+
+        if (!discoveredDependency) {
+            return new ArrayList<>(modules);
+        }
+        return new ArrayList<>(included);
     }
 
     private File determineProjectRoot(File extractedRoot, List<AndroidModule> modules) {
@@ -1462,8 +1518,11 @@ public class AndroidStudioProjectImporter {
     }
 
     private List<File> getOrderedManifestFiles(AndroidModule module) {
-        ArrayList<String> sourceSetNames = new ArrayList<>(module.manifestsBySourceSet.keySet());
-        sourceSetNames.sort(this::compareSourceSetNames);
+        ArrayList<String> sourceSetNames = new ArrayList<>(getSelectedSourceSetNames(module));
+        if (sourceSetNames.isEmpty()) {
+            sourceSetNames.addAll(module.manifestsBySourceSet.keySet());
+            sourceSetNames.sort(this::compareSourceSetNames);
+        }
         ArrayList<File> files = new ArrayList<>();
         for (String sourceSetName : sourceSetNames) {
             File manifestFile = module.manifestsBySourceSet.get(sourceSetName);
@@ -1474,6 +1533,197 @@ public class AndroidStudioProjectImporter {
         return files;
     }
 
+    private List<String> getSelectedSourceSetNames(AndroidModule module) {
+        LinkedHashSet<String> allSourceSetNames = new LinkedHashSet<>();
+        allSourceSetNames.addAll(module.sourceSetNames);
+        allSourceSetNames.addAll(module.manifestsBySourceSet.keySet());
+
+        ArrayList<String> available = new ArrayList<>();
+        for (String sourceSetName : allSourceSetNames) {
+            if (!TextUtils.isEmpty(sourceSetName) && !isTestSourceSet(sourceSetName)) {
+                available.add(sourceSetName);
+            }
+        }
+        available.sort(this::compareSourceSetNames);
+        if (available.isEmpty()) {
+            return available;
+        }
+
+        if (module.buildTypes.isEmpty() && module.productFlavors.isEmpty()) {
+            return available;
+        }
+
+        String selectedBuildType = chooseImportBuildType(module, available);
+        List<String> selectedFlavors = chooseImportFlavors(module, available);
+
+        LinkedHashSet<String> selected = new LinkedHashSet<>();
+        if (containsIgnoreCase(available, "main")) {
+            selected.add(findFirstIgnoreCase(available, "main"));
+        }
+        for (String flavor : selectedFlavors) {
+            String availableFlavor = findFirstIgnoreCase(available, flavor);
+            if (availableFlavor != null) {
+                selected.add(availableFlavor);
+            }
+        }
+        if (!TextUtils.isEmpty(selectedBuildType)) {
+            String availableBuildType = findFirstIgnoreCase(available, selectedBuildType);
+            if (availableBuildType != null) {
+                selected.add(availableBuildType);
+            }
+        }
+
+        ArrayList<String> selectedTokens = new ArrayList<>();
+        for (String selectedFlavor : selectedFlavors) {
+            if (!TextUtils.isEmpty(selectedFlavor)) {
+                selectedTokens.add(selectedFlavor);
+            }
+        }
+        if (!TextUtils.isEmpty(selectedBuildType)) {
+            selectedTokens.add(selectedBuildType);
+        }
+        selectedTokens.sort((left, right) -> Integer.compare(right.length(), left.length()));
+
+        for (String sourceSetName : available) {
+            if (selected.contains(sourceSetName) || "main".equalsIgnoreCase(sourceSetName)) {
+                continue;
+            }
+            if (canComposeSourceSetName(sourceSetName, selectedTokens)) {
+                selected.add(sourceSetName);
+            }
+        }
+
+        if (selected.isEmpty()) {
+            return available;
+        }
+
+        ArrayList<String> orderedSelected = new ArrayList<>(selected);
+        orderedSelected.sort(this::compareSourceSetNames);
+        return orderedSelected;
+    }
+
+    private String chooseImportBuildType(AndroidModule module, List<String> availableSourceSets) {
+        if (containsIgnoreCase(module.buildTypes, "debug") || containsIgnoreCase(availableSourceSets, "debug")
+                || containsCompositeSourceSetForToken(availableSourceSets, "debug")) {
+            return "debug";
+        }
+        for (String buildType : module.buildTypes) {
+            if (containsIgnoreCase(availableSourceSets, buildType)
+                    || containsCompositeSourceSetForToken(availableSourceSets, buildType)) {
+                return buildType;
+            }
+        }
+        if (containsIgnoreCase(module.buildTypes, "release") || containsIgnoreCase(availableSourceSets, "release")
+                || containsCompositeSourceSetForToken(availableSourceSets, "release")) {
+            return "release";
+        }
+        return module.buildTypes.isEmpty() ? null : module.buildTypes.get(0);
+    }
+
+    private List<String> chooseImportFlavors(AndroidModule module, List<String> availableSourceSets) {
+        if (module.productFlavors.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        LinkedHashMap<String, ArrayList<String>> flavorsByDimension = new LinkedHashMap<>();
+        for (String flavor : module.productFlavors) {
+            String dimension = module.flavorDimensions.get(flavor);
+            if (TextUtils.isEmpty(dimension)) {
+                dimension = "_default";
+            }
+            flavorsByDimension.computeIfAbsent(dimension, unused -> new ArrayList<>()).add(flavor);
+        }
+
+        ArrayList<String> selected = new ArrayList<>();
+        for (ArrayList<String> dimensionFlavors : flavorsByDimension.values()) {
+            String chosenFlavor = null;
+            for (String flavor : dimensionFlavors) {
+                if (containsIgnoreCase(availableSourceSets, flavor)) {
+                    chosenFlavor = flavor;
+                    break;
+                }
+            }
+            if (chosenFlavor == null) {
+                for (String flavor : dimensionFlavors) {
+                    if (containsCompositeSourceSetForToken(availableSourceSets, flavor)) {
+                        chosenFlavor = flavor;
+                        break;
+                    }
+                }
+            }
+            if (chosenFlavor == null && !dimensionFlavors.isEmpty()) {
+                chosenFlavor = dimensionFlavors.get(0);
+            }
+            if (!TextUtils.isEmpty(chosenFlavor)) {
+                selected.add(chosenFlavor);
+            }
+        }
+        return selected;
+    }
+
+    private boolean containsCompositeSourceSetForToken(List<String> sourceSetNames, String token) {
+        if (TextUtils.isEmpty(token)) {
+            return false;
+        }
+        String lowerToken = token.toLowerCase(Locale.US);
+        for (String sourceSetName : sourceSetNames) {
+            if (TextUtils.isEmpty(sourceSetName)) {
+                continue;
+            }
+            String lowerSourceSet = sourceSetName.toLowerCase(Locale.US);
+            if (lowerSourceSet.equals(lowerToken)) {
+                return true;
+            }
+            if (!"main".equals(lowerSourceSet) && lowerSourceSet.contains(lowerToken)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean canComposeSourceSetName(String sourceSetName, List<String> selectedTokens) {
+        if (TextUtils.isEmpty(sourceSetName) || selectedTokens.isEmpty()) {
+            return false;
+        }
+        return canComposeSourceSetNameRecursive(sourceSetName.toLowerCase(Locale.US), selectedTokens, 0);
+    }
+
+    private boolean canComposeSourceSetNameRecursive(String remaining, List<String> selectedTokens, int depth) {
+        if (TextUtils.isEmpty(remaining)) {
+            return true;
+        }
+        if (depth > selectedTokens.size() + 2) {
+            return false;
+        }
+        for (String token : selectedTokens) {
+            if (TextUtils.isEmpty(token)) {
+                continue;
+            }
+            String normalizedToken = token.toLowerCase(Locale.US);
+            if (remaining.startsWith(normalizedToken)
+                    && canComposeSourceSetNameRecursive(remaining.substring(normalizedToken.length()), selectedTokens, depth + 1)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean containsIgnoreCase(List<String> values, String expected) {
+        return findFirstIgnoreCase(values, expected) != null;
+    }
+
+    private String findFirstIgnoreCase(List<String> values, String expected) {
+        if (TextUtils.isEmpty(expected)) {
+            return null;
+        }
+        for (String value : values) {
+            if (expected.equalsIgnoreCase(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
     private AndroidModule createModule(File moduleDir) {
         AndroidModule module = new AndroidModule();
         module.moduleDirectory = moduleDir;
@@ -1481,11 +1731,165 @@ public class AndroidStudioProjectImporter {
         if (!module.gradleFile.isFile()) {
             module.gradleFile = new File(moduleDir, "build.gradle.kts");
         }
-        String gradleContent = module.gradleFile.isFile() ? FileUtil.readFile(module.gradleFile.getAbsolutePath()) : "";
-        module.applicationModule = gradleContent.contains("com.android.application");
-        module.libraryModule = gradleContent.contains("com.android.library");
-        module.dynamicFeatureModule = gradleContent.contains("com.android.dynamic-feature");
+        module.gradleContent = module.gradleFile.isFile() ? FileUtil.readFile(module.gradleFile.getAbsolutePath()) : "";
+        module.applicationModule = module.gradleContent.contains("com.android.application");
+        module.libraryModule = module.gradleContent.contains("com.android.library");
+        module.dynamicFeatureModule = module.gradleContent.contains("com.android.dynamic-feature");
+
+        File srcDirectory = new File(moduleDir, "src");
+        File[] sourceSetDirectories = srcDirectory.listFiles(File::isDirectory);
+        if (sourceSetDirectories != null) {
+            for (File sourceSetDirectory : sourceSetDirectories) {
+                if (!module.sourceSetNames.contains(sourceSetDirectory.getName())) {
+                    module.sourceSetNames.add(sourceSetDirectory.getName());
+                }
+            }
+        }
+
+        analyzeModuleGradle(module);
         return module;
+    }
+
+    private void analyzeModuleGradle(AndroidModule module) {
+        String content = stripGradleComments(module.gradleContent);
+        LinkedHashMap<String, String> buildTypeBlocks = extractNamedBlocks(content, "buildTypes");
+        module.buildTypes.addAll(buildTypeBlocks.keySet());
+        LinkedHashMap<String, String> flavorBlocks = extractNamedBlocks(content, "productFlavors");
+        for (Map.Entry<String, String> entry : flavorBlocks.entrySet()) {
+            String flavor = entry.getKey();
+            module.productFlavors.add(flavor);
+            Matcher dimensionMatcher = FLAVOR_DIMENSION_PATTERN.matcher(entry.getValue());
+            module.flavorDimensions.put(flavor, dimensionMatcher.find() ? dimensionMatcher.group(1) : "_default");
+        }
+
+        Matcher projectDependencyMatcher = GRADLE_PROJECT_DEPENDENCY_PATTERN.matcher(content);
+        while (projectDependencyMatcher.find()) {
+            String dependencyPath = projectDependencyMatcher.group(1);
+            if (!module.projectDependencies.contains(dependencyPath)) {
+                module.projectDependencies.add(dependencyPath);
+            }
+        }
+
+        int dynamicFeaturesIndex = content.indexOf("dynamicFeatures");
+        if (dynamicFeaturesIndex >= 0) {
+            int searchEnd = Math.min(content.length(), dynamicFeaturesIndex + 300);
+            Matcher quotedModuleMatcher = QUOTED_COLON_PATH_PATTERN.matcher(content.substring(dynamicFeaturesIndex, searchEnd));
+            while (quotedModuleMatcher.find()) {
+                String dependencyPath = quotedModuleMatcher.group(1);
+                if (!module.projectDependencies.contains(dependencyPath)) {
+                    module.projectDependencies.add(dependencyPath);
+                }
+            }
+        }
+    }
+
+    private String stripGradleComments(String content) {
+        if (TextUtils.isEmpty(content)) {
+            return "";
+        }
+        return content.replaceAll("(?s)/\\*.*?\\*/", " ").replaceAll("(?m)//.*$", " ");
+    }
+
+    private LinkedHashMap<String, String> extractNamedBlocks(String content, String blockName) {
+        LinkedHashMap<String, String> blocks = new LinkedHashMap<>();
+        String blockContent = extractBlockContent(content, blockName);
+        if (TextUtils.isEmpty(blockContent)) {
+            return blocks;
+        }
+        int index = 0;
+        while (index < blockContent.length()) {
+            while (index < blockContent.length() && Character.isWhitespace(blockContent.charAt(index))) {
+                index++;
+            }
+            if (index >= blockContent.length()) {
+                break;
+            }
+            int nameStart = index;
+            while (index < blockContent.length() && (Character.isLetterOrDigit(blockContent.charAt(index)) || blockContent.charAt(index) == '_' || blockContent.charAt(index) == '-')) {
+                index++;
+            }
+            if (nameStart == index) {
+                index++;
+                continue;
+            }
+            String identifier = blockContent.substring(nameStart, index);
+            while (index < blockContent.length() && Character.isWhitespace(blockContent.charAt(index))) {
+                index++;
+            }
+
+            String declaredName = identifier;
+            if (index < blockContent.length() && blockContent.charAt(index) == '(') {
+                int callEnd = findMatchingDelimiter(blockContent, index, '(', ')');
+                if (callEnd < 0) {
+                    break;
+                }
+                String callArguments = blockContent.substring(index + 1, callEnd);
+                Matcher quotedArgumentMatcher = Pattern.compile("['\"]([^'\"]+)['\"]").matcher(callArguments);
+                if (quotedArgumentMatcher.find()) {
+                    declaredName = quotedArgumentMatcher.group(1);
+                }
+                index = callEnd + 1;
+                while (index < blockContent.length() && Character.isWhitespace(blockContent.charAt(index))) {
+                    index++;
+                }
+            }
+
+            if (index >= blockContent.length() || blockContent.charAt(index) != '{') {
+                continue;
+            }
+            int blockEnd = findMatchingDelimiter(blockContent, index, '{', '}');
+            if (blockEnd < 0) {
+                break;
+            }
+            String inner = blockContent.substring(index + 1, blockEnd);
+            if (!blocks.containsKey(declaredName)) {
+                blocks.put(declaredName, inner);
+            }
+            index = blockEnd + 1;
+        }
+        return blocks;
+    }
+
+    private String extractBlockContent(String content, String blockName) {
+        Matcher matcher = Pattern.compile("\\b" + Pattern.quote(blockName) + "\\b").matcher(content);
+        while (matcher.find()) {
+            int braceIndex = content.indexOf('{', matcher.end());
+            if (braceIndex < 0) {
+                continue;
+            }
+            int closeIndex = findMatchingDelimiter(content, braceIndex, '{', '}');
+            if (closeIndex < 0) {
+                continue;
+            }
+            return content.substring(braceIndex + 1, closeIndex);
+        }
+        return null;
+    }
+
+    private int findMatchingDelimiter(String content, int openIndex, char openChar, char closeChar) {
+        int depth = 0;
+        boolean inSingleQuote = false;
+        boolean inDoubleQuote = false;
+        for (int i = openIndex; i < content.length(); i++) {
+            char current = content.charAt(i);
+            if (current == '\'' && !inDoubleQuote && (i == 0 || content.charAt(i - 1) != '\\')) {
+                inSingleQuote = !inSingleQuote;
+            } else if (current == '"' && !inSingleQuote && (i == 0 || content.charAt(i - 1) != '\\')) {
+                inDoubleQuote = !inDoubleQuote;
+            }
+            if (inSingleQuote || inDoubleQuote) {
+                continue;
+            }
+            if (current == openChar) {
+                depth++;
+            } else if (current == closeChar) {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
+            }
+        }
+        return -1;
     }
 
     private AndroidModule choosePrimaryModule(List<AndroidModule> modules) {
@@ -1524,14 +1928,24 @@ public class AndroidStudioProjectImporter {
             return;
         }
 
-        ArrayList<File> sortedSourceSets = new ArrayList<>(Arrays.asList(sourceSetDirectories));
-        sortedSourceSets.sort(this::compareSourceSets);
-
-        for (File sourceSetDirectory : sortedSourceSets) {
+        List<String> selectedSourceSetNames = getSelectedSourceSetNames(module);
+        ArrayList<File> sortedSourceSets = new ArrayList<>();
+        for (File sourceSetDirectory : sourceSetDirectories) {
             if (isTestSourceSet(sourceSetDirectory.getName())) {
                 continue;
             }
+            if (!selectedSourceSetNames.isEmpty() && !containsIgnoreCase(selectedSourceSetNames, sourceSetDirectory.getName())) {
+                continue;
+            }
+            sortedSourceSets.add(sourceSetDirectory);
+        }
+        if (sortedSourceSets.isEmpty()) {
+            sortedSourceSets.addAll(Arrays.asList(sourceSetDirectories));
+            sortedSourceSets.removeIf(sourceSetDirectory -> isTestSourceSet(sourceSetDirectory.getName()));
+        }
+        sortedSourceSets.sort(this::compareSourceSets);
 
+        for (File sourceSetDirectory : sortedSourceSets) {
             File javaRoot = new File(sourceSetDirectory, "java");
             if (javaRoot.isDirectory()) {
                 addUniqueFile(detectedProject.sourceRoots, javaRoot);
@@ -2292,6 +2706,13 @@ public class AndroidStudioProjectImporter {
         boolean applicationModule;
         boolean libraryModule;
         boolean dynamicFeatureModule;
+        String gradleContent;
+        String modulePath;
+        final ArrayList<String> projectDependencies = new ArrayList<>();
+        final ArrayList<String> sourceSetNames = new ArrayList<>();
+        final ArrayList<String> buildTypes = new ArrayList<>();
+        final ArrayList<String> productFlavors = new ArrayList<>();
+        final LinkedHashMap<String, String> flavorDimensions = new LinkedHashMap<>();
         final LinkedHashMap<String, File> manifestsBySourceSet = new LinkedHashMap<>();
 
         File getMainManifest() {

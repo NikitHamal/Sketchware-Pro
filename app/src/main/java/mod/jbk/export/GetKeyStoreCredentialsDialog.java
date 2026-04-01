@@ -2,6 +2,7 @@ package mod.jbk.export;
 
 import android.app.Activity;
 import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.widget.ArrayAdapter;
@@ -19,12 +20,22 @@ import pro.sketchware.utility.SketchwareUtil;
 
 public class GetKeyStoreCredentialsDialog {
 
+    private static final String PREFS_NAME = "export_signing_prefs";
+    private static final String PREF_SIGNING_MODE = "signing_mode";
+    private static final String PREF_KEYSTORE_PATH = "keystore_path";
+    private static final String PREF_KEY_ALIAS = "key_alias";
+    private static final String PREF_SIGNING_ALGORITHM = "signing_algorithm";
+    private static final String DEFAULT_SIGNING_ALGORITHM = "SHA256withRSA";
+
+    private final Activity activity;
     private final MaterialAlertDialogBuilder dialog;
     private final DialogKeystoreCredentialsBinding binding;
+    private final SharedPreferences preferences;
     private CredentialsReceiver receiver;
     private SigningMode mode;
 
     public GetKeyStoreCredentialsDialog(Activity activity, int iconResourceId, String title, String noticeText) {
+        this.activity = activity;
         dialog = new MaterialAlertDialogBuilder(activity);
         dialog.setIcon(iconResourceId);
         dialog.setTitle(title);
@@ -34,11 +45,13 @@ public class GetKeyStoreCredentialsDialog {
 
         binding = DialogKeystoreCredentialsBinding.inflate(LayoutInflater.from(activity));
         dialog.setView(binding.getRoot());
+        preferences = activity.getSharedPreferences(PREFS_NAME, Activity.MODE_PRIVATE);
 
-        setupSpinner(activity);
+        setupSpinner();
+        restoreLastUsedValues();
     }
 
-    private void setupSpinner(Activity activity) {
+    private void setupSpinner() {
         String[] dropdownItems = getDropdownItems();
         ArrayAdapter<String> adapter = new ArrayAdapter<>(activity, android.R.layout.simple_spinner_dropdown_item, dropdownItems);
         binding.actSigningMode.setAdapter(adapter);
@@ -46,6 +59,23 @@ public class GetKeyStoreCredentialsDialog {
             mode = SigningMode.values()[position];
             updateInputFieldsState();
         });
+    }
+
+    private void restoreLastUsedValues() {
+        String defaultPath = preferences.getString(PREF_KEYSTORE_PATH, wq.j());
+        binding.etKeystorePath.setText(defaultPath);
+        binding.etAlias.setText(preferences.getString(PREF_KEY_ALIAS, ""));
+        binding.etSigningAlgorithm.setText(preferences.getString(PREF_SIGNING_ALGORITHM, DEFAULT_SIGNING_ALGORITHM));
+
+        String savedMode = preferences.getString(PREF_SIGNING_MODE,
+                new File(defaultPath).isFile() ? SigningMode.OWN_KEY_STORE.name() : SigningMode.TESTKEY.name());
+        try {
+            mode = SigningMode.valueOf(savedMode);
+        } catch (Exception ignored) {
+            mode = new File(defaultPath).isFile() ? SigningMode.OWN_KEY_STORE : SigningMode.TESTKEY;
+        }
+        binding.actSigningMode.setText(mode.label, false);
+        updateInputFieldsState();
     }
 
     private String[] getDropdownItems() {
@@ -58,37 +88,76 @@ public class GetKeyStoreCredentialsDialog {
 
     private void updateInputFieldsState() {
         boolean signingWithKeyStore = mode == SigningMode.OWN_KEY_STORE;
+        boolean signingEnabled = mode != SigningMode.DONT_SIGN;
+
+        binding.tilKeystorePath.setEnabled(signingWithKeyStore);
+        binding.tilKeystorePassword.setEnabled(signingWithKeyStore);
         binding.tilAlias.setEnabled(signingWithKeyStore);
-        binding.tilPassword.setEnabled(signingWithKeyStore);
-        binding.tilSigningAlgorithm.setEnabled(signingWithKeyStore);
+        binding.tilKeyPassword.setEnabled(signingWithKeyStore);
+        binding.tilSigningAlgorithm.setEnabled(signingEnabled);
     }
 
     private void onNextButtonClick(DialogInterface dialogInterface) {
         if (mode == SigningMode.OWN_KEY_STORE) {
-            if (new File(wq.j()).exists()) {
-                if (validateInputs()) {
-                    dialogInterface.dismiss();
-                    receiver.gotCredentials(new Credentials(
-                            Helper.getText(binding.etSigningAlgorithm),
-                            Helper.getText(binding.etPassword),
-                            Helper.getText(binding.etAlias),
-                            Helper.getText(binding.etPassword)
-                    ));
-                }
-            } else {
-                SketchwareUtil.toastError("Keystore not found");
+            if (!validateInputs()) {
+                return;
             }
-        } else if (mode == SigningMode.TESTKEY) {
+            saveNonSecretPreferences();
             dialogInterface.dismiss();
-            receiver.gotCredentials(new Credentials(Helper.getText(binding.etSigningAlgorithm)));
-        } else if (mode == SigningMode.DONT_SIGN) {
-            dialogInterface.dismiss();
-            receiver.gotCredentials(null);
+            receiver.gotCredentials(new Credentials(
+                    Helper.getText(binding.etKeystorePath),
+                    Helper.getText(binding.etSigningAlgorithm),
+                    Helper.getText(binding.etKeystorePassword),
+                    Helper.getText(binding.etAlias),
+                    Helper.getText(binding.etKeyPassword)
+            ));
+            return;
         }
+
+        if (mode == SigningMode.TESTKEY) {
+            preferences.edit().putString(PREF_SIGNING_MODE, mode.name()).apply();
+            dialogInterface.dismiss();
+            receiver.gotCredentials(Credentials.forTestkey());
+            return;
+        }
+
+        preferences.edit().putString(PREF_SIGNING_MODE, mode.name()).apply();
+        dialogInterface.dismiss();
+        receiver.gotCredentials(null);
+    }
+
+    private void saveNonSecretPreferences() {
+        preferences.edit()
+                .putString(PREF_SIGNING_MODE, mode.name())
+                .putString(PREF_KEYSTORE_PATH, Helper.getText(binding.etKeystorePath))
+                .putString(PREF_KEY_ALIAS, Helper.getText(binding.etAlias))
+                .putString(PREF_SIGNING_ALGORITHM, Helper.getText(binding.etSigningAlgorithm))
+                .apply();
     }
 
     private boolean validateInputs() {
         boolean isValid = true;
+
+        String keystorePath = Helper.getText(binding.etKeystorePath).trim();
+        if (TextUtils.isEmpty(keystorePath)) {
+            binding.tilKeystorePath.setError("Keystore path can't be empty");
+            isValid = false;
+        } else {
+            File keystoreFile = new File(keystorePath);
+            if (!keystoreFile.isFile()) {
+                binding.tilKeystorePath.setError("Keystore file was not found");
+                isValid = false;
+            } else {
+                binding.tilKeystorePath.setError(null);
+            }
+        }
+
+        if (TextUtils.isEmpty(binding.etKeystorePassword.getText())) {
+            binding.tilKeystorePassword.setError("Keystore password can't be empty");
+            isValid = false;
+        } else {
+            binding.tilKeystorePassword.setError(null);
+        }
 
         if (TextUtils.isEmpty(binding.etAlias.getText())) {
             binding.tilAlias.setError("Alias can't be empty");
@@ -97,11 +166,11 @@ public class GetKeyStoreCredentialsDialog {
             binding.tilAlias.setError(null);
         }
 
-        if (TextUtils.isEmpty(binding.etPassword.getText())) {
-            binding.tilPassword.setError("Password can't be empty");
+        if (TextUtils.isEmpty(binding.etKeyPassword.getText())) {
+            binding.tilKeyPassword.setError("Key password can't be empty");
             isValid = false;
         } else {
-            binding.tilPassword.setError(null);
+            binding.tilKeyPassword.setError(null);
         }
 
         if (TextUtils.isEmpty(binding.etSigningAlgorithm.getText())) {
@@ -111,6 +180,9 @@ public class GetKeyStoreCredentialsDialog {
             binding.tilSigningAlgorithm.setError(null);
         }
 
+        if (!isValid) {
+            SketchwareUtil.toastError("Please fix the signing inputs and try again.");
+        }
         return isValid;
     }
 
@@ -136,75 +208,57 @@ public class GetKeyStoreCredentialsDialog {
     }
 
     public interface CredentialsReceiver {
-        /**
-         * @param credentials The {@link Credentials} object made from user input.
-         *                    May be null. In that case, the user disabled signing the file.
-         */
         void gotCredentials(Credentials credentials);
     }
 
     public static class Credentials {
 
         private final boolean signWithTestkey;
+        private final String keyStorePath;
         private final String keyStorePassword;
         private final String keyAlias;
         private final String keyPassword;
         private final String signingAlgorithm;
 
-        /**
-         * Constructs a credentials holder configured to sign with testkey,
-         * meaning that no key store, aliases, and passwords were entered.
-         */
-        public Credentials(String signingAlgorithm) {
-            signWithTestkey = true;
-            keyStorePassword = null;
-            keyAlias = null;
-            keyPassword = null;
-            this.signingAlgorithm = signingAlgorithm;
-        }
-
-        /**
-         * Constructs a credentials holder configured to sign with a private key taken from a key store.
-         */
-        public Credentials(String signingAlgorithm, String keyPassword, String keyAlias, String keyStorePassword) {
-            signWithTestkey = false;
+        private Credentials(boolean signWithTestkey, String keyStorePath, String signingAlgorithm,
+                            String keyStorePassword, String keyAlias, String keyPassword) {
+            this.signWithTestkey = signWithTestkey;
+            this.keyStorePath = keyStorePath;
             this.keyStorePassword = keyStorePassword;
             this.keyAlias = keyAlias;
             this.keyPassword = keyPassword;
             this.signingAlgorithm = signingAlgorithm;
         }
 
-        /**
-         * @return False if this credentials holder contains credentials for signing, true if not.
-         */
+        public static Credentials forTestkey() {
+            return new Credentials(true, null, null, null, null, null);
+        }
+
+        public Credentials(String keyStorePath, String signingAlgorithm, String keyStorePassword,
+                           String keyAlias, String keyPassword) {
+            this(false, keyStorePath, signingAlgorithm, keyStorePassword, keyAlias, keyPassword);
+        }
+
         public boolean isForSigningWithTestkey() {
             return signWithTestkey;
         }
 
-        /**
-         * @return {@link #keyStorePassword}
-         */
+        public String getKeyStorePath() {
+            return keyStorePath;
+        }
+
         public String getKeyStorePassword() {
             return keyStorePassword;
         }
 
-        /**
-         * @return {@link #keyAlias}
-         */
         public String getKeyAlias() {
             return keyAlias;
         }
 
-        /**
-         * @return {@link #keyPassword}
-         */
         public String getKeyPassword() {
             return keyPassword;
         }
 
-        /**
-         * @return {@link #signingAlgorithm}
-         */
         public String getSigningAlgorithm() {
             return signingAlgorithm;
         }

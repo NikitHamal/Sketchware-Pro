@@ -277,7 +277,7 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
         export_aab_button.setOnClickListener(view -> {
             MaterialAlertDialogBuilder confirmationDialog = new MaterialAlertDialogBuilder(this);
             confirmationDialog.setTitle("Important note");
-            confirmationDialog.setMessage("The generated .aab file must be signed.\nCopy your keystore to /Internal storage/sketchware/keystore/release_key.jks and enter the alias' password.");
+            confirmationDialog.setMessage("The generated .aab file can be signed immediately with your own keystore, a test key, or exported unsigned.");
             confirmationDialog.setIcon(R.drawable.ic_mtrl_info);
 
             confirmationDialog.setPositiveButton("Understood", (v, which) -> {
@@ -299,7 +299,7 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
                     task.setSignWithTestkey(true);
                 } else {
                     task.configureResultJarSigning(
-                            wq.j(),
+                            credentials.getKeyStorePath(),
                             credentials.getKeyStorePassword().toCharArray(),
                             credentials.getKeyAlias(),
                             credentials.getKeyPassword().toCharArray(),
@@ -345,11 +345,10 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
             MaterialAlertDialogBuilder confirmationDialog = new MaterialAlertDialogBuilder(this);
             confirmationDialog.setTitle("Important note");
             confirmationDialog.setMessage("""
-                    To sign an APK, you need a keystore. Use your already created one, and copy it to \
-                    /Internal storage/sketchware/keystore/release_key.jks and enter the alias's password.
+                    You can sign the APK immediately with your own keystore, a test key, or export it unsigned.
                     
-                    Note that this only signs your APK using signing scheme V1, to target Android 11+ for example, \
-                    use a 3rd-party tool (for now).""");
+                    Note that this path signs the APK using JAR/V1 signing. For modern distribution requirements that need additional schemes,
+                    you may still want a post-processing signer or Android Studio.""");
             confirmationDialog.setIcon(R.drawable.ic_mtrl_info);
 
             confirmationDialog.setPositiveButton("Understood", (v, which) -> {
@@ -378,7 +377,7 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
                     task.setSignWithTestkey(true);
                 } else {
                     task.configureResultJarSigning(
-                            wq.j(),
+                            credentials.getKeyStorePath(),
                             credentials.getKeyStorePassword().toCharArray(),
                             credentials.getKeyAlias(),
                             credentials.getKeyPassword().toCharArray(),

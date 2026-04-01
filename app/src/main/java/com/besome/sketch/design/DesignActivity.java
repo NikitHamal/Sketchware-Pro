@@ -66,7 +66,10 @@ import com.google.android.material.tabs.TabLayout;
 import com.google.firebase.crashlytics.FirebaseCrashlytics;
 import com.topjohnwu.superuser.Shell;
 
+import org.spongycastle.jce.provider.BouncyCastleProvider;
+
 import java.io.File;
+import java.security.Security;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -110,9 +113,12 @@ import mod.hilal.saif.activities.android_manifest.AndroidManifestInjection;
 import mod.hilal.saif.activities.tools.ConfigActivity;
 import mod.jbk.build.BuildProgressReceiver;
 import mod.jbk.build.BuiltInLibraries;
+import mod.jbk.build.compiler.bundle.AppBundleCompiler;
+import mod.jbk.export.GetKeyStoreCredentialsDialog;
 import mod.jbk.diagnostic.CompileErrorSaver;
 import mod.jbk.diagnostic.MissingFileException;
 import mod.jbk.util.LogUtil;
+import mod.jbk.util.TestkeySignBridge;
 import mod.khaled.logcat.LogReaderActivity;
 import pro.sketchware.R;
 import pro.sketchware.activities.appcompat.ManageAppCompatActivity;
@@ -125,6 +131,9 @@ import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
 import pro.sketchware.utility.ThemeUtils;
 import pro.sketchware.utility.apk.ApkSignatures;
+import kellinwood.security.zipsigner.ZipSigner;
+import kellinwood.security.zipsigner.optional.CustomKeySigner;
+import kellinwood.security.zipsigner.optional.LoadKeystoreException;
 
 public class DesignActivity extends BaseAppCompatActivity implements View.OnClickListener {
     public static String sc_id;
@@ -472,7 +481,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 return;
             }
 
-            BuildTask buildTask = new BuildTask(this);
+            BuildTask buildTask = new BuildTask(this, BuildRequest.debugRun());
             currentBuildTask = buildTask;
             buildTask.execute();
         });
@@ -516,6 +525,18 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         });
         bottomMenu.add(Menu.NONE, 7, Menu.NONE, "Direct XML editor").setOnMenuItemClickListener(item -> {
             toViewCodeEditor();
+            return true;
+        });
+        bottomMenu.add(Menu.NONE, 8, Menu.NONE, "Java/Kotlin manager").setOnMenuItemClickListener(item -> {
+            toJavaManager();
+            return true;
+        });
+        bottomMenu.add(Menu.NONE, 9, Menu.NONE, "Build signed APK").setOnMenuItemClickListener(item -> {
+            showSignedApkBuildDialog();
+            return true;
+        });
+        bottomMenu.add(Menu.NONE, 10, Menu.NONE, "Build signed AAB").setOnMenuItemClickListener(item -> {
+            showSignedAabBuildDialog();
             return true;
         });
         bottomPopupMenu.setOnDismissListener(menu -> btnOptions.setChecked(false));
@@ -921,6 +942,60 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         launchActivity(ManageJavaActivity.class, null, new Pair<>("pkgName", q.packageName));
     }
 
+    private void showSignedApkBuildDialog() {
+        GetKeyStoreCredentialsDialog credentialsDialog = new GetKeyStoreCredentialsDialog(this,
+                R.drawable.ic_mtrl_key,
+                "Build signed APK",
+                "Choose how Sketchware Pro should produce the release APK for this build.");
+        credentialsDialog.setListener(credentials -> {
+            BuildRequest request = BuildRequest.signedApk();
+            if (credentials != null) {
+                if (credentials.isForSigningWithTestkey()) {
+                    request.setSignWithTestkey(true);
+                } else {
+                    request.configureResultJarSigning(
+                            credentials.getKeyStorePath(),
+                            credentials.getKeyStorePassword().toCharArray(),
+                            credentials.getKeyAlias(),
+                            credentials.getKeyPassword().toCharArray(),
+                            credentials.getSigningAlgorithm()
+                    );
+                }
+            }
+            BuildTask buildTask = new BuildTask(this, request);
+            currentBuildTask = buildTask;
+            buildTask.execute();
+        });
+        credentialsDialog.show();
+    }
+
+    private void showSignedAabBuildDialog() {
+        GetKeyStoreCredentialsDialog credentialsDialog = new GetKeyStoreCredentialsDialog(this,
+                R.drawable.ic_mtrl_key,
+                "Build signed AAB",
+                "Choose how Sketchware Pro should produce the app bundle for this build.");
+        credentialsDialog.setListener(credentials -> {
+            BuildRequest request = BuildRequest.appBundle();
+            if (credentials != null) {
+                if (credentials.isForSigningWithTestkey()) {
+                    request.setSignWithTestkey(true);
+                } else {
+                    request.configureResultJarSigning(
+                            credentials.getKeyStorePath(),
+                            credentials.getKeyStorePassword().toCharArray(),
+                            credentials.getKeyAlias(),
+                            credentials.getKeyPassword().toCharArray(),
+                            credentials.getSigningAlgorithm()
+                    );
+                }
+            }
+            BuildTask buildTask = new BuildTask(this, request);
+            currentBuildTask = buildTask;
+            buildTask.execute();
+        });
+        credentialsDialog.show();
+    }
+
     /**
      * Opens {@link ManagePermissionActivity}.
      */
@@ -1037,6 +1112,64 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         }
     }
 
+    private static class BuildRequest {
+        enum OutputKind {
+            DEBUG_RUN,
+            SIGNED_APK,
+            APP_BUNDLE
+        }
+
+        private final OutputKind outputKind;
+        private boolean signWithTestkey;
+        private String signingKeystorePath;
+        private char[] signingKeystorePassword;
+        private String signingAliasName;
+        private char[] signingAliasPassword;
+        private String signingAlgorithm;
+
+        private BuildRequest(OutputKind outputKind) {
+            this.outputKind = outputKind;
+        }
+
+        static BuildRequest debugRun() {
+            return new BuildRequest(OutputKind.DEBUG_RUN);
+        }
+
+        static BuildRequest signedApk() {
+            return new BuildRequest(OutputKind.SIGNED_APK);
+        }
+
+        static BuildRequest appBundle() {
+            return new BuildRequest(OutputKind.APP_BUNDLE);
+        }
+
+        void configureResultJarSigning(String keystorePath, char[] keystorePassword, String aliasName,
+                                       char[] aliasPassword, String signatureAlgorithm) {
+            signingKeystorePath = keystorePath;
+            signingKeystorePassword = keystorePassword;
+            signingAliasName = aliasName;
+            signingAliasPassword = aliasPassword;
+            signingAlgorithm = signatureAlgorithm;
+        }
+
+        void setSignWithTestkey(boolean signWithTestkey) {
+            this.signWithTestkey = signWithTestkey;
+        }
+
+        boolean isResultJarSigningEnabled() {
+            return signingKeystorePath != null && signingKeystorePassword != null
+                    && signingAliasName != null && signingAliasPassword != null && signingAlgorithm != null;
+        }
+
+        boolean isDebugRun() {
+            return outputKind == OutputKind.DEBUG_RUN;
+        }
+
+        boolean isAppBundle() {
+            return outputKind == OutputKind.APP_BUNDLE;
+        }
+    }
+
     private static class BuildTask extends BaseTask implements BuildProgressReceiver {
         public static final String ACTION_CANCEL_BUILD = "com.besome.sketch.design.ACTION_CANCEL_BUILD";
         private static final String CHANNEL_ID = "build_notification_channel";
@@ -1048,11 +1181,14 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         private final LinearLayout progressContainer;
         private final TextView progressText;
         private final LinearProgressIndicator progressBar;
+        private final BuildRequest buildRequest;
         public volatile boolean canceled;
         private volatile boolean isBuildFinished;
         private boolean isShowingNotification = false;
+        private boolean buildSucceeded = false;
+        private String finalArtifactPath;
 
-        public BuildTask(DesignActivity activity) {
+        public BuildTask(DesignActivity activity, BuildRequest buildRequest) {
             super(activity);
             notificationManager = (NotificationManager) activity.getSystemService(Context.NOTIFICATION_SERVICE);
             btnRun = activity.btnRun;
@@ -1060,6 +1196,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             progressContainer = activity.findViewById(R.id.progress_container);
             progressText = activity.findViewById(R.id.progress_text);
             progressBar = activity.findViewById(R.id.progress);
+            this.buildRequest = buildRequest == null ? BuildRequest.debugRun() : buildRequest;
         }
 
         public void execute() {
@@ -1075,7 +1212,6 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 updateRunButton(true);
                 activity.r.a("P1I10", true);
                 activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-
                 maybeShowNotification();
             });
         }
@@ -1117,11 +1253,14 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 kC.a(q.assetsPath + File.separator + "fonts");
 
                 ProjectBuilder builder = new ProjectBuilder(this, activity.getApplicationContext(), q);
+                builder.setBuildAppBundle(buildRequest.isAppBundle());
 
                 var fileManager = jC.b(sc_id);
                 var dataManager = jC.a(sc_id);
                 var libraryManager = jC.c(sc_id);
-                q.a(libraryManager, fileManager, dataManager);
+                yq.ExportType exportType = buildRequest.isAppBundle() ? yq.ExportType.AAB
+                        : buildRequest.isDebugRun() ? yq.ExportType.DEBUG_APP : yq.ExportType.SIGN_APP;
+                q.a(libraryManager, fileManager, dataManager, exportType);
                 builder.buildBuiltInLibraryInformation();
                 q.b(fileManager, dataManager, libraryManager, builder.getBuiltInLibraryManager());
                 q.f();
@@ -1185,19 +1324,61 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                     return;
                 }
 
-                onProgress("Building APK...", 19);
-                builder.buildApk();
-                if (canceled) {
-                    return;
+                if (buildRequest.isAppBundle()) {
+                    AppBundleCompiler compiler = new AppBundleCompiler(builder);
+                    onProgress("Creating app module...", 19);
+                    compiler.createModuleMainArchive();
+                    if (canceled) {
+                        return;
+                    }
+
+                    onProgress("Building app bundle...", 20);
+                    compiler.buildBundle();
+                    if (canceled) {
+                        return;
+                    }
+
+                    onProgress("Signing app bundle...", 21);
+                    String createdBundlePath = AppBundleCompiler.getDefaultAppBundleOutputFile(q).getAbsolutePath();
+                    String signedAppBundleDirectoryPath = FileUtil.getExternalStorageDir()
+                            + File.separator + "sketchware"
+                            + File.separator + "signed_aab";
+                    FileUtil.makeDir(signedAppBundleDirectoryPath);
+                    String outputPath = signedAppBundleDirectoryPath + File.separator + new File(createdBundlePath).getName();
+                    finalArtifactPath = signOrCopyArtifact(createdBundlePath, outputPath, true);
+                } else if (buildRequest.isDebugRun()) {
+                    onProgress("Building APK...", 19);
+                    builder.buildApk();
+                    if (canceled) {
+                        return;
+                    }
+
+                    onProgress("Signing APK...", 20);
+                    builder.signDebugApk();
+                    if (canceled) {
+                        return;
+                    }
+
+                    finalArtifactPath = q.finalToInstallApkPath;
+                    activity.runOnUiThread(activity::installBuiltApk);
+                } else {
+                    onProgress("Building APK...", 19);
+                    builder.buildApk();
+                    if (canceled) {
+                        return;
+                    }
+
+                    onProgress("Aligning APK...", 20);
+                    builder.runZipalign(builder.yq.unsignedUnalignedApkPath, builder.yq.unsignedAlignedApkPath);
+                    if (canceled) {
+                        return;
+                    }
+
+                    onProgress("Signing APK...", 21);
+                    finalArtifactPath = signOrCopyArtifact(builder.yq.unsignedAlignedApkPath, builder.yq.releaseApkPath, false);
                 }
 
-                onProgress("Signing APK...", 20);
-                builder.signDebugApk();
-                if (canceled) {
-                    return;
-                }
-
-                activity.installBuiltApk();
+                buildSucceeded = true;
                 isBuildFinished = true;
             } catch (MissingFileException e) {
                 isBuildFinished = true;
@@ -1225,21 +1406,67 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                     dialog.setPositiveButton("Dismiss", null);
                     dialog.show();
                 });
-            } catch (zy zy) {
-                isBuildFinished = true;
-                activity.indicateCompileErrorOccurred(zy.getMessage());
             } catch (Throwable tr) {
                 isBuildFinished = true;
-                LogUtil.e("DesignActivity$BuildTask", "Failed to build project", tr);
-                activity.indicateCompileErrorOccurred(Log.getStackTraceString(tr));
+                if (tr instanceof LoadKeystoreException &&
+                        "Incorrect password, or integrity check failed.".equals(tr.getMessage())) {
+                    activity.runOnUiThread(() -> SketchwareUtil.showAnErrorOccurredDialog(activity,
+                            "Either an incorrect password was entered, or the key store is corrupt."));
+                } else if (tr instanceof zy) {
+                    activity.indicateCompileErrorOccurred(((zy) tr).getMessage());
+                } else {
+                    LogUtil.e("DesignActivity$BuildTask", "Failed to build project", tr);
+                    activity.indicateCompileErrorOccurred(Log.getStackTraceString(tr));
+                }
             } finally {
                 activity.runOnUiThread(this::onPostExecute);
             }
         }
 
+        private String signOrCopyArtifact(String inputPath, String outputPath, boolean bundle) throws Exception {
+            if (buildRequest.signWithTestkey) {
+                if (bundle) {
+                    ZipSigner signer = new ZipSigner();
+                    signer.setKeymode(ZipSigner.KEY_TESTKEY);
+                    signer.signZip(inputPath, outputPath);
+                } else {
+                    TestkeySignBridge.signWithTestkey(inputPath, outputPath);
+                }
+                return outputPath;
+            }
+
+            if (buildRequest.isResultJarSigningEnabled()) {
+                Security.addProvider(new BouncyCastleProvider());
+                CustomKeySigner.signZip(
+                        new ZipSigner(),
+                        buildRequest.signingKeystorePath,
+                        buildRequest.signingKeystorePassword,
+                        buildRequest.signingAliasName,
+                        buildRequest.signingAliasPassword,
+                        buildRequest.signingAlgorithm,
+                        inputPath,
+                        outputPath
+                );
+                return outputPath;
+            }
+
+            String unsignedOutputPath = getCorrectResultFilename(outputPath, bundle);
+            FileUtil.copyFile(inputPath, unsignedOutputPath);
+            return unsignedOutputPath;
+        }
+
+        private String getCorrectResultFilename(String oldFormatFilename, boolean bundle) {
+            if (!buildRequest.isResultJarSigningEnabled() && !buildRequest.signWithTestkey) {
+                return bundle
+                        ? oldFormatFilename.replace(".aab", ".unsigned.aab")
+                        : oldFormatFilename.replace("_release", "_release.unsigned");
+            }
+            return oldFormatFilename;
+        }
+
         @Override
         public void onProgress(String progress, int step) {
-            int totalSteps = 20;
+            int totalSteps = buildRequest.isDebugRun() ? 20 : 21;
 
             DesignActivity activity = getActivity();
             if (activity == null) return;
@@ -1247,11 +1474,14 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             activity.runOnUiThread(() -> {
                 progressBar.setIndeterminate(step == -1);
                 if (!canceled) {
-                    updateNotification(progress + " (" + step + " / " + totalSteps + ")");
+                    String decoratedProgress = step > 0 ? progress + " (" + step + " / " + totalSteps + ")" : progress;
+                    updateNotification(decoratedProgress);
                 }
                 progressText.setText(progress);
-                var progressInt = (step * 100) / totalSteps;
-                progressBar.setProgress(progressInt, true);
+                if (step > 0) {
+                    var progressInt = (step * 100) / totalSteps;
+                    progressBar.setProgress(progressInt, true);
+                }
                 Log.d("DesignActivity$BuildTask", step + " / " + totalSteps);
             });
         }
@@ -1269,6 +1499,16 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                     updateRunButton(false);
                     activity.updateBottomMenu();
                     activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+                    if (buildSucceeded && !canceled && !buildRequest.isDebugRun() && finalArtifactPath != null) {
+                        String artifactLabel = buildRequest.isAppBundle() ? "AAB" : "APK";
+                        new MaterialAlertDialogBuilder(activity)
+                                .setIcon(R.drawable.open_box_48)
+                                .setTitle("Finished building " + artifactLabel)
+                                .setMessage("You can find the generated " + artifactLabel + " at:\n" + finalArtifactPath)
+                                .setPositiveButton("OK", null)
+                                .show();
+                    }
                 }
             });
         }
@@ -1282,9 +1522,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             }
             DesignActivity activity = getActivity();
             if (activity != null) {
-                activity.runOnUiThread(() -> {
-                    activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                });
+                activity.runOnUiThread(() -> activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON));
             }
         }
 
@@ -1297,7 +1535,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
 
                 NotificationCompat.Builder builder = new NotificationCompat.Builder(activity, CHANNEL_ID)
                         .setSmallIcon(R.drawable.ic_mtrl_code)
-                        .setContentTitle("Building project")
+                        .setContentTitle(buildRequest.isAppBundle() ? "Building app bundle" : "Building project")
                         .setContentText("Starting build...")
                         .setOngoing(true)
                         .setProgress(0, 0, true)
@@ -1314,7 +1552,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
 
             NotificationCompat.Builder builder = new NotificationCompat.Builder(activity, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_mtrl_code)
-                    .setContentTitle("Building project")
+                    .setContentTitle(buildRequest.isAppBundle() ? "Building app bundle" : "Building project")
                     .setContentText(progress)
                     .setOngoing(true)
                     .setProgress(0, 0, true)
@@ -1328,7 +1566,11 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             if (activity == null) return null;
 
             Intent cancelIntent = new Intent(BuildTask.ACTION_CANCEL_BUILD);
-            return PendingIntent.getBroadcast(activity, 0, cancelIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                flags |= PendingIntent.FLAG_IMMUTABLE;
+            }
+            return PendingIntent.getBroadcast(activity, 0, cancelIntent, flags);
         }
 
         private void createNotificationChannelIfNeeded() {
