@@ -115,8 +115,23 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
         setupUI();
         frc = new FileResConfig(sc_id);
         fpu = new FilePathUtil();
-        current_path = Uri.parse(fpu.getPathJava(sc_id)).getPath();
+        current_path = resolveInitialJavaManagerPath();
         refresh();
+    }
+
+
+    private String resolveInitialJavaManagerPath() {
+        String defaultPath = Uri.parse(fpu.getPathJava(sc_id)).getPath();
+        String importMetadataPath = FileUtil.getExternalStorageDir() + "/.sketchware/data/" + sc_id + "/import_metadata.json";
+        if (!FileUtil.isExistFile(importMetadataPath)) {
+            return defaultPath;
+        }
+        String pkgName = getIntent().getStringExtra("pkgName");
+        if (pkgName == null || pkgName.trim().isEmpty()) {
+            return defaultPath;
+        }
+        File packageDirectory = new File(fpu.getPathJava(sc_id), pkgName.replace('.', File.separatorChar));
+        return packageDirectory.isDirectory() ? packageDirectory.getAbsolutePath() : defaultPath;
     }
 
     @Override

@@ -10,14 +10,12 @@ import static mod.hey.studios.util.ProjectFile.getDefaultColor;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Environment;
 import android.text.TextUtils;
 import android.util.Log;
 
 import com.besome.sketch.beans.ProjectFileBean;
-import com.besome.sketch.beans.ProjectResourceBean;
 import com.besome.sketch.beans.ViewBean;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -92,9 +90,14 @@ public class AndroidStudioProjectImporter {
     private static final Pattern INFLATE_PATTERN = Pattern.compile("inflate\\s*\\(\\s*R\\.layout\\.([A-Za-z0-9_]+)\\s*\\)");
     private static final Pattern JAVA_RESOURCE_REFERENCE_PATTERN = Pattern.compile("\\bR\\.([A-Za-z_][A-Za-z0-9_]*)\\.([A-Za-z0-9_]+)\\b");
     private static final Pattern XML_RESOURCE_REFERENCE_PATTERN = Pattern.compile("@\\+?(?:(?:[A-Za-z0-9_.]+):)?([A-Za-z_][A-Za-z0-9_]*)/([A-Za-z0-9_]+)");
-    private static final Pattern GRADLE_PROJECT_DEPENDENCY_PATTERN = Pattern.compile("project\\s*\\(\\s*(?:path\\s*:\\s*)?['\"](:[^'\"]+)['\"]\\s*\\)");
-    private static final Pattern QUOTED_COLON_PATH_PATTERN = Pattern.compile("['\"](:[^'\"]+)['\"]");
-    private static final Pattern FLAVOR_DIMENSION_PATTERN = Pattern.compile("(?m)\\bdimension\\s*(?:=)?\\s*['\"]([^'\"]+)['\"]");
+    private static final Pattern PACKAGE_DECL_PATTERN = Pattern.compile("(?m)^[\\t ]*package\\s+([A-Za-z_][A-Za-z0-9_.]*)\\s*;?");
+    private static final Pattern JAVA_CLASS_NAME_PATTERN = Pattern.compile("\\bclass\\s+([A-Za-z_][A-Za-z0-9_]*)\\b");
+    private static final Pattern JAVA_ACTIVITY_EXTENDS_PATTERN = Pattern.compile("\\bclass\\s+[A-Za-z_][A-Za-z0-9_]*\\s+extends\\s+[A-Za-z0-9_$.]*Activity\\b");
+    private static final Pattern KOTLIN_ACTIVITY_EXTENDS_PATTERN = Pattern.compile("\\bclass\\s+[A-Za-z_][A-Za-z0-9_]*\\s*:\\s*[A-Za-z0-9_$.]*Activity\\s*(?:\\(|\\{)");
+    private static final Pattern DATABINDING_SET_CONTENT_VIEW_PATTERN = Pattern.compile("DataBindingUtil\\s*\\.\\s*setContentView\\s*\\(\\s*[^,]+,\\s*R\\.layout\\.([A-Za-z0-9_]+)\\s*\\)");
+    private static final Pattern DATABINDING_INFLATE_PATTERN = Pattern.compile("DataBindingUtil\\s*\\.\\s*inflate\\s*\\([^,]+,\\s*R\\.layout\\.([A-Za-z0-9_]+)\\s*,");
+    private static final Pattern VIEWBINDING_INFLATE_PATTERN = Pattern.compile("\\b([A-Za-z0-9_]+)Binding\\s*\\.\\s*inflate\\s*\\(");
+    private static final Pattern ACTIVITY_THEME_PATTERN = Pattern.compile("Theme\\.(Material3|MaterialComponents|AppCompat)([^\\n]*)");
     private static final long MAX_EXTRACTED_BYTES = 512L * 1024L * 1024L;
     private static final int MAX_EXTRACTED_FILES = 20000;
     private static final Set<String> TEST_SOURCE_SET_NAMES = new HashSet<>(Arrays.asList(
@@ -109,9 +112,23 @@ public class AndroidStudioProjectImporter {
     private final Gson gson = new Gson();
     private final FilePathUtil filePathUtil = new FilePathUtil();
 
+    private ImportProgressListener progressListener;
+
     public AndroidStudioProjectImporter(Context context) {
         this.context = context.getApplicationContext();
     }
+
+    public AndroidStudioProjectImporter setProgressListener(ImportProgressListener progressListener) {
+        this.progressListener = progressListener;
+        return this;
+    }
+
+    private void notifyProgress(String stage) {
+        if (progressListener != null && !TextUtils.isEmpty(stage)) {
+            progressListener.onProgress(stage);
+        }
+    }
+
 
     public ImportResult importFromZipUri(Uri uri) throws Exception {
         File tempZip = new File(context.getCacheDir(), "import-" + System.currentTimeMillis() + ".zip");
@@ -126,10 +143,12 @@ public class AndroidStudioProjectImporter {
 
     public ImportResult importFromGitHub(String repoUrl, String branch, String token) throws Exception {
         GitHubRepoSpec repoSpec = GitHubRepoSpec.parse(repoUrl, branch);
+        notifyProgress("Resolving GitHub repository...");
         if (TextUtils.isEmpty(repoSpec.branch)) {
             repoSpec.branch = fetchDefaultBranch(repoSpec, token);
         }
         File archive = new File(context.getCacheDir(), repoSpec.repo + "-" + System.currentTimeMillis() + ".zip");
+        notifyProgress("Downloading GitHub archive for " + repoSpec.owner + "/" + repoSpec.repo + "#" + repoSpec.branch + "...");
         downloadGitHubArchive(repoSpec, token, archive);
         ImportResult result = importFromZipFile(archive, "github", repoSpec.repo);
         result.sourceLabel = repoSpec.owner + "/" + repoSpec.repo + "#" + repoSpec.branch;
@@ -137,8 +156,10 @@ public class AndroidStudioProjectImporter {
     }
 
     public ImportResult importFromZipFile(File zipFile, String sourceType, String preferredProjectName) throws Exception {
+        notifyProgress("Extracting archive...");
         File extractDir = new File(context.getCacheDir(), "import-extracted-" + System.currentTimeMillis());
         safeExtract(zipFile, extractDir);
+        notifyProgress("Analyzing Gradle modules and manifests...");
         DetectedProject detectedProject = detectProject(extractDir);
         if (detectedProject != null) {
             detectedProject.archiveLabel = zipFile.getName();
@@ -201,6 +222,7 @@ public class AndroidStudioProjectImporter {
 
     private ImportResult importGenericAndroidProject(DetectedProject detectedProject, String sourceType, String preferredProjectName) throws Exception {
         GradleSummary gradle = parseGradle(detectedProject);
+        notifyProgress("Parsing manifest and project settings...");
         ManifestSummary manifest = parseManifest(detectedProject);
 
         String projectName = chooseProjectName(preferredProjectName, manifest.applicationLabel, detectedProject.rootDirectory.getName());
@@ -224,12 +246,14 @@ public class AndroidStudioProjectImporter {
 
         ensureProjectDirectories(scId);
 
+        notifyProgress("Copying source sets, resources, assets, and native libraries...");
         copySourceTree(detectedProject.sourceRoots, new File(filePathUtil.getPathJava(scId)));
         copyResources(detectedProject.resDirectories, new File(filePathUtil.getPathResource(scId)));
         copyDirectories(detectedProject.assetsDirectories, new File(filePathUtil.getPathAssets(scId)));
         copyDirectories(detectedProject.jniLibsDirectories, new File(filePathUtil.getPathNativelibs(scId)));
         importLocalJarsAndAars(detectedProject.libsDirectories, scId);
 
+        notifyProgress("Resolving Maven dependencies and local libraries...");
         resolveAndRegisterDependencies(scId, gradle.dependencies);
 
         if (!manifest.permissions.isEmpty()) {
@@ -249,11 +273,13 @@ public class AndroidStudioProjectImporter {
         result.importedDependencies.addAll(gradle.dependencies);
         result.unsupportedFeatures.addAll(gradle.warnings);
 
-        File importedJavaRoot = new File(filePathUtil.getPathJava(scId));
-        File importedResourceRoot = new File(filePathUtil.getPathResource(scId));
-        normalizeImportedProjectResources(scId, manifest, importedJavaRoot, importedResourceRoot, result);
-        registerImportedVisualAssets(scId, importedResourceRoot, result);
+        notifyProgress("Normalizing imported resources and launcher icons...");
+        normalizeImportedProjectResources(scId, manifest, new File(filePathUtil.getPathJava(scId)),
+                new File(filePathUtil.getPathResource(scId)), result);
+        notifyProgress("Registering screens, custom views, and manifest-backed source files...");
         materializeActivitiesAndCustomViews(scId, manifest, detectedProject, result);
+        applyDetectedThemeAndLibraryState(scId, gradle, manifest, detectedProject, result);
+        writeImportedComponentIndexes(scId, manifest);
         writeImportMetadata(scId, sourceType, false);
         writeImportReport(result);
         result.summary = buildSummary(result, manifest);
@@ -285,10 +311,7 @@ public class AndroidStudioProjectImporter {
                 layoutName = detectLayoutName(source);
             }
             if (layoutName == null) {
-                File guessed = findLayoutFile(detectedProject.layoutDirectories, fileBean.getXmlName().replace(".xml", ""));
-                if (guessed != null && guessed.exists()) {
-                    layoutName = screenName;
-                }
+                layoutName = findBestMatchingLayoutName(detectedProject.layoutDirectories, screenName, simpleClassName);
             }
 
             if (!TextUtils.isEmpty(layoutName)) {
@@ -299,6 +322,31 @@ public class AndroidStudioProjectImporter {
                 }
             } else {
                 result.codeOnlyFiles.add(simpleClassName + " (no XML layout was detected)");
+            }
+        }
+
+        Set<String> registeredActivityClasses = new LinkedHashSet<>();
+        for (ManifestActivity manifestActivity : manifest.activities) {
+            registeredActivityClasses.add(manifestActivity.fullyQualifiedName);
+        }
+        for (DiscoveredActivity discoveredActivity : discoverSourceActivities(detectedProject.sourceRoots)) {
+            if (registeredActivityClasses.contains(discoveredActivity.fullyQualifiedName)) {
+                continue;
+            }
+            String screenName = uniquifyScreenName(usedScreenNames, toSketchwareScreenName(discoveredActivity.simpleClassName));
+            ProjectFileBean fileBean = new ProjectFileBean(ProjectFileBean.PROJECT_FILE_TYPE_ACTIVITY, screenName);
+            jC.b(scId).a(fileBean);
+            result.visualScreens.add(screenName + " (source-discovered)");
+            if (!TextUtils.isEmpty(discoveredActivity.layoutName)) {
+                File originalLayout = findLayoutFile(detectedProject.layoutDirectories, discoveredActivity.layoutName);
+                if (originalLayout != null && originalLayout.exists()) {
+                    importedActivityLayouts.add(discoveredActivity.layoutName);
+                    importLayoutForScreen(scId, fileBean, discoveredActivity.layoutName, originalLayout, rootLayoutManager, result);
+                } else {
+                    result.codeOnlyFiles.add(discoveredActivity.simpleClassName + " (layout @layout/" + discoveredActivity.layoutName + " was referenced but not found)");
+                }
+            } else {
+                result.codeOnlyFiles.add(discoveredActivity.simpleClassName + " (no XML layout was detected)");
             }
         }
 
@@ -811,166 +859,6 @@ public class AndroidStudioProjectImporter {
         return filename.substring(0, extensionIndex);
     }
 
-    private void registerImportedVisualAssets(String scId, File resourceRoot, ImportResult result) {
-        if (resourceRoot == null || !resourceRoot.isDirectory()) {
-            return;
-        }
-
-        String imageStorePath = jC.d(scId).l();
-        File imageStore = new File(imageStorePath);
-        File svgStore = new File(filePathUtil.getPathSvg(scId));
-        imageStore.mkdirs();
-        svgStore.mkdirs();
-
-        Map<String, List<File>> visualAssetsByName = collectVisualAssetsByName(resourceRoot);
-        ArrayList<ProjectResourceBean> importedImages = new ArrayList<>();
-        int registeredCount = 0;
-
-        for (Map.Entry<String, List<File>> entry : visualAssetsByName.entrySet()) {
-            String resourceName = entry.getKey();
-            if (TextUtils.isEmpty(resourceName) || "default_image".equals(resourceName)) {
-                continue;
-            }
-
-            File selectedAsset = chooseBestVisualAssetCandidate(entry.getValue());
-            if (selectedAsset == null) {
-                continue;
-            }
-
-            String storedFilename = materializeVisualAssetForImageManager(scId, selectedAsset, imageStore, svgStore, result);
-            if (TextUtils.isEmpty(storedFilename)) {
-                continue;
-            }
-
-            importedImages.add(new ProjectResourceBean(
-                    ProjectResourceBean.PROJECT_RES_TYPE_FILE,
-                    resourceName,
-                    storedFilename
-            ));
-            registeredCount++;
-        }
-
-        jC.d(scId).b(importedImages);
-        jC.d(scId).y();
-
-        if (registeredCount > 0) {
-            result.warnings.add("Registered " + registeredCount + " drawable asset(s) in Sketchware's image manager for visual-editor compatibility.");
-        }
-    }
-
-    private Map<String, List<File>> collectVisualAssetsByName(File resourceRoot) {
-        Map<String, List<File>> assets = new LinkedHashMap<>();
-        File[] resourceDirectories = resourceRoot.listFiles();
-        if (resourceDirectories == null) {
-            return assets;
-        }
-
-        for (File resourceDirectory : resourceDirectories) {
-            if (resourceDirectory == null || !resourceDirectory.isDirectory()) {
-                continue;
-            }
-            String baseType = getBaseResourceType(resourceDirectory.getName());
-            if (!"drawable".equals(baseType) && !"mipmap".equals(baseType)) {
-                continue;
-            }
-
-            File[] children = resourceDirectory.listFiles();
-            if (children == null) {
-                continue;
-            }
-            for (File child : children) {
-                if (child == null || !child.isFile()) {
-                    continue;
-                }
-                String resourceName = getResourceName(child.getName());
-                if (resourceName == null || !isImportableVisualAsset(child)) {
-                    continue;
-                }
-                assets.computeIfAbsent(resourceName, unused -> new ArrayList<>()).add(child);
-            }
-        }
-        return assets;
-    }
-
-    private boolean isImportableVisualAsset(File file) {
-        return isRasterIconFile(file) || isVectorDrawableFile(file);
-    }
-
-    private boolean isVectorDrawableFile(File file) {
-        if (file == null || !file.isFile() || !file.getName().toLowerCase(Locale.US).endsWith(".xml")) {
-            return false;
-        }
-        String content = FileUtil.readFile(file.getAbsolutePath());
-        return content.contains("<vector");
-    }
-
-    private File chooseBestVisualAssetCandidate(List<File> files) {
-        ArrayList<File> rasters = new ArrayList<>();
-        ArrayList<File> vectors = new ArrayList<>();
-        for (File file : files) {
-            if (isRasterIconFile(file)) {
-                rasters.add(file);
-            } else if (isVectorDrawableFile(file)) {
-                vectors.add(file);
-            }
-        }
-
-        if (!rasters.isEmpty()) {
-            rasters.sort(Comparator.comparingInt(this::getDrawableDensityScore).reversed());
-            return rasters.get(0);
-        }
-        if (!vectors.isEmpty()) {
-            vectors.sort(Comparator.comparingInt(this::getDrawableDensityScore).reversed());
-            return vectors.get(0);
-        }
-        return null;
-    }
-
-    private String materializeVisualAssetForImageManager(String scId, File sourceAsset, File imageStore,
-                                                         File svgStore, ImportResult result) {
-        try {
-            String lowerName = sourceAsset.getName().toLowerCase(Locale.US);
-            String resourceName = getResourceName(sourceAsset.getName());
-            if (TextUtils.isEmpty(resourceName)) {
-                return null;
-            }
-
-            if (isVectorDrawableFile(sourceAsset)) {
-                File xmlTarget = new File(imageStore, resourceName + ".xml");
-                FileUtil.copyFile(sourceAsset.getAbsolutePath(), xmlTarget.getAbsolutePath());
-                String svg = new mod.bobur.VectorDrawableParser(FileUtil.readFile(sourceAsset.getAbsolutePath())).toSvg();
-                FileUtil.writeFile(new File(svgStore, resourceName + ".svg").getAbsolutePath(), svg);
-                return xmlTarget.getName();
-            }
-
-            boolean isNinePatch = lowerName.endsWith(".9.png");
-            String storedName = resourceName + (isNinePatch ? ".9.png" : ".png");
-            File targetFile = new File(imageStore, storedName);
-
-            if (isNinePatch || lowerName.endsWith(".png")) {
-                FileUtil.copyFile(sourceAsset.getAbsolutePath(), targetFile.getAbsolutePath());
-                return targetFile.getName();
-            }
-
-            Bitmap bitmap = BitmapFactory.decodeFile(sourceAsset.getAbsolutePath());
-            if (bitmap != null) {
-                try (FileOutputStream outputStream = new FileOutputStream(targetFile, false)) {
-                    if (bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)) {
-                        return targetFile.getName();
-                    }
-                }
-            }
-
-            String fallbackName = resourceName + lowerName.substring(lowerName.lastIndexOf('.'));
-            File fallbackTarget = new File(imageStore, fallbackName);
-            FileUtil.copyFile(sourceAsset.getAbsolutePath(), fallbackTarget.getAbsolutePath());
-            return fallbackTarget.getName();
-        } catch (Throwable throwable) {
-            result.warnings.add("Failed to register drawable asset " + sourceAsset.getName() + " in Sketchware's image manager (" + throwable.getMessage() + ")");
-            return null;
-        }
-    }
-
     private void resolveAndRegisterDependencies(String scId, List<String> dependencies) {
         ArrayList<HashMap<String, Object>> localLibraries = LocalLibrariesUtil.getLocalLibraries(scId);
         Set<String> existingDependencies = new LinkedHashSet<>();
@@ -1295,15 +1183,139 @@ public class AndroidStudioProjectImporter {
         if (matcher.find()) {
             return matcher.group(1);
         }
+        matcher = DATABINDING_SET_CONTENT_VIEW_PATTERN.matcher(source);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        matcher = DATABINDING_INFLATE_PATTERN.matcher(source);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
         matcher = INFLATE_PATTERN.matcher(source);
         if (matcher.find()) {
             return matcher.group(1);
+        }
+        matcher = VIEWBINDING_INFLATE_PATTERN.matcher(source);
+        if (matcher.find()) {
+            return bindingClassNameToLayoutName(matcher.group(1));
         }
         matcher = LAYOUT_REFERENCE_PATTERN.matcher(source);
         if (matcher.find()) {
             return matcher.group(1);
         }
         return null;
+    }
+
+    private String bindingClassNameToLayoutName(String bindingClassName) {
+        if (TextUtils.isEmpty(bindingClassName)) {
+            return null;
+        }
+        String value = bindingClassName.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toLowerCase(Locale.US);
+        value = value.replaceAll("^_+|_+$", "");
+        if (value.endsWith("_binding")) {
+            value = value.substring(0, value.length() - "_binding".length());
+        }
+        return value;
+    }
+
+    private String findBestMatchingLayoutName(List<File> layoutDirectories, String screenName, String simpleClassName) {
+        for (String candidate : buildLikelyLayoutNames(screenName, simpleClassName)) {
+            File guessed = findLayoutFile(layoutDirectories, candidate);
+            if (guessed != null && guessed.isFile()) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private List<String> buildLikelyLayoutNames(String screenName, String simpleClassName) {
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        if (!TextUtils.isEmpty(screenName)) {
+            candidates.add(screenName);
+            candidates.add("activity_" + screenName);
+            candidates.add("fragment_" + screenName);
+            candidates.add(screenName + "_activity");
+            candidates.add(screenName + "_fragment");
+            if (screenName.endsWith("_activity") && screenName.length() > 9) {
+                String trimmed = screenName.substring(0, screenName.length() - 9);
+                candidates.add(trimmed);
+                candidates.add("activity_" + trimmed);
+            }
+        }
+        if (!TextUtils.isEmpty(simpleClassName)) {
+            String snake = toSketchwareScreenName(simpleClassName);
+            candidates.add(snake);
+            candidates.add("activity_" + snake);
+            candidates.add("fragment_" + snake);
+            String baseClassName = simpleClassName;
+            if (baseClassName.endsWith("Activity") && baseClassName.length() > "Activity".length()) {
+                baseClassName = baseClassName.substring(0, baseClassName.length() - "Activity".length());
+                String baseSnake = toSketchwareScreenName(baseClassName);
+                candidates.add(baseSnake);
+                candidates.add("activity_" + baseSnake);
+                candidates.add("fragment_" + baseSnake);
+            }
+            if (baseClassName.endsWith("Fragment") && baseClassName.length() > "Fragment".length()) {
+                baseClassName = baseClassName.substring(0, baseClassName.length() - "Fragment".length());
+                String baseSnake = toSketchwareScreenName(baseClassName);
+                candidates.add(baseSnake);
+                candidates.add("fragment_" + baseSnake);
+                candidates.add("activity_" + baseSnake);
+            }
+        }
+        return new ArrayList<>(candidates);
+    }
+
+    private ArrayList<DiscoveredActivity> discoverSourceActivities(List<File> sourceRoots) {
+        LinkedHashMap<String, DiscoveredActivity> activities = new LinkedHashMap<>();
+        for (File sourceRoot : sourceRoots) {
+            if (sourceRoot == null || !sourceRoot.isDirectory()) {
+                continue;
+            }
+            for (File sourceFile : collectFilesRecursively(sourceRoot)) {
+                if (!sourceFile.isFile()) {
+                    continue;
+                }
+                String lowerName = sourceFile.getName().toLowerCase(Locale.US);
+                if (!(lowerName.endsWith(".java") || lowerName.endsWith(".kt"))) {
+                    continue;
+                }
+                String source = FileUtil.readFile(sourceFile.getAbsolutePath());
+                if (!looksLikeActivitySource(source)) {
+                    continue;
+                }
+                String packageName = detectPackageName(source);
+                String className = detectTopLevelClassName(source);
+                if (TextUtils.isEmpty(className)) {
+                    className = FileUtil.getFileNameNoExtension(sourceFile.getName());
+                }
+                String fqcn = TextUtils.isEmpty(packageName) ? className : packageName + "." + className;
+                DiscoveredActivity discoveredActivity = new DiscoveredActivity();
+                discoveredActivity.fullyQualifiedName = fqcn;
+                discoveredActivity.simpleClassName = className;
+                discoveredActivity.layoutName = detectLayoutName(source);
+                activities.putIfAbsent(fqcn, discoveredActivity);
+            }
+        }
+        return new ArrayList<>(activities.values());
+    }
+
+    private boolean looksLikeActivitySource(String source) {
+        if (TextUtils.isEmpty(source)) {
+            return false;
+        }
+        return JAVA_ACTIVITY_EXTENDS_PATTERN.matcher(source).find()
+                || KOTLIN_ACTIVITY_EXTENDS_PATTERN.matcher(source).find();
+    }
+
+    private String detectPackageName(String source) {
+        Matcher matcher = PACKAGE_DECL_PATTERN.matcher(source);
+        return matcher.find() ? matcher.group(1).trim() : null;
+    }
+
+    private String detectTopLevelClassName(String source) {
+        Matcher matcher = JAVA_CLASS_NAME_PATTERN.matcher(source);
+        return matcher.find() ? matcher.group(1).trim() : null;
     }
 
     private File findSourceFileForClass(List<File> sourceRoots, String fqcn) {
@@ -1360,10 +1372,6 @@ public class AndroidStudioProjectImporter {
 
         DetectedProject detectedProject = new DetectedProject();
         detectedProject.rootDirectory = determineProjectRoot(extractedRoot, modules);
-        for (AndroidModule module : modules) {
-            module.modulePath = computeModulePath(detectedProject.rootDirectory, module.moduleDirectory);
-        }
-        ArrayList<AndroidModule> includedModules = collectReferencedModules(modules, primaryModule);
         detectedProject.archiveLabel = detectedProject.rootDirectory.getName();
         detectedProject.appDirectory = primaryModule.moduleDirectory;
         detectedProject.primaryManifestFile = primaryModule.getMainManifest();
@@ -1379,7 +1387,7 @@ public class AndroidStudioProjectImporter {
         detectedProject.libsDirectories = new ArrayList<>();
         detectedProject.libraryManifestFiles = new ArrayList<>();
 
-        for (AndroidModule module : includedModules) {
+        for (AndroidModule module : modules) {
             if (!(module == primaryModule || module.applicationModule || module.libraryModule || module.dynamicFeatureModule)) {
                 continue;
             }
@@ -1403,7 +1411,7 @@ public class AndroidStudioProjectImporter {
             }
         }
 
-        for (AndroidModule module : includedModules) {
+        for (AndroidModule module : modules) {
             File moduleLibs = new File(module.moduleDirectory, "libs");
             if (moduleLibs.isDirectory()) {
                 addUniqueFile(detectedProject.libsDirectories, moduleLibs);
@@ -1425,55 +1433,6 @@ public class AndroidStudioProjectImporter {
             }
         }
         return detectedProject;
-    }
-
-    private String computeModulePath(File projectRoot, File moduleDirectory) {
-        try {
-            String rootPath = projectRoot.getCanonicalPath();
-            String modulePath = moduleDirectory.getCanonicalPath();
-            if (rootPath.equals(modulePath)) {
-                return ":";
-            }
-            if (modulePath.startsWith(rootPath + File.separator)) {
-                String relative = modulePath.substring(rootPath.length() + 1).replace(File.separatorChar, ':');
-                return ":" + relative;
-            }
-        } catch (IOException ignored) {
-        }
-        return ":" + moduleDirectory.getName();
-    }
-
-    private ArrayList<AndroidModule> collectReferencedModules(List<AndroidModule> modules, AndroidModule primaryModule) {
-        LinkedHashMap<String, AndroidModule> modulesByGradlePath = new LinkedHashMap<>();
-        for (AndroidModule module : modules) {
-            if (!TextUtils.isEmpty(module.modulePath)) {
-                modulesByGradlePath.put(module.modulePath, module);
-            }
-        }
-
-        LinkedHashSet<AndroidModule> included = new LinkedHashSet<>();
-        ArrayList<AndroidModule> queue = new ArrayList<>();
-        queue.add(primaryModule);
-        included.add(primaryModule);
-        boolean discoveredDependency = false;
-
-        for (int i = 0; i < queue.size(); i++) {
-            AndroidModule current = queue.get(i);
-            for (String dependencyPath : current.projectDependencies) {
-                AndroidModule dependencyModule = modulesByGradlePath.get(dependencyPath);
-                if (dependencyModule != null) {
-                    discoveredDependency = true;
-                    if (included.add(dependencyModule)) {
-                        queue.add(dependencyModule);
-                    }
-                }
-            }
-        }
-
-        if (!discoveredDependency) {
-            return new ArrayList<>(modules);
-        }
-        return new ArrayList<>(included);
     }
 
     private File determineProjectRoot(File extractedRoot, List<AndroidModule> modules) {
@@ -1518,210 +1477,19 @@ public class AndroidStudioProjectImporter {
     }
 
     private List<File> getOrderedManifestFiles(AndroidModule module) {
-        ArrayList<String> sourceSetNames = new ArrayList<>(getSelectedSourceSetNames(module));
-        if (sourceSetNames.isEmpty()) {
-            sourceSetNames.addAll(module.manifestsBySourceSet.keySet());
-            sourceSetNames.sort(this::compareSourceSetNames);
-        }
+        LinkedHashSet<String> orderedSourceSets = new LinkedHashSet<>();
+        orderedSourceSets.addAll(module.preferredSourceSetNames);
+        ArrayList<String> sourceSetNames = new ArrayList<>(module.manifestsBySourceSet.keySet());
+        sourceSetNames.sort(this::compareSourceSetNames);
+        orderedSourceSets.addAll(sourceSetNames);
         ArrayList<File> files = new ArrayList<>();
-        for (String sourceSetName : sourceSetNames) {
+        for (String sourceSetName : orderedSourceSets) {
             File manifestFile = module.manifestsBySourceSet.get(sourceSetName);
             if (manifestFile != null && manifestFile.isFile()) {
                 files.add(manifestFile);
             }
         }
         return files;
-    }
-
-    private List<String> getSelectedSourceSetNames(AndroidModule module) {
-        LinkedHashSet<String> allSourceSetNames = new LinkedHashSet<>();
-        allSourceSetNames.addAll(module.sourceSetNames);
-        allSourceSetNames.addAll(module.manifestsBySourceSet.keySet());
-
-        ArrayList<String> available = new ArrayList<>();
-        for (String sourceSetName : allSourceSetNames) {
-            if (!TextUtils.isEmpty(sourceSetName) && !isTestSourceSet(sourceSetName)) {
-                available.add(sourceSetName);
-            }
-        }
-        available.sort(this::compareSourceSetNames);
-        if (available.isEmpty()) {
-            return available;
-        }
-
-        if (module.buildTypes.isEmpty() && module.productFlavors.isEmpty()) {
-            return available;
-        }
-
-        String selectedBuildType = chooseImportBuildType(module, available);
-        List<String> selectedFlavors = chooseImportFlavors(module, available);
-
-        LinkedHashSet<String> selected = new LinkedHashSet<>();
-        if (containsIgnoreCase(available, "main")) {
-            selected.add(findFirstIgnoreCase(available, "main"));
-        }
-        for (String flavor : selectedFlavors) {
-            String availableFlavor = findFirstIgnoreCase(available, flavor);
-            if (availableFlavor != null) {
-                selected.add(availableFlavor);
-            }
-        }
-        if (!TextUtils.isEmpty(selectedBuildType)) {
-            String availableBuildType = findFirstIgnoreCase(available, selectedBuildType);
-            if (availableBuildType != null) {
-                selected.add(availableBuildType);
-            }
-        }
-
-        ArrayList<String> selectedTokens = new ArrayList<>();
-        for (String selectedFlavor : selectedFlavors) {
-            if (!TextUtils.isEmpty(selectedFlavor)) {
-                selectedTokens.add(selectedFlavor);
-            }
-        }
-        if (!TextUtils.isEmpty(selectedBuildType)) {
-            selectedTokens.add(selectedBuildType);
-        }
-        selectedTokens.sort((left, right) -> Integer.compare(right.length(), left.length()));
-
-        for (String sourceSetName : available) {
-            if (selected.contains(sourceSetName) || "main".equalsIgnoreCase(sourceSetName)) {
-                continue;
-            }
-            if (canComposeSourceSetName(sourceSetName, selectedTokens)) {
-                selected.add(sourceSetName);
-            }
-        }
-
-        if (selected.isEmpty()) {
-            return available;
-        }
-
-        ArrayList<String> orderedSelected = new ArrayList<>(selected);
-        orderedSelected.sort(this::compareSourceSetNames);
-        return orderedSelected;
-    }
-
-    private String chooseImportBuildType(AndroidModule module, List<String> availableSourceSets) {
-        if (containsIgnoreCase(module.buildTypes, "debug") || containsIgnoreCase(availableSourceSets, "debug")
-                || containsCompositeSourceSetForToken(availableSourceSets, "debug")) {
-            return "debug";
-        }
-        for (String buildType : module.buildTypes) {
-            if (containsIgnoreCase(availableSourceSets, buildType)
-                    || containsCompositeSourceSetForToken(availableSourceSets, buildType)) {
-                return buildType;
-            }
-        }
-        if (containsIgnoreCase(module.buildTypes, "release") || containsIgnoreCase(availableSourceSets, "release")
-                || containsCompositeSourceSetForToken(availableSourceSets, "release")) {
-            return "release";
-        }
-        return module.buildTypes.isEmpty() ? null : module.buildTypes.get(0);
-    }
-
-    private List<String> chooseImportFlavors(AndroidModule module, List<String> availableSourceSets) {
-        if (module.productFlavors.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        LinkedHashMap<String, ArrayList<String>> flavorsByDimension = new LinkedHashMap<>();
-        for (String flavor : module.productFlavors) {
-            String dimension = module.flavorDimensions.get(flavor);
-            if (TextUtils.isEmpty(dimension)) {
-                dimension = "_default";
-            }
-            flavorsByDimension.computeIfAbsent(dimension, unused -> new ArrayList<>()).add(flavor);
-        }
-
-        ArrayList<String> selected = new ArrayList<>();
-        for (ArrayList<String> dimensionFlavors : flavorsByDimension.values()) {
-            String chosenFlavor = null;
-            for (String flavor : dimensionFlavors) {
-                if (containsIgnoreCase(availableSourceSets, flavor)) {
-                    chosenFlavor = flavor;
-                    break;
-                }
-            }
-            if (chosenFlavor == null) {
-                for (String flavor : dimensionFlavors) {
-                    if (containsCompositeSourceSetForToken(availableSourceSets, flavor)) {
-                        chosenFlavor = flavor;
-                        break;
-                    }
-                }
-            }
-            if (chosenFlavor == null && !dimensionFlavors.isEmpty()) {
-                chosenFlavor = dimensionFlavors.get(0);
-            }
-            if (!TextUtils.isEmpty(chosenFlavor)) {
-                selected.add(chosenFlavor);
-            }
-        }
-        return selected;
-    }
-
-    private boolean containsCompositeSourceSetForToken(List<String> sourceSetNames, String token) {
-        if (TextUtils.isEmpty(token)) {
-            return false;
-        }
-        String lowerToken = token.toLowerCase(Locale.US);
-        for (String sourceSetName : sourceSetNames) {
-            if (TextUtils.isEmpty(sourceSetName)) {
-                continue;
-            }
-            String lowerSourceSet = sourceSetName.toLowerCase(Locale.US);
-            if (lowerSourceSet.equals(lowerToken)) {
-                return true;
-            }
-            if (!"main".equals(lowerSourceSet) && lowerSourceSet.contains(lowerToken)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean canComposeSourceSetName(String sourceSetName, List<String> selectedTokens) {
-        if (TextUtils.isEmpty(sourceSetName) || selectedTokens.isEmpty()) {
-            return false;
-        }
-        return canComposeSourceSetNameRecursive(sourceSetName.toLowerCase(Locale.US), selectedTokens, 0);
-    }
-
-    private boolean canComposeSourceSetNameRecursive(String remaining, List<String> selectedTokens, int depth) {
-        if (TextUtils.isEmpty(remaining)) {
-            return true;
-        }
-        if (depth > selectedTokens.size() + 2) {
-            return false;
-        }
-        for (String token : selectedTokens) {
-            if (TextUtils.isEmpty(token)) {
-                continue;
-            }
-            String normalizedToken = token.toLowerCase(Locale.US);
-            if (remaining.startsWith(normalizedToken)
-                    && canComposeSourceSetNameRecursive(remaining.substring(normalizedToken.length()), selectedTokens, depth + 1)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean containsIgnoreCase(List<String> values, String expected) {
-        return findFirstIgnoreCase(values, expected) != null;
-    }
-
-    private String findFirstIgnoreCase(List<String> values, String expected) {
-        if (TextUtils.isEmpty(expected)) {
-            return null;
-        }
-        for (String value : values) {
-            if (expected.equalsIgnoreCase(value)) {
-                return value;
-            }
-        }
-        return null;
     }
 
     private AndroidModule createModule(File moduleDir) {
@@ -1731,165 +1499,134 @@ public class AndroidStudioProjectImporter {
         if (!module.gradleFile.isFile()) {
             module.gradleFile = new File(moduleDir, "build.gradle.kts");
         }
-        module.gradleContent = module.gradleFile.isFile() ? FileUtil.readFile(module.gradleFile.getAbsolutePath()) : "";
-        module.applicationModule = module.gradleContent.contains("com.android.application");
-        module.libraryModule = module.gradleContent.contains("com.android.library");
-        module.dynamicFeatureModule = module.gradleContent.contains("com.android.dynamic-feature");
-
-        File srcDirectory = new File(moduleDir, "src");
-        File[] sourceSetDirectories = srcDirectory.listFiles(File::isDirectory);
-        if (sourceSetDirectories != null) {
-            for (File sourceSetDirectory : sourceSetDirectories) {
-                if (!module.sourceSetNames.contains(sourceSetDirectory.getName())) {
-                    module.sourceSetNames.add(sourceSetDirectory.getName());
-                }
-            }
-        }
-
-        analyzeModuleGradle(module);
+        String gradleContent = module.gradleFile.isFile() ? FileUtil.readFile(module.gradleFile.getAbsolutePath()) : "";
+        module.applicationModule = gradleContent.contains("com.android.application");
+        module.libraryModule = gradleContent.contains("com.android.library");
+        module.dynamicFeatureModule = gradleContent.contains("com.android.dynamic-feature");
+        module.availableBuildTypes.addAll(parseNamedGradleBlocks(gradleContent, "buildTypes"));
+        module.availableProductFlavors.addAll(parseNamedGradleBlocks(gradleContent, "productFlavors"));
+        module.preferredSourceSetNames.addAll(selectPreferredSourceSets(module.availableBuildTypes, module.availableProductFlavors));
         return module;
     }
 
-    private void analyzeModuleGradle(AndroidModule module) {
-        String content = stripGradleComments(module.gradleContent);
-        LinkedHashMap<String, String> buildTypeBlocks = extractNamedBlocks(content, "buildTypes");
-        module.buildTypes.addAll(buildTypeBlocks.keySet());
-        LinkedHashMap<String, String> flavorBlocks = extractNamedBlocks(content, "productFlavors");
-        for (Map.Entry<String, String> entry : flavorBlocks.entrySet()) {
-            String flavor = entry.getKey();
-            module.productFlavors.add(flavor);
-            Matcher dimensionMatcher = FLAVOR_DIMENSION_PATTERN.matcher(entry.getValue());
-            module.flavorDimensions.put(flavor, dimensionMatcher.find() ? dimensionMatcher.group(1) : "_default");
-        }
 
-        Matcher projectDependencyMatcher = GRADLE_PROJECT_DEPENDENCY_PATTERN.matcher(content);
-        while (projectDependencyMatcher.find()) {
-            String dependencyPath = projectDependencyMatcher.group(1);
-            if (!module.projectDependencies.contains(dependencyPath)) {
-                module.projectDependencies.add(dependencyPath);
-            }
-        }
-
-        int dynamicFeaturesIndex = content.indexOf("dynamicFeatures");
-        if (dynamicFeaturesIndex >= 0) {
-            int searchEnd = Math.min(content.length(), dynamicFeaturesIndex + 300);
-            Matcher quotedModuleMatcher = QUOTED_COLON_PATH_PATTERN.matcher(content.substring(dynamicFeaturesIndex, searchEnd));
-            while (quotedModuleMatcher.find()) {
-                String dependencyPath = quotedModuleMatcher.group(1);
-                if (!module.projectDependencies.contains(dependencyPath)) {
-                    module.projectDependencies.add(dependencyPath);
-                }
-            }
-        }
-    }
-
-    private String stripGradleComments(String content) {
+    private LinkedHashSet<String> parseNamedGradleBlocks(String content, String blockName) {
+        LinkedHashSet<String> names = new LinkedHashSet<>();
         if (TextUtils.isEmpty(content)) {
-            return "";
+            return names;
         }
-        return content.replaceAll("(?s)/\\*.*?\\*/", " ").replaceAll("(?m)//.*$", " ");
-    }
-
-    private LinkedHashMap<String, String> extractNamedBlocks(String content, String blockName) {
-        LinkedHashMap<String, String> blocks = new LinkedHashMap<>();
-        String blockContent = extractBlockContent(content, blockName);
-        if (TextUtils.isEmpty(blockContent)) {
-            return blocks;
+        int blockIndex = content.indexOf(blockName);
+        if (blockIndex < 0) {
+            return names;
         }
-        int index = 0;
-        while (index < blockContent.length()) {
-            while (index < blockContent.length() && Character.isWhitespace(blockContent.charAt(index))) {
-                index++;
-            }
-            if (index >= blockContent.length()) {
-                break;
-            }
-            int nameStart = index;
-            while (index < blockContent.length() && (Character.isLetterOrDigit(blockContent.charAt(index)) || blockContent.charAt(index) == '_' || blockContent.charAt(index) == '-')) {
-                index++;
-            }
-            if (nameStart == index) {
-                index++;
-                continue;
-            }
-            String identifier = blockContent.substring(nameStart, index);
-            while (index < blockContent.length() && Character.isWhitespace(blockContent.charAt(index))) {
-                index++;
-            }
-
-            String declaredName = identifier;
-            if (index < blockContent.length() && blockContent.charAt(index) == '(') {
-                int callEnd = findMatchingDelimiter(blockContent, index, '(', ')');
-                if (callEnd < 0) {
-                    break;
-                }
-                String callArguments = blockContent.substring(index + 1, callEnd);
-                Matcher quotedArgumentMatcher = Pattern.compile("['\"]([^'\"]+)['\"]").matcher(callArguments);
-                if (quotedArgumentMatcher.find()) {
-                    declaredName = quotedArgumentMatcher.group(1);
-                }
-                index = callEnd + 1;
-                while (index < blockContent.length() && Character.isWhitespace(blockContent.charAt(index))) {
-                    index++;
-                }
-            }
-
-            if (index >= blockContent.length() || blockContent.charAt(index) != '{') {
-                continue;
-            }
-            int blockEnd = findMatchingDelimiter(blockContent, index, '{', '}');
-            if (blockEnd < 0) {
-                break;
-            }
-            String inner = blockContent.substring(index + 1, blockEnd);
-            if (!blocks.containsKey(declaredName)) {
-                blocks.put(declaredName, inner);
-            }
-            index = blockEnd + 1;
+        int braceStart = content.indexOf('{', blockIndex);
+        if (braceStart < 0) {
+            return names;
         }
-        return blocks;
-    }
-
-    private String extractBlockContent(String content, String blockName) {
-        Matcher matcher = Pattern.compile("\\b" + Pattern.quote(blockName) + "\\b").matcher(content);
-        while (matcher.find()) {
-            int braceIndex = content.indexOf('{', matcher.end());
-            if (braceIndex < 0) {
-                continue;
-            }
-            int closeIndex = findMatchingDelimiter(content, braceIndex, '{', '}');
-            if (closeIndex < 0) {
-                continue;
-            }
-            return content.substring(braceIndex + 1, closeIndex);
-        }
-        return null;
-    }
-
-    private int findMatchingDelimiter(String content, int openIndex, char openChar, char closeChar) {
         int depth = 0;
-        boolean inSingleQuote = false;
-        boolean inDoubleQuote = false;
-        for (int i = openIndex; i < content.length(); i++) {
-            char current = content.charAt(i);
-            if (current == '\'' && !inDoubleQuote && (i == 0 || content.charAt(i - 1) != '\\')) {
-                inSingleQuote = !inSingleQuote;
-            } else if (current == '"' && !inSingleQuote && (i == 0 || content.charAt(i - 1) != '\\')) {
-                inDoubleQuote = !inDoubleQuote;
-            }
-            if (inSingleQuote || inDoubleQuote) {
-                continue;
-            }
-            if (current == openChar) {
+        int blockEnd = -1;
+        for (int i = braceStart; i < content.length(); i++) {
+            char ch = content.charAt(i);
+            if (ch == '{') {
                 depth++;
-            } else if (current == closeChar) {
+            } else if (ch == '}') {
                 depth--;
                 if (depth == 0) {
-                    return i;
+                    blockEnd = i;
+                    break;
                 }
             }
         }
-        return -1;
+        if (blockEnd <= braceStart) {
+            return names;
+        }
+        String block = content.substring(braceStart + 1, blockEnd);
+        int nestedDepth = 0;
+        for (String rawLine : block.split("\n")) {
+            String line = rawLine.trim();
+            if (nestedDepth == 0) {
+                if (line.startsWith("create(")) {
+                    String createdName = extractQuotedIdentifier(line);
+                    if (!TextUtils.isEmpty(createdName)) {
+                        names.add(createdName);
+                    }
+                } else if (line.endsWith("{") || line.contains(" {")) {
+                    String candidate = line.substring(0, line.indexOf('{')).trim();
+                    if (candidate.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+                        names.add(candidate);
+                    }
+                }
+            }
+            nestedDepth += countOccurrences(rawLine, '{');
+            nestedDepth -= countOccurrences(rawLine, '}');
+            if (nestedDepth < 0) {
+                nestedDepth = 0;
+            }
+        }
+        return names;
+    }
+
+    private String extractQuotedIdentifier(String value) {
+        if (TextUtils.isEmpty(value)) {
+            return null;
+        }
+        int singleStart = value.indexOf(39);
+        int doubleStart = value.indexOf('"');
+        int start;
+        char quote;
+        if (singleStart >= 0 && (doubleStart < 0 || singleStart < doubleStart)) {
+            start = singleStart;
+            quote = (char) 39;
+        } else if (doubleStart >= 0) {
+            start = doubleStart;
+            quote = '"';
+        } else {
+            return null;
+        }
+        int end = value.indexOf(quote, start + 1);
+        if (end <= start + 1) {
+            return null;
+        }
+        String candidate = value.substring(start + 1, end).trim();
+        return candidate.matches("[A-Za-z_][A-Za-z0-9_]*") ? candidate : null;
+    }
+
+    private int countOccurrences(String value, char needle) {
+        int count = 0;
+        if (value == null) {
+            return 0;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (value.charAt(i) == needle) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private List<String> selectPreferredSourceSets(Set<String> buildTypes, Set<String> productFlavors) {
+        LinkedHashSet<String> selected = new LinkedHashSet<>();
+        selected.add("main");
+        String selectedFlavor = productFlavors.isEmpty() ? null : productFlavors.iterator().next();
+        String selectedBuildType = null;
+        if (buildTypes.contains("release")) {
+            selectedBuildType = "release";
+        } else if (buildTypes.contains("debug")) {
+            selectedBuildType = "debug";
+        } else if (!buildTypes.isEmpty()) {
+            selectedBuildType = buildTypes.iterator().next();
+        }
+        if (!TextUtils.isEmpty(selectedFlavor)) {
+            selected.add(selectedFlavor);
+        }
+        if (!TextUtils.isEmpty(selectedBuildType)) {
+            selected.add(selectedBuildType);
+        }
+        if (!TextUtils.isEmpty(selectedFlavor) && !TextUtils.isEmpty(selectedBuildType)) {
+            selected.add(selectedFlavor + Character.toUpperCase(selectedBuildType.charAt(0)) + selectedBuildType.substring(1));
+            selected.add(selectedBuildType + Character.toUpperCase(selectedFlavor.charAt(0)) + selectedFlavor.substring(1));
+        }
+        return new ArrayList<>(selected);
     }
 
     private AndroidModule choosePrimaryModule(List<AndroidModule> modules) {
@@ -1928,24 +1665,25 @@ public class AndroidStudioProjectImporter {
             return;
         }
 
-        List<String> selectedSourceSetNames = getSelectedSourceSetNames(module);
-        ArrayList<File> sortedSourceSets = new ArrayList<>();
-        for (File sourceSetDirectory : sourceSetDirectories) {
+        ArrayList<File> sortedSourceSets = new ArrayList<>(Arrays.asList(sourceSetDirectories));
+        sortedSourceSets.sort(this::compareSourceSets);
+        LinkedHashSet<String> allowedSourceSetNames = new LinkedHashSet<>(module.preferredSourceSetNames);
+        boolean foundPreferredSourceSet = false;
+        for (File sourceSetDirectory : sortedSourceSets) {
+            if (allowedSourceSetNames.contains(sourceSetDirectory.getName())) {
+                foundPreferredSourceSet = true;
+                break;
+            }
+        }
+
+        for (File sourceSetDirectory : sortedSourceSets) {
             if (isTestSourceSet(sourceSetDirectory.getName())) {
                 continue;
             }
-            if (!selectedSourceSetNames.isEmpty() && !containsIgnoreCase(selectedSourceSetNames, sourceSetDirectory.getName())) {
+            if (foundPreferredSourceSet && !allowedSourceSetNames.contains(sourceSetDirectory.getName())) {
                 continue;
             }
-            sortedSourceSets.add(sourceSetDirectory);
-        }
-        if (sortedSourceSets.isEmpty()) {
-            sortedSourceSets.addAll(Arrays.asList(sourceSetDirectories));
-            sortedSourceSets.removeIf(sourceSetDirectory -> isTestSourceSet(sourceSetDirectory.getName()));
-        }
-        sortedSourceSets.sort(this::compareSourceSets);
 
-        for (File sourceSetDirectory : sortedSourceSets) {
             File javaRoot = new File(sourceSetDirectory, "java");
             if (javaRoot.isDirectory()) {
                 addUniqueFile(detectedProject.sourceRoots, javaRoot);
@@ -2423,6 +2161,9 @@ public class AndroidStudioProjectImporter {
             if (summary.namespace == null) {
                 summary.namespace = findFirstValue(content, Arrays.asList("namespace"));
             }
+            if ((summary.applicationId == null || summary.namespace == null) && content.contains("applicationIdSuffix")) {
+                summary.warnings.add("applicationIdSuffix was detected; the imported project uses variant-specific application IDs. Sketchware imported the base namespace/applicationId only.");
+            }
             if (summary.versionCode == null) {
                 summary.versionCode = findFirstNumeric(content, Arrays.asList("versionCode"));
             }
@@ -2434,6 +2175,20 @@ public class AndroidStudioProjectImporter {
             }
             if (summary.targetSdk <= 0) {
                 summary.targetSdk = parseInt(findFirstNumeric(content, Arrays.asList("targetSdk", "targetSdkVersion")), 0);
+            }
+            summary.material3Detected |= content.contains("com.google.android.material:material") || content.contains("Theme.Material3") || content.contains("ThemeOverlay.Material3");
+            summary.appCompatDetected |= content.contains("androidx.appcompat") || content.contains("com.google.android.material:material") || content.contains("Theme.MaterialComponents") || content.contains("Theme.AppCompat") || summary.material3Detected;
+            Matcher activityThemeMatcher = ACTIVITY_THEME_PATTERN.matcher(content);
+            if (activityThemeMatcher.find()) {
+                summary.detectedThemeFamily = activityThemeMatcher.group(1);
+                String tail = activityThemeMatcher.group(2) == null ? "" : activityThemeMatcher.group(2);
+                if (tail.contains("DayNight")) {
+                    summary.detectedThemeMode = "DayNight";
+                } else if (tail.contains("Light")) {
+                    summary.detectedThemeMode = "Light";
+                } else if (tail.contains("Dark")) {
+                    summary.detectedThemeMode = "Dark";
+                }
             }
             if ((content.contains("compose = true") || content.contains("buildFeatures.compose") || content.contains("androidx.compose"))
                     && !summary.warnings.contains("Jetpack Compose was detected. The project is imported in code mode; Compose is preserved but not reconstructed visually.")) {
@@ -2462,6 +2217,8 @@ public class AndroidStudioProjectImporter {
                 dependencies.add(dependencyMatcher.group(2) + ":" + dependencyMatcher.group(3) + ":" + dependencyMatcher.group(4));
             }
         }
+        scanVersionCatalogs(detectedProject.rootDirectory, summary);
+        summary.appCompatDetected |= summary.material3Detected;
         summary.dependencies.addAll(dependencies);
         return summary;
     }
@@ -2487,6 +2244,37 @@ public class AndroidStudioProjectImporter {
         return null;
     }
 
+    private void scanVersionCatalogs(File projectRoot, GradleSummary summary) {
+        if (projectRoot == null || !projectRoot.isDirectory()) {
+            return;
+        }
+        ArrayList<File> catalogs = new ArrayList<>();
+        File gradleDirectory = new File(projectRoot, "gradle");
+        if (gradleDirectory.isDirectory()) {
+            File[] children = gradleDirectory.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    if (child.isFile() && child.getName().endsWith(".toml")) {
+                        catalogs.add(child);
+                    }
+                }
+            }
+        }
+        for (File catalog : catalogs) {
+            String content = FileUtil.readFile(catalog.getAbsolutePath());
+            if (TextUtils.isEmpty(content)) {
+                continue;
+            }
+            if (content.contains("androidx.appcompat") || content.contains("appcompat")) {
+                summary.appCompatDetected = true;
+            }
+            if (content.contains("com.google.android.material") || content.contains("material3")) {
+                summary.material3Detected = true;
+                summary.appCompatDetected = true;
+            }
+        }
+    }
+
     private String findFirstNumeric(String content, List<String> keys) {
         for (String key : keys) {
             Matcher matcher = Pattern.compile("(?m)^[\\t ]*" + Pattern.quote(key) + "[\\t ]*=?[\\t ]*([0-9]+)").matcher(content);
@@ -2505,12 +2293,142 @@ public class AndroidStudioProjectImporter {
         }
     }
 
+    private void writeImportedComponentIndexes(String scId, ManifestSummary manifest) {
+        ArrayList<String> activityNames = new ArrayList<>();
+        for (ManifestActivity activity : manifest.activities) {
+            if (!TextUtils.isEmpty(activity.fullyQualifiedName)) {
+                activityNames.add(activity.fullyQualifiedName);
+            }
+        }
+        FileUtil.writeFile(filePathUtil.getManifestJava(scId), gson.toJson(activityNames));
+        FileUtil.writeFile(filePathUtil.getManifestService(scId), gson.toJson(new ArrayList<>(manifest.services)));
+        FileUtil.writeFile(filePathUtil.getManifestBroadcast(scId), gson.toJson(new ArrayList<>(manifest.receivers)));
+    }
+
+    private void applyDetectedThemeAndLibraryState(String scId, GradleSummary gradle, ManifestSummary manifest,
+                                                   DetectedProject detectedProject, ImportResult result) {
+        boolean appCompatDetected = gradle.appCompatDetected;
+        boolean material3Detected = gradle.material3Detected;
+        String themeMode = gradle.detectedThemeMode;
+
+        for (File resDirectory : detectedProject.resDirectories) {
+            File[] valuesDirectories = resDirectory.listFiles(File::isDirectory);
+            if (valuesDirectories == null) {
+                continue;
+            }
+            for (File valuesDirectory : valuesDirectories) {
+                if (!valuesDirectory.getName().startsWith("values")) {
+                    continue;
+                }
+                File[] valueFiles = valuesDirectory.listFiles();
+                if (valueFiles == null) {
+                    continue;
+                }
+                for (File valueFile : valueFiles) {
+                    if (valueFile == null || !valueFile.isFile() || !valueFile.getName().endsWith(".xml")) {
+                        continue;
+                    }
+                    String stylesContent = FileUtil.readFile(valueFile.getAbsolutePath());
+                    if (stylesContent.contains("Theme.Material3") || stylesContent.contains("ThemeOverlay.Material3")) {
+                        material3Detected = true;
+                        appCompatDetected = true;
+                    }
+                    if (stylesContent.contains("Theme.MaterialComponents") || stylesContent.contains("Theme.AppCompat")) {
+                        appCompatDetected = true;
+                    }
+                    Matcher themeMatcher = ACTIVITY_THEME_PATTERN.matcher(stylesContent);
+                    if (themeMatcher.find() && TextUtils.isEmpty(themeMode)) {
+                        String tail = themeMatcher.group(2) == null ? "" : themeMatcher.group(2);
+                        if (tail.contains("DayNight")) {
+                            themeMode = "DayNight";
+                        } else if (tail.contains("Light")) {
+                            themeMode = "Light";
+                        } else if (tail.contains("Dark")) {
+                            themeMode = "Dark";
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!(appCompatDetected || material3Detected)) {
+            return;
+        }
+
+        try {
+            a.a.a.jC libraryManager = jC.c(scId);
+            com.besome.sketch.beans.ProjectLibraryBean compatBean = libraryManager.c();
+            if (compatBean == null) {
+                compatBean = new com.besome.sketch.beans.ProjectLibraryBean(com.besome.sketch.beans.ProjectLibraryBean.PROJECT_LIB_TYPE_COMPAT);
+            }
+            compatBean.useYn = com.besome.sketch.beans.ProjectLibraryBean.LIB_USE_Y;
+            compatBean.configurations.put("material3", material3Detected);
+            compatBean.configurations.put("dynamic_colors", material3Detected && detectDynamicColorsUsage(detectedProject.sourceRoots, detectedProject.resDirectories));
+            compatBean.configurations.put("theme", TextUtils.isEmpty(themeMode) ? "DayNight" : themeMode);
+            libraryManager.b(compatBean);
+            libraryManager.k();
+            result.warnings.add(material3Detected
+                    ? "Enabled AppCompat + Material3 project library settings based on imported Gradle/theme resources."
+                    : "Enabled AppCompat project library settings based on imported Gradle/theme resources.");
+        } catch (Throwable throwable) {
+            Log.e(TAG, "Failed to apply detected library state", throwable);
+            result.warnings.add("Imported project themes suggest AppCompat/Material3, but Sketchware library settings could not be updated automatically.");
+        }
+    }
+
+    private boolean detectDynamicColorsUsage(List<File> sourceRoots, List<File> resDirectories) {
+        for (File sourceRoot : sourceRoots) {
+            if (sourceRoot == null || !sourceRoot.isDirectory()) {
+                continue;
+            }
+            for (File sourceFile : collectFilesRecursively(sourceRoot)) {
+                if (!sourceFile.isFile()) {
+                    continue;
+                }
+                String lowerName = sourceFile.getName().toLowerCase(Locale.US);
+                if (!(lowerName.endsWith(".java") || lowerName.endsWith(".kt"))) {
+                    continue;
+                }
+                String content = FileUtil.readFile(sourceFile.getAbsolutePath());
+                if (content.contains("DynamicColors") || content.contains("dynamicColors")) {
+                    return true;
+                }
+            }
+        }
+        for (File resDirectory : resDirectories) {
+            File[] valuesDirectories = resDirectory.listFiles(File::isDirectory);
+            if (valuesDirectories == null) {
+                continue;
+            }
+            for (File valuesDirectory : valuesDirectories) {
+                if (!valuesDirectory.getName().startsWith("values")) {
+                    continue;
+                }
+                File[] children = valuesDirectory.listFiles();
+                if (children == null) {
+                    continue;
+                }
+                for (File child : children) {
+                    if (child.isFile() && child.getName().endsWith(".xml")) {
+                        String content = FileUtil.readFile(child.getAbsolutePath());
+                        if (content.contains("material_dynamic") || content.contains("dynamicColor")) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     private GitHubRepoSpec fetchRepoSpec(String repoUrl, String branch) {
         return GitHubRepoSpec.parse(repoUrl, branch);
     }
 
     private String fetchDefaultBranch(GitHubRepoSpec spec, String token) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL("https://api.github.com/repos/" + spec.owner + "/" + spec.repo).openConnection();
+        connection.setConnectTimeout(15000);
+        connection.setReadTimeout(30000);
         connection.setRequestProperty("Accept", "application/vnd.github+json");
         connection.setRequestProperty("User-Agent", "Sketchware-Pro-Importer");
         if (!TextUtils.isEmpty(token)) {
@@ -2527,9 +2445,11 @@ public class AndroidStudioProjectImporter {
     }
 
     private void downloadGitHubArchive(GitHubRepoSpec spec, String token, File targetZip) throws Exception {
-        String archiveUrl = "https://github.com/" + spec.owner + "/" + spec.repo + "/archive/refs/heads/" + spec.branch + ".zip";
+        String archiveUrl = "https://codeload.github.com/" + spec.owner + "/" + spec.repo + "/zip/refs/heads/" + spec.branch;
         HttpURLConnection connection = (HttpURLConnection) new URL(archiveUrl).openConnection();
         connection.setInstanceFollowRedirects(true);
+        connection.setConnectTimeout(15000);
+        connection.setReadTimeout(120000);
         connection.setRequestProperty("Accept", "application/vnd.github+json");
         connection.setRequestProperty("User-Agent", "Sketchware-Pro-Importer");
         if (!TextUtils.isEmpty(token)) {
@@ -2706,14 +2626,10 @@ public class AndroidStudioProjectImporter {
         boolean applicationModule;
         boolean libraryModule;
         boolean dynamicFeatureModule;
-        String gradleContent;
-        String modulePath;
-        final ArrayList<String> projectDependencies = new ArrayList<>();
-        final ArrayList<String> sourceSetNames = new ArrayList<>();
-        final ArrayList<String> buildTypes = new ArrayList<>();
-        final ArrayList<String> productFlavors = new ArrayList<>();
-        final LinkedHashMap<String, String> flavorDimensions = new LinkedHashMap<>();
         final LinkedHashMap<String, File> manifestsBySourceSet = new LinkedHashMap<>();
+        final LinkedHashSet<String> availableBuildTypes = new LinkedHashSet<>();
+        final LinkedHashSet<String> availableProductFlavors = new LinkedHashSet<>();
+        final LinkedHashSet<String> preferredSourceSetNames = new LinkedHashSet<>();
 
         File getMainManifest() {
             File mainManifest = manifestsBySourceSet.get("main");
@@ -2731,6 +2647,10 @@ public class AndroidStudioProjectImporter {
         String versionName;
         int minSdk;
         int targetSdk;
+        boolean appCompatDetected;
+        boolean material3Detected;
+        String detectedThemeFamily;
+        String detectedThemeMode;
         final ArrayList<String> dependencies = new ArrayList<>();
         final ArrayList<String> warnings = new ArrayList<>();
     }
@@ -2751,6 +2671,16 @@ public class AndroidStudioProjectImporter {
     private static class ManifestActivity {
         String fullyQualifiedName;
         boolean launcher;
+    }
+
+    private static class DiscoveredActivity {
+        String fullyQualifiedName;
+        String simpleClassName;
+        String layoutName;
+    }
+
+    public interface ImportProgressListener {
+        void onProgress(String stage);
     }
 
     private static class AdaptiveIconSpec {
@@ -2797,11 +2727,7 @@ public class AndroidStudioProjectImporter {
             spec.repo = parts[1].replaceAll("\\.git$", "");
             spec.branch = branch;
             if ((spec.branch == null || spec.branch.isEmpty()) && parts.length >= 4 && "tree".equals(parts[2])) {
-                StringBuilder branchBuilder = new StringBuilder(parts[3]);
-                for (int i = 4; i < parts.length; i++) {
-                    branchBuilder.append("/").append(parts[i]);
-                }
-                spec.branch = branchBuilder.toString();
+                spec.branch = parts[3];
             }
             return spec;
         }

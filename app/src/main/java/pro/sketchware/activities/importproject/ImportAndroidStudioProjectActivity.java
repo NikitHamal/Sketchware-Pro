@@ -132,9 +132,17 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
         }
 
         @Override
+        protected void onProgressUpdate(String... values) {
+            if (values != null && values.length > 0 && values[0] != null) {
+                statusText.setText(values[0]);
+            }
+        }
+
+        @Override
         public void b() throws a.a.a.By {
             try {
-                AndroidStudioProjectImporter importer = new AndroidStudioProjectImporter(ImportAndroidStudioProjectActivity.this);
+                AndroidStudioProjectImporter importer = new AndroidStudioProjectImporter(ImportAndroidStudioProjectActivity.this)
+                        .setProgressListener(stage -> publishProgress(stage));
                 if (mode == MODE_ZIP) {
                     result = importer.importFromZipUri(selectedZipUri);
                 } else {
