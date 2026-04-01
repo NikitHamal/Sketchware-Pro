@@ -967,7 +967,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         if (file == null || q == null) {
             return null;
         }
-        return FilePathUtil.getPathJava(sc_id)
+        return new FilePathUtil().getPathJava(sc_id)
                 + File.separator
                 + q.packageName.replace(".", File.separator)
                 + File.separator

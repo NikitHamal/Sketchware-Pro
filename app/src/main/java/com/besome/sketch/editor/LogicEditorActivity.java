@@ -129,8 +129,10 @@ import pro.sketchware.activities.resourceseditor.ResourcesEditorActivity;
 import pro.sketchware.databinding.ImagePickerItemBinding;
 import pro.sketchware.databinding.SearchWithRecyclerViewBinding;
 import pro.sketchware.menu.ExtraMenuBean;
+import mod.hey.studios.code.SrcCodeEditor;
 import pro.sketchware.utility.FilePathUtil;
 import pro.sketchware.utility.FileUtil;
+import pro.sketchware.utility.SketchwareUtil;
 import pro.sketchware.utility.SvgUtils;
 
 @SuppressLint({"ClickableViewAccessibility", "RtlHardcoded", "SetTextI18n", "DefaultLocale"})
@@ -2006,7 +2008,7 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
         try {
             yq metadata = new yq(this, scId);
             String packageName = metadata.packageName;
-            String overridePath = FilePathUtil.getPathJava(scId)
+            String overridePath = new FilePathUtil().getPathJava(scId)
                     + File.separator
                     + packageName.replace(".", File.separator)
                     + File.separator
