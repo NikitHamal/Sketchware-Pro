@@ -29,6 +29,7 @@ import mod.hey.studios.util.ProjectFile;
 import mod.hilal.saif.blocks.CommandBlock;
 import mod.pranav.viewbinding.ViewBindingBuilder;
 import pro.sketchware.SketchApplication;
+import pro.sketchware.manifest.ProjectManifestManager;
 import pro.sketchware.util.library.BuiltInLibraryManager;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.xml.XmlBuilder;
@@ -857,7 +858,7 @@ public class yq {
             }
         }
 
-        srcCodeBeans.add(new SrcCodeBean("AndroidManifest.xml", CommandBlock.applyCommands("AndroidManifest.xml", ix.a())));
+        srcCodeBeans.add(new SrcCodeBean("AndroidManifest.xml", ProjectManifestManager.apply(sc_id, ix.a(), packageName)));
         srcCodeBeans.add(new SrcCodeBean("styles.xml", getXMLStyle()));
         srcCodeBeans.add(new SrcCodeBean("colors.xml", getXMLColor()));
         srcCodeBeans.add(new SrcCodeBean("strings.xml", getXMLString()));
@@ -947,7 +948,7 @@ public class yq {
             builder.buildBuiltInLibraryInformation();
             Ix ix = new Ix(N, projectFileManager.b(), builder.getBuiltInLibraryManager());
             ix.setYq(this);
-            return CommandBlock.applyCommands("AndroidManifest.xml", ix.a());
+            return ProjectManifestManager.apply(sc_id, ix.a(), packageName);
         }
 
         for (ProjectFileBean file : files) {

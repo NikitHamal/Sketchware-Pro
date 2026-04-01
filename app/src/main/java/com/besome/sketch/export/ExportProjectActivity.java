@@ -20,6 +20,7 @@ import com.airbnb.lottie.LottieAnimationView;
 import com.besome.sketch.lib.base.BaseAppCompatActivity;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import org.json.JSONObject;
 import org.spongycastle.jce.provider.BouncyCastleProvider;
 
 import java.io.File;
@@ -215,7 +216,11 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
                 String importMetadataPath = wq.b(sc_id) + File.separator + "import_metadata.json";
                 if (FileUtil.isExistFile(importMetadataPath)) {
                     String metadataJson = FileUtil.readFile(importMetadataPath);
-                    fullSourceTree = metadataJson.contains(""java_layout":"full_source_tree"");
+                    try {
+                        fullSourceTree = "full_source_tree".equals(new JSONObject(metadataJson).optString("java_layout"));
+                    } catch (Exception ignored) {
+                        fullSourceTree = metadataJson.contains("\"java_layout\":\"full_source_tree\"");
+                    }
                 }
                 File javaCopyTarget = fullSourceTree
                         ? new File(project_metadata.javaFilesPath)

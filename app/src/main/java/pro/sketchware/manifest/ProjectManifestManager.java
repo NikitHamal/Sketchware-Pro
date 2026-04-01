@@ -4,6 +4,7 @@ import java.io.File;
 
 import a.a.a.wq;
 import mod.hilal.saif.android_manifest.AndroidManifestInjector;
+import mod.hilal.saif.blocks.CommandBlock;
 import pro.sketchware.utility.FileUtil;
 
 public final class ProjectManifestManager {
@@ -74,6 +75,7 @@ public final class ProjectManifestManager {
             effective = AndroidManifestInjector.mHolder(generatedManifest, scId);
         }
         effective = effective.replace("${applicationId}", applicationId);
+        effective = CommandBlock.applyCommands("AndroidManifest.xml", effective);
         FileUtil.makeDir(getManifestDirectory(scId));
         FileUtil.writeFile(getEffectiveManifestPath(scId), effective);
         return effective;

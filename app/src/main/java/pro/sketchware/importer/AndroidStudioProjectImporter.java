@@ -77,7 +77,9 @@ public class AndroidStudioProjectImporter {
     private static final Pattern DEPENDENCY_PATTERN = Pattern.compile("(?m)^[\\t ]*(implementation|api|compileOnly|runtimeOnly|kapt|ksp)\\s*(?:\\(|\\s)\\s*['\"]([^:'\"\\s]+):([^:'\"\\s]+):([^'\")\\s]+)['\"]");
     private static final Pattern LAYOUT_REFERENCE_PATTERN = Pattern.compile("R\\.layout\\.([A-Za-z0-9_]+)");
     private static final Pattern SET_CONTENT_VIEW_PATTERN = Pattern.compile("setContentView\\s*\\(\\s*R\\.layout\\.([A-Za-z0-9_]+)\\s*\\)");
-    private static final Pattern INFLATE_PATTERN = Pattern.compile("inflate\\s*\\(\\s*R\\.layout\\.([A-Za-z0-9_]+)");
+    private static final Pattern INFLATE_PATTERN = Pattern.compile("inflate\\s*\\(\\s*R\\.layout\\.([A-Za-z0-9_]+)\\s*\\)");
+    private static final long MAX_EXTRACTED_BYTES = 512L * 1024L * 1024L;
+    private static final int MAX_EXTRACTED_FILES = 20000;
 
     private final Context context;
     private final Gson gson = new Gson();
@@ -114,6 +116,9 @@ public class AndroidStudioProjectImporter {
         File extractDir = new File(context.getCacheDir(), "import-extracted-" + System.currentTimeMillis());
         safeExtract(zipFile, extractDir);
         DetectedProject detectedProject = detectProject(extractDir);
+        if (detectedProject != null) {
+            detectedProject.archiveLabel = zipFile.getName();
+        }
         if (detectedProject == null) {
             throw new IOException("No supported Android application module was found in the selected archive");
         }
@@ -162,7 +167,7 @@ public class AndroidStudioProjectImporter {
         result.scId = scId;
         result.projectName = String.valueOf(metadata.get("my_ws_name"));
         result.sourceType = sourceType;
-        result.sourceLabel = detectedProject.rootDirectory.getName();
+        result.sourceLabel = sourceType.equals("android_studio_zip") ? detectedProject.archiveLabel : detectedProject.rootDirectory.getName();
         result.visualScreens.add("Restored Sketchware project snapshot");
         result.summary = "Round-trip import completed";
         writeImportMetadata(scId, sourceType, true);
@@ -179,7 +184,7 @@ public class AndroidStudioProjectImporter {
         String versionCode = gradle.versionCode == null ? "1" : gradle.versionCode;
         String versionName = gradle.versionName == null ? "1.0" : gradle.versionName;
         int minSdk = gradle.minSdk > 0 ? gradle.minSdk : 21;
-        int targetSdk = gradle.targetSdk > 0 ? gradle.targetSdk : 34;
+        int targetSdk = gradle.targetSdk > 0 ? gradle.targetSdk : 36;
 
         String scId = lC.b();
         HashMap<String, Object> metadata = createProjectMetadata(scId, projectName, applicationId, manifest.applicationLabel, versionCode, versionName);
@@ -216,7 +221,7 @@ public class AndroidStudioProjectImporter {
         result.scId = scId;
         result.projectName = projectName;
         result.sourceType = sourceType;
-        result.sourceLabel = detectedProject.rootDirectory.getName();
+        result.sourceLabel = sourceType.equals("android_studio_zip") ? detectedProject.archiveLabel : detectedProject.rootDirectory.getName();
         result.importedDependencies.addAll(gradle.dependencies);
         result.unsupportedFeatures.addAll(gradle.warnings);
 
@@ -655,6 +660,7 @@ public class AndroidStudioProjectImporter {
             }
             DetectedProject detectedProject = new DetectedProject();
             detectedProject.rootDirectory = projectRoot;
+            detectedProject.archiveLabel = projectRoot.getName();
             detectedProject.appDirectory = appDir;
             detectedProject.manifestFile = manifestFile;
             detectedProject.resDirectory = new File(appMain, "res");
@@ -847,7 +853,7 @@ public class AndroidStudioProjectImporter {
             return summary;
         }
         String content = FileUtil.readFile(gradleFile.getAbsolutePath());
-        summary.applicationId = findFirstValue(content, Arrays.asList("applicationId", "applicationIdSuffix"));
+        summary.applicationId = findFirstValue(content, Arrays.asList("applicationId"));
         summary.namespace = findFirstValue(content, Arrays.asList("namespace"));
         summary.versionCode = findFirstNumeric(content, Arrays.asList("versionCode"));
         summary.versionName = findFirstValue(content, Arrays.asList("versionName"));
@@ -862,8 +868,12 @@ public class AndroidStudioProjectImporter {
         if (content.contains("dagger.hilt") || content.contains("com.google.dagger.hilt")) {
             summary.warnings.add("Hilt was detected. Manifest and generated code are preserved, but project-specific Hilt tooling may still need review.");
         }
-        if (new File(gradleFile.getParentFile().getParentFile(), "settings.gradle").exists()) {
-            String settingsContent = FileUtil.readFile(new File(gradleFile.getParentFile().getParentFile(), "settings.gradle").getAbsolutePath());
+        File settingsGradle = new File(gradleFile.getParentFile().getParentFile(), "settings.gradle");
+        if (!settingsGradle.exists()) {
+            settingsGradle = new File(gradleFile.getParentFile().getParentFile(), "settings.gradle.kts");
+        }
+        if (settingsGradle.exists()) {
+            String settingsContent = FileUtil.readFile(settingsGradle.getAbsolutePath());
             if (settingsContent.contains("include(") || settingsContent.contains("include ':") || settingsContent.contains("include \":")) {
                 int moduleCount = 0;
                 Matcher matcher = Pattern.compile("[:][A-Za-z0-9_\\-]+").matcher(settingsContent);
@@ -969,6 +979,8 @@ public class AndroidStudioProjectImporter {
     private void safeExtract(File zipFile, File outputDirectory) throws IOException {
         FileUtil.makeDir(outputDirectory.getAbsolutePath());
         String canonicalRoot = outputDirectory.getCanonicalPath() + File.separator;
+        long totalExtractedBytes = 0L;
+        int extractedFiles = 0;
         try (ZipInputStream zipInputStream = new ZipInputStream(new BufferedInputStream(new java.io.FileInputStream(zipFile)))) {
             ZipEntry entry;
             while ((entry = zipInputStream.getNextEntry()) != null) {
@@ -985,8 +997,25 @@ public class AndroidStudioProjectImporter {
                 if (entry.isDirectory()) {
                     target.mkdirs();
                 } else {
+                    extractedFiles++;
+                    if (extractedFiles > MAX_EXTRACTED_FILES) {
+                        throw new IOException("Archive contains too many files to import safely");
+                    }
+                    long declaredSize = entry.getSize();
+                    if (declaredSize > 0) {
+                        totalExtractedBytes += declaredSize;
+                        if (totalExtractedBytes > MAX_EXTRACTED_BYTES) {
+                            throw new IOException("Archive is too large to import safely");
+                        }
+                    }
                     target.getParentFile().mkdirs();
                     copyStreamToFile(zipInputStream, target);
+                    if (declaredSize < 0) {
+                        totalExtractedBytes += target.length();
+                        if (totalExtractedBytes > MAX_EXTRACTED_BYTES) {
+                            throw new IOException("Archive is too large to import safely");
+                        }
+                    }
                 }
                 zipInputStream.closeEntry();
             }
@@ -1090,6 +1119,7 @@ public class AndroidStudioProjectImporter {
         ArrayList<File> libsDirectories;
         File roundTripMetadataJson;
         File roundTripDataDir;
+        String archiveLabel;
     }
 
     private static class GradleSummary {
@@ -1143,7 +1173,11 @@ public class AndroidStudioProjectImporter {
             spec.repo = parts[1].replaceAll("\\.git$", "");
             spec.branch = branch;
             if ((spec.branch == null || spec.branch.isEmpty()) && parts.length >= 4 && "tree".equals(parts[2])) {
-                spec.branch = parts[3];
+                StringBuilder branchBuilder = new StringBuilder(parts[3]);
+                for (int i = 4; i < parts.length; i++) {
+                    branchBuilder.append("/").append(parts[i]);
+                }
+                spec.branch = branchBuilder.toString();
             }
             return spec;
         }

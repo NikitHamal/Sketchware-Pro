@@ -77,11 +77,18 @@ public class Ix {
      * @param permissionName The {@code uses-permission} {@link XmlBuilder} tag
      */
     private void writePermission(XmlBuilder manifestTag, String permissionName) {
+        writePermission(manifestTag, permissionName, null);
+    }
+
+    private void writePermission(XmlBuilder manifestTag, String permissionName, Integer maxSdkVersion) {
         if (addedPermissions.contains(permissionName)) {
             return;
         }
         XmlBuilder usesPermissionTag = new XmlBuilder("uses-permission");
         usesPermissionTag.addAttribute("android", "name", permissionName);
+        if (maxSdkVersion != null) {
+            usesPermissionTag.addAttribute("android", "maxSdkVersion", String.valueOf(maxSdkVersion));
+        }
         manifestTag.addChildNode(usesPermissionTag);
         addedPermissions.add(permissionName);
     }
@@ -400,7 +407,7 @@ public class Ix {
         } catch (NumberFormatException ignored) {
             targetSdkVersion = VAR_DEFAULT_TARGET_SDK_VERSION;
         }
-        boolean addRequestLegacyExternalStorage = targetSdkVersion >= 28;
+        boolean addRequestLegacyExternalStorage = targetSdkVersion <= 29;
 
         a.addAttribute("", "package", c.packageName);
 
@@ -421,10 +428,10 @@ public class Ix {
                 writePermission(a, Manifest.permission.CAMERA);
             }
             if (c.hasPermission(jq.PERMISSION_READ_EXTERNAL_STORAGE)) {
-                writePermission(a, Manifest.permission.READ_EXTERNAL_STORAGE);
+                writePermission(a, Manifest.permission.READ_EXTERNAL_STORAGE, 32);
             }
             if (c.hasPermission(jq.PERMISSION_WRITE_EXTERNAL_STORAGE)) {
-                writePermission(a, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+                writePermission(a, Manifest.permission.WRITE_EXTERNAL_STORAGE, 28);
             }
             if (c.hasPermission(jq.PERMISSION_RECORD_AUDIO)) {
                 writePermission(a, Manifest.permission.RECORD_AUDIO);
@@ -501,7 +508,7 @@ public class Ix {
         }
 
         XmlBuilder applicationTag = new XmlBuilder("application");
-        applicationTag.addAttribute("android", "allowBackup", "true");
+        applicationTag.addAttribute("android", "allowBackup", "false");
         applicationTag.addAttribute("android", "icon", "@mipmap/ic_launcher");
         applicationTag.addAttribute("android", "label", "@string/app_name");
 
@@ -510,9 +517,9 @@ public class Ix {
         if (addRequestLegacyExternalStorage) {
             applicationTag.addAttribute("android", "requestLegacyExternalStorage", "true");
         }
-        if (!buildSettings.getValue(BuildSettings.SETTING_NO_HTTP_LEGACY, BuildSettings.SETTING_GENERIC_VALUE_FALSE)
+        if (buildSettings.getValue(BuildSettings.SETTING_NO_HTTP_LEGACY, BuildSettings.SETTING_GENERIC_VALUE_FALSE)
                 .equals(BuildSettings.SETTING_GENERIC_VALUE_TRUE)) {
-            applicationTag.addAttribute("android", "usesCleartextTraffic", "true");
+            applicationTag.addAttribute("android", "usesCleartextTraffic", "false");
         }
         AndroidManifestInjector.getAppAttrs(applicationTag, c.sc_id);
 
