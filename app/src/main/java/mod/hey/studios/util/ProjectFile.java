@@ -11,6 +11,7 @@ public class ProjectFile {
     public static final String COLOR_ACCENT = "color_accent";
     public static final String COLOR_PRIMARY = "color_primary";
     public static final String COLOR_PRIMARY_DARK = "color_primary_dark";
+    public static final String COLOR_ON_PRIMARY = "color_on_primary";
     public static final String COLOR_CONTROL_HIGHLIGHT = "color_control_highlight";
     public static final String COLOR_CONTROL_NORMAL = "color_control_normal";
 
@@ -47,6 +48,7 @@ public class ProjectFile {
             return switch (color) {
                 case "color_primary_dark" ->
                         SketchApplication.getContext().getColor(android.R.color.system_accent1_500);
+                case "color_on_primary" -> Color.WHITE;
                 case "color_control_highlight" ->
                         SketchApplication.getContext().getColor(android.R.color.system_accent1_100);
                 default ->
@@ -56,6 +58,7 @@ public class ProjectFile {
             // For Android versions below 12: use static fallback colors
             return switch (color) {
                 case "color_primary_dark" -> Color.parseColor("#ff1976d2");
+                case "color_on_primary" -> Color.WHITE;
                 case "color_control_highlight" -> Color.parseColor("#202196f3");
                 default -> Color.parseColor("#ff2196f3");
             };

@@ -97,6 +97,7 @@ public class yq {
     public final int colorAccent;
     public final int colorPrimary;
     public final int colorPrimaryDark;
+    public final int colorOnPrimary;
     public final int colorControlHighlight;
     public final int colorControlNormal;
     public final String versionCode;
@@ -212,6 +213,7 @@ public class yq {
         colorAccent = yB.a(metadata, ProjectFile.COLOR_ACCENT, getDefaultColor(ProjectFile.COLOR_ACCENT));
         colorPrimary = yB.a(metadata, ProjectFile.COLOR_PRIMARY, getDefaultColor(ProjectFile.COLOR_PRIMARY));
         colorPrimaryDark = yB.a(metadata, ProjectFile.COLOR_PRIMARY_DARK, getDefaultColor(ProjectFile.COLOR_PRIMARY_DARK));
+        colorOnPrimary = yB.a(metadata, ProjectFile.COLOR_ON_PRIMARY, getDefaultColor(ProjectFile.COLOR_ON_PRIMARY));
         colorControlHighlight = yB.a(metadata, ProjectFile.COLOR_CONTROL_HIGHLIGHT, getDefaultColor(ProjectFile.COLOR_CONTROL_HIGHLIGHT));
         colorControlNormal = yB.a(metadata, ProjectFile.COLOR_CONTROL_NORMAL, getDefaultColor(ProjectFile.COLOR_CONTROL_NORMAL));
 
@@ -989,6 +991,7 @@ public class yq {
         colorsFileBuilder.addColor("colorPrimary", String.format("#%06X", colorPrimary & 0xffffff));
         colorsFileBuilder.addColor("colorPrimaryDark", String.format("#%06X", colorPrimaryDark & 0xffffff));
         colorsFileBuilder.addColor("colorAccent", String.format("#%06X", colorAccent & 0xffffff));
+        colorsFileBuilder.addColor("colorOnPrimary", String.format("#%06X", colorOnPrimary & 0xffffff));
         colorsFileBuilder.addColor("colorControlHighlight", String.format("#%06X", colorControlHighlight & 0xffffff));
         colorsFileBuilder.addColor("colorControlNormal", String.format("#%06X", colorControlNormal & 0xffffff));
         return CommandBlock.applyCommands("colors.xml", colorsFileBuilder.toCode());
@@ -1019,8 +1022,7 @@ public class yq {
                     BuildSettings.SETTING_GENERIC_VALUE_FALSE).equals(BuildSettings.SETTING_GENERIC_VALUE_TRUE);
             XmlBuilderHelper stylesFileBuilder = new XmlBuilderHelper();
             stylesFileBuilder.addStyle("AppTheme", "Theme.MaterialComponents.Light.NoActionBar" + (useNewMaterialComponentsTheme ? "" : ".Bridge"));
-            // todo: add 'colorOnPrimary' to custom theme colors.
-            stylesFileBuilder.addItemToStyle("AppTheme", "colorOnPrimary", "@android:color/white");
+            stylesFileBuilder.addItemToStyle("AppTheme", "colorOnPrimary", "@color/colorOnPrimary");
             stylesFileBuilder.addItemToStyle("AppTheme", "colorPrimary", "@color/colorPrimary");
             stylesFileBuilder.addItemToStyle("AppTheme", "colorPrimaryDark", "@color/colorPrimaryDark");
             stylesFileBuilder.addItemToStyle("AppTheme", "colorAccent", "@color/colorAccent");

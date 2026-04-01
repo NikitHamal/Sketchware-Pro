@@ -135,6 +135,7 @@ public class ColorsEditor extends Fragment {
         defaultColors.put("colorAccent", ProjectFile.COLOR_ACCENT);
         defaultColors.put("colorPrimary", ProjectFile.COLOR_PRIMARY);
         defaultColors.put("colorPrimaryDark", ProjectFile.COLOR_PRIMARY_DARK);
+        defaultColors.put("colorOnPrimary", ProjectFile.COLOR_ON_PRIMARY);
         defaultColors.put("colorControlHighlight", ProjectFile.COLOR_CONTROL_HIGHLIGHT);
         defaultColors.put("colorControlNormal", ProjectFile.COLOR_CONTROL_NORMAL);
 
