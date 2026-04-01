@@ -222,7 +222,7 @@ public class ResourceCompiler {
             if (filesInCompiledResourcesPath != null) {
                 for (File file : filesInCompiledResourcesPath) {
                     if (file.isFile()) {
-                        if (!file.getName().equals("project.zip") || !file.getName().equals("project-imported.zip")) {
+                        if (!file.getName().equals("project.zip") && !file.getName().equals("project-imported.zip")) {
                             args.add("-R");
                             args.add(file.getAbsolutePath());
                         }
