@@ -44,7 +44,6 @@ import a.a.a.yq;
 import kellinwood.security.zipsigner.ZipSigner;
 import kellinwood.security.zipsigner.optional.CustomKeySigner;
 import kellinwood.security.zipsigner.optional.LoadKeystoreException;
-import mod.alucard.tn.apksigner.ApkSigner;
 import mod.hey.studios.compiler.kotlin.KotlinCompilerBridge;
 import mod.hey.studios.project.proguard.ProguardHandler;
 import mod.hey.studios.project.stringfog.StringfogHandler;
@@ -56,6 +55,7 @@ import mod.jbk.export.GetKeyStoreCredentialsDialog;
 import mod.jbk.util.TestkeySignBridge;
 import pro.sketchware.R;
 import pro.sketchware.utility.FilePathUtil;
+import pro.sketchware.importer.AndroidStudioProjectImporter;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
 
@@ -211,7 +211,16 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
             File pathNativeLibraries = new File(util.getPathNativelibs(sc_id));
 
             if (pathJava.exists()) {
-                FileUtil.copyDirectory(pathJava, new File(project_metadata.javaFilesPath + File.separator + project_metadata.packageNameAsFolders));
+                boolean fullSourceTree = false;
+                String importMetadataPath = wq.b(sc_id) + File.separator + "import_metadata.json";
+                if (FileUtil.isExistFile(importMetadataPath)) {
+                    String metadataJson = FileUtil.readFile(importMetadataPath);
+                    fullSourceTree = metadataJson.contains(""java_layout":"full_source_tree"");
+                }
+                File javaCopyTarget = fullSourceTree
+                        ? new File(project_metadata.javaFilesPath)
+                        : new File(project_metadata.javaFilesPath + File.separator + project_metadata.packageNameAsFolders);
+                FileUtil.copyDirectory(pathJava, javaCopyTarget);
             }
             if (pathResources.exists()) {
                 FileUtil.copyDirectory(pathResources, new File(project_metadata.resDirectoryPath));
@@ -226,6 +235,8 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
             if (pathNativeLibraries.exists()) {
                 FileUtil.copyDirectory(pathNativeLibraries, new File(project_metadata.generatedFilesPath, "jniLibs"));
             }
+
+            AndroidStudioProjectImporter.writeRoundTripMetadata(sc_id, sc_metadata, project_metadata.projectMyscPath);
 
             ArrayList<String> toCompress = new ArrayList<>();
             toCompress.add(project_metadata.projectMyscPath);
@@ -332,7 +343,8 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
                     To sign an APK, you need a keystore. Use your already created one, and copy it to \
                     /Internal storage/sketchware/keystore/release_key.jks and enter the alias's password.
                     
-                    APK export now uses the modern APK signer path and produces a fully aligned, release-ready APK.""");
+                    Note that this only signs your APK using signing scheme V1, to target Android 11+ for example, \
+                    use a 3rd-party tool (for now).""");
             confirmationDialog.setIcon(R.drawable.ic_mtrl_info);
 
             confirmationDialog.setPositiveButton("Understood", (v, which) -> {
@@ -651,26 +663,22 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
 
                     publishProgress("Signing APK...");
                     String outputLocation = getCorrectResultFilename(builder.yq.releaseApkPath);
-                    ApkSigner apkSigner = new ApkSigner();
-                    boolean signingSucceeded;
                     if (signWithTestkey) {
-                        signingSucceeded = apkSigner.signWithTestKey(builder.yq.unsignedAlignedApkPath, outputLocation, null);
+                        TestkeySignBridge.signWithTestkey(builder.yq.unsignedAlignedApkPath, outputLocation);
                     } else if (isResultJarSigningEnabled()) {
-                        signingSucceeded = apkSigner.signWithKeyStore(
-                                builder.yq.unsignedAlignedApkPath,
-                                outputLocation,
-                                signingKeystorePath,
-                                new String(signingKeystorePassword),
+                        Security.addProvider(new BouncyCastleProvider());
+                        CustomKeySigner.signZip(
+                                new ZipSigner(),
+                                wq.j(),
+                                signingKeystorePassword,
                                 signingAliasName,
-                                new String(signingAliasPassword),
-                                null
+                                signingKeystorePassword,
+                                signingAlgorithm,
+                                builder.yq.unsignedAlignedApkPath,
+                                outputLocation
                         );
                     } else {
                         FileUtil.copyFile(builder.yq.unsignedAlignedApkPath, outputLocation);
-                        signingSucceeded = true;
-                    }
-                    if (!signingSucceeded) {
-                        throw new IllegalStateException("APK signing failed");
                     }
                 }
             } catch (Throwable throwable) {

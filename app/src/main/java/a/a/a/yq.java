@@ -758,7 +758,7 @@ public class yq {
         // at /Internal storage/.sketchware/data/<sc_id>/files/java/
         ArrayList<SrcCodeBean> srcCodeBeans = new ArrayList<>();
         for (ProjectFileBean activity : projectFileManager.b()) {
-            if (!javaFiles.contains(new File(javaDir + activity.getJavaName()))) {
+            if (findCustomSourceOverride(activity.getActivityName()) == null) {
                 srcCodeBeans.add(new SrcCodeBean(activity.getJavaName(),
                         new Jx(N, activity, projectDataManager).generateCode(isAndroidStudioExport, sc_id)));
             }
@@ -869,6 +869,39 @@ public class yq {
         return generateDataBindingClasses && projectSettings.getValue(ProjectSettings.SETTING_ENABLE_VIEWBINDING, ProjectSettings.SETTING_GENERIC_VALUE_FALSE).equals(ProjectSettings.SETTING_GENERIC_VALUE_TRUE);
     }
 
+    private File findCustomSourceOverride(String activityClassName) {
+        if (activityClassName == null || activityClassName.isEmpty()) {
+            return null;
+        }
+        File javaDir = new File(FileUtil.getExternalStorageDir() + File.separator + ".sketchware" + File.separator + "data" + File.separator + sc_id + File.separator + "files" + File.separator + "java");
+        if (!javaDir.exists()) {
+            return null;
+        }
+        File override = findCustomSourceOverride(javaDir, activityClassName + ".java");
+        if (override != null) {
+            return override;
+        }
+        return findCustomSourceOverride(javaDir, activityClassName + ".kt");
+    }
+
+    private File findCustomSourceOverride(File directory, String targetName) {
+        File[] children = directory.listFiles();
+        if (children == null) {
+            return null;
+        }
+        for (File child : children) {
+            if (child.isDirectory()) {
+                File found = findCustomSourceOverride(child, targetName);
+                if (found != null) {
+                    return found;
+                }
+            } else if (child.getName().equals(targetName)) {
+                return child;
+            }
+        }
+        return null;
+    }
+
     /**
      * Get generated source code of a file.
      *
@@ -920,6 +953,10 @@ public class yq {
         for (ProjectFileBean file : files) {
             if (filename.equals(isJavaFile ? file.getJavaName() : file.getXmlName())) {
                 if (isJavaFile) {
+                    File customSourceOverride = findCustomSourceOverride(file.getActivityName());
+                    if (customSourceOverride != null) {
+                        return FileUtil.readFile(customSourceOverride.getAbsolutePath());
+                    }
                     return new Jx(N, file, projectDataManager).generateCode(isAndroidStudioExport, sc_id);
                 } else if (isXmlFile) {
                     Ox xmlGenerator = new Ox(N, file);

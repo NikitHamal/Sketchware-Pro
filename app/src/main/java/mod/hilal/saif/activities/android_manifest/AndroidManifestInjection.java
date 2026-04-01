@@ -34,6 +34,7 @@ import mod.hilal.saif.android_manifest.AndroidManifestInjector;
 import mod.remaker.view.CustomAttributeView;
 import pro.sketchware.R;
 import pro.sketchware.activities.editor.view.CodeViewerActivity;
+import pro.sketchware.manifest.ProjectManifestManager;
 import pro.sketchware.databinding.AndroidManifestInjectionBinding;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
@@ -95,10 +96,19 @@ public class AndroidManifestInjection extends BaseAppCompatActivity {
     }
 
     private void setupOptions() {
+        binding.cards.removeAllViews();
         List<LibraryCategoryView> options = new ArrayList<>();
 
+        LibraryCategoryView manifestCategoryView = new LibraryCategoryView(this);
+        manifestCategoryView.setTitle(null);
+        options.add(manifestCategoryView);
+
+        manifestCategoryView.addLibraryItem(createOption("Manifest mode", "Current mode: " + ProjectManifestManager.getMode(sc_id) + ". Generated = fully generated, Hybrid = keep legacy injections, Raw = full custom XML ownership.", R.drawable.ic_mtrl_settings_applications, v -> showManifestModeDialog()), true);
+        manifestCategoryView.addLibraryItem(createOption("Edit raw manifest XML", "Open the project's editable AndroidManifest.xml override in the source editor.", R.drawable.ic_mtrl_code, v -> openRawManifestEditor()), true);
+        manifestCategoryView.addLibraryItem(createOption("Effective manifest preview", "Preview the exact AndroidManifest.xml that will be packaged for the current project mode.", R.drawable.ic_mtrl_preview, v -> showQuickManifestSourceDialog()), false);
+
         LibraryCategoryView basicCategoryView = new LibraryCategoryView(this);
-        basicCategoryView.setTitle(null);
+        basicCategoryView.setTitle("Hybrid manifest injections");
         options.add(basicCategoryView);
 
         basicCategoryView.addLibraryItem(createOption("Application", "Default properties for the app", R.drawable.ic_mtrl_settings_applications, v -> {
@@ -321,19 +331,79 @@ public class AndroidManifestInjection extends BaseAppCompatActivity {
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        menu.add(Menu.NONE, Menu.NONE, Menu.NONE, "Show Manifest Source").setIcon(getDrawable(R.drawable.ic_mtrl_code)).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        menu.add(Menu.NONE, 1, Menu.NONE, "Preview manifest").setIcon(getDrawable(R.drawable.ic_mtrl_code)).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        menu.add(Menu.NONE, 2, Menu.NONE, "Edit raw manifest");
+        menu.add(Menu.NONE, 3, Menu.NONE, "Manifest mode");
         return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem menuItem) {
-        String title = menuItem.getTitle().toString();
-        if (title.equals("Show Manifest Source")) {
+        int itemId = menuItem.getItemId();
+        if (itemId == 1) {
             showQuickManifestSourceDialog();
+        } else if (itemId == 2) {
+            openRawManifestEditor();
+        } else if (itemId == 3) {
+            showManifestModeDialog();
         } else {
             return false;
         }
         return super.onOptionsItemSelected(menuItem);
+    }
+
+    private void showManifestModeDialog() {
+        String[] labels = {"Generated", "Hybrid", "Raw"};
+        String[] values = {ProjectManifestManager.MODE_GENERATED, ProjectManifestManager.MODE_HYBRID, ProjectManifestManager.MODE_RAW};
+        String currentMode = ProjectManifestManager.getMode(sc_id);
+        int checkedItem = 1;
+        for (int i = 0; i < values.length; i++) {
+            if (values[i].equals(currentMode)) {
+                checkedItem = i;
+                break;
+            }
+        }
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Manifest mode")
+                .setSingleChoiceItems(labels, checkedItem, (dialog, which) -> {
+                    String selectedMode = values[which];
+                    if (ProjectManifestManager.MODE_RAW.equals(selectedMode)) {
+                        seedRawManifestFromCurrentPreview();
+                    }
+                    ProjectManifestManager.setMode(sc_id, selectedMode);
+                    SketchwareUtil.toast("Manifest mode saved: " + labels[which]);
+                    dialog.dismiss();
+                    setupOptions();
+                })
+                .setNegativeButton(Helper.getResString(R.string.common_word_cancel), null)
+                .show();
+    }
+
+    private void openRawManifestEditor() {
+        seedRawManifestFromCurrentPreview();
+        Intent intent = new Intent();
+        intent.setClass(getApplicationContext(), SrcCodeEditor.class);
+        intent.putExtra("content", ProjectManifestManager.getRawManifestPath(sc_id));
+        intent.putExtra("xml", "");
+        intent.putExtra("disableHeader", "");
+        intent.putExtra("title", "AndroidManifest.xml");
+        startActivity(intent);
+    }
+
+    private void seedRawManifestFromCurrentPreview() {
+        String existing = FileUtil.readFileIfExist(ProjectManifestManager.getRawManifestPath(sc_id));
+        if (!existing.trim().isEmpty()) {
+            return;
+        }
+        String previousMode = ProjectManifestManager.getMode(sc_id);
+        if (ProjectManifestManager.MODE_RAW.equals(previousMode)) {
+            ProjectManifestManager.setMode(sc_id, ProjectManifestManager.MODE_HYBRID);
+        }
+        String source = new yq(getApplicationContext(), sc_id).getFileSrc("AndroidManifest.xml", jC.b(sc_id), jC.a(sc_id), jC.c(sc_id));
+        ProjectManifestManager.ensureRawManifestSeeded(sc_id, !source.isEmpty() ? source : "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">\n\n</manifest>");
+        if (ProjectManifestManager.MODE_RAW.equals(previousMode)) {
+            ProjectManifestManager.setMode(sc_id, ProjectManifestManager.MODE_RAW);
+        }
     }
 
     private void showQuickManifestSourceDialog() {

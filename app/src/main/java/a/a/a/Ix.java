@@ -400,6 +400,7 @@ public class Ix {
         } catch (NumberFormatException ignored) {
             targetSdkVersion = VAR_DEFAULT_TARGET_SDK_VERSION;
         }
+        boolean addRequestLegacyExternalStorage = targetSdkVersion >= 28;
 
         a.addAttribute("", "package", c.packageName);
 
@@ -419,17 +420,11 @@ public class Ix {
             if (c.hasPermission(jq.PERMISSION_CAMERA)) {
                 writePermission(a, Manifest.permission.CAMERA);
             }
-            if (c.hasPermission(jq.PERMISSION_READ_EXTERNAL_STORAGE) && addedPermissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)) {
-                XmlBuilder readPermission = new XmlBuilder("uses-permission");
-                readPermission.addAttribute("android", "name", Manifest.permission.READ_EXTERNAL_STORAGE);
-                readPermission.addAttribute("android", "maxSdkVersion", "32");
-                a.addChildNode(readPermission);
+            if (c.hasPermission(jq.PERMISSION_READ_EXTERNAL_STORAGE)) {
+                writePermission(a, Manifest.permission.READ_EXTERNAL_STORAGE);
             }
-            if (c.hasPermission(jq.PERMISSION_WRITE_EXTERNAL_STORAGE) && addedPermissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-                XmlBuilder writePermission = new XmlBuilder("uses-permission");
-                writePermission.addAttribute("android", "name", Manifest.permission.WRITE_EXTERNAL_STORAGE);
-                writePermission.addAttribute("android", "maxSdkVersion", "29");
-                a.addChildNode(writePermission);
+            if (c.hasPermission(jq.PERMISSION_WRITE_EXTERNAL_STORAGE)) {
+                writePermission(a, Manifest.permission.WRITE_EXTERNAL_STORAGE);
             }
             if (c.hasPermission(jq.PERMISSION_RECORD_AUDIO)) {
                 writePermission(a, Manifest.permission.RECORD_AUDIO);
@@ -506,13 +501,19 @@ public class Ix {
         }
 
         XmlBuilder applicationTag = new XmlBuilder("application");
-        applicationTag.addAttribute("android", "allowBackup", "false");
+        applicationTag.addAttribute("android", "allowBackup", "true");
         applicationTag.addAttribute("android", "icon", "@mipmap/ic_launcher");
         applicationTag.addAttribute("android", "label", "@string/app_name");
 
         String applicationClassName = settings.getValue(ProjectSettings.SETTING_APPLICATION_CLASS, ".SketchApplication");
         applicationTag.addAttribute("android", "name", applicationClassName);
-        applicationTag.addAttribute("android", "usesCleartextTraffic", "false");
+        if (addRequestLegacyExternalStorage) {
+            applicationTag.addAttribute("android", "requestLegacyExternalStorage", "true");
+        }
+        if (!buildSettings.getValue(BuildSettings.SETTING_NO_HTTP_LEGACY, BuildSettings.SETTING_GENERIC_VALUE_FALSE)
+                .equals(BuildSettings.SETTING_GENERIC_VALUE_TRUE)) {
+            applicationTag.addAttribute("android", "usesCleartextTraffic", "true");
+        }
         AndroidManifestInjector.getAppAttrs(applicationTag, c.sc_id);
 
         boolean hasDebugActivity = false;
