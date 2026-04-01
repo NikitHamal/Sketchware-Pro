@@ -77,7 +77,7 @@ public class ImportIconActivity extends BaseAppCompatActivity implements IconAda
                 search.collapseActionView();
                 searchView.setQuery("", true);
             } else {
-                getOnBackPressedDispatcher().onBackPressed();
+                ImportIconActivity.this.onBackPressed();
             }
         }
     };
@@ -87,6 +87,7 @@ public class ImportIconActivity extends BaseAppCompatActivity implements IconAda
     private String sc_id;
     private IconAdapter adapter = null;
     private ArrayList<String> alreadyAddedImageNames;
+    private ArrayList<Bundle> selectedIcons = new ArrayList<>();
     private SvgUtils svgUtils;
     private String selected_icon_type = ICON_TYPE_ROUND;
     private int selected_color = Color.parseColor("#9E9E9E");
@@ -407,14 +408,16 @@ public class ImportIconActivity extends BaseAppCompatActivity implements IconAda
             positiveButton.setOnClickListener(view -> {
                 if (iconNameValidator.b() && selectedIconPosition >= 0) {
                     String resFullname = adapter.getCurrentList().get(selectedIconPosition).second + File.separator + selected_icon_type + ".svg";
-                    Intent intent = new Intent();
-                    intent.putExtra("iconName", Helper.getText(dialogBinding.inputText));
-                    intent.putExtra("iconPath", resFullname);
+                    Bundle bundle = new Bundle();
+                    String iconNameStr = Helper.getText(dialogBinding.inputText);
+                    bundle.putString("iconName", iconNameStr);
+                    bundle.putString("iconPath", resFullname);
+                    bundle.putInt("iconColor", selected_color);
+                    bundle.putString("iconColorHex", selected_color_hex);
+                    selectedIcons.add(bundle);
+                    alreadyAddedImageNames.add(iconNameStr);
 
-                    intent.putExtra("iconColor", selected_color);
-                    intent.putExtra("iconColorHex", selected_color_hex);
-                    setResult(Activity.RESULT_OK, intent);
-                    finish();
+                    a.a.a.bB.a(ImportIconActivity.this, "Icon saved successfully", a.a.a.bB.TOAST_NORMAL).show();
                 } else {
                     return;
                 }
@@ -437,6 +440,15 @@ public class ImportIconActivity extends BaseAppCompatActivity implements IconAda
         dialog.show();
     }
 
+    @Override
+    public void onBackPressed() {
+        if (!selectedIcons.isEmpty()) {
+            Intent intent = new Intent();
+            intent.putExtra("selectedIcons", selectedIcons);
+            setResult(Activity.RESULT_OK, intent);
+        }
+        super.onBackPressed();
+    }
     @Override
     public void onIconSelected(int position) {
         if (!mB.a()) {

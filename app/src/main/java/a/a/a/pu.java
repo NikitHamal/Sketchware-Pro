@@ -71,18 +71,34 @@ public class pu extends qA {
         if (result.getResultCode() == Activity.RESULT_OK) {
             var data = result.getData();
             assert data != null;
-            ProjectResourceBean icon = new ProjectResourceBean(
-                    ProjectResourceBean.PROJECT_RES_TYPE_FILE,
-                    data.getStringExtra("iconName"), data.getStringExtra("iconPath")
-            );
-            icon.savedPos = 2;
-            icon.isNew = true;
-
-            int selectedColor = data.getIntExtra("iconColor", -1);
-            String selectedColorHex = data.getStringExtra("iconColorHex");
-            addNewColorFilterInfo(selectedColorHex, selectedColor, images.size());
-
-            addImage(icon);
+            if (data.hasExtra("selectedIcons")) {
+                ArrayList<Bundle> selectedIcons = data.getParcelableArrayListExtra("selectedIcons");
+                if (selectedIcons != null && !selectedIcons.isEmpty()) {
+                    for (Bundle bundle : selectedIcons) {
+                        ProjectResourceBean icon = new ProjectResourceBean(
+                                ProjectResourceBean.PROJECT_RES_TYPE_FILE,
+                                bundle.getString("iconName"), bundle.getString("iconPath")
+                        );
+                        icon.savedPos = 2;
+                        icon.isNew = true;
+                        int selectedColor = bundle.getInt("iconColor", -1);
+                        String selectedColorHex = bundle.getString("iconColorHex");
+                        addNewColorFilterInfo(selectedColorHex, selectedColor, images.size());
+                        addImage(icon);
+                    }
+                }
+            } else {
+                ProjectResourceBean icon = new ProjectResourceBean(
+                        ProjectResourceBean.PROJECT_RES_TYPE_FILE,
+                        data.getStringExtra("iconName"), data.getStringExtra("iconPath")
+                );
+                icon.savedPos = 2;
+                icon.isNew = true;
+                int selectedColor = data.getIntExtra("iconColor", -1);
+                String selectedColorHex = data.getStringExtra("iconColorHex");
+                addNewColorFilterInfo(selectedColorHex, selectedColor, images.size());
+                addImage(icon);
+            }
             bB.a(requireActivity(), getString(R.string.design_manager_message_add_complete), bB.TOAST_NORMAL).show();
         }
     });
