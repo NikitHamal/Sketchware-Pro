@@ -674,10 +674,10 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
                         Security.addProvider(new BouncyCastleProvider());
                         CustomKeySigner.signZip(
                                 new ZipSigner(),
-                                wq.j(),
+                                signingKeystorePath,
                                 signingKeystorePassword,
                                 signingAliasName,
-                                signingKeystorePassword,
+                                signingAliasPassword,
                                 signingAlgorithm,
                                 builder.yq.unsignedAlignedApkPath,
                                 outputLocation

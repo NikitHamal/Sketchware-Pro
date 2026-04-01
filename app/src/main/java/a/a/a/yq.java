@@ -345,7 +345,10 @@ public class yq {
 
     public void createLauncherIconXml(String content) {
         try {
-            fileUtil.b(resDirectoryPath + File.separator + "mipmap-anydpi-v26" + File.separator + "ic_launcher.xml", content);
+            String launcherIconXmlPath = resDirectoryPath + File.separator + "mipmap-anydpi-v26" + File.separator + "ic_launcher.xml";
+            if (!FileUtil.isExistFile(launcherIconXmlPath)) {
+                fileUtil.b(launcherIconXmlPath, content);
+            }
         } catch (Exception e2) {
             e2.printStackTrace();
         }
