@@ -103,11 +103,13 @@ ${
         val copy = views.toMutableSet().filterNot {
             it.type == "View" || it.type == "ViewGroup"
         }.distinctBy { it.fullType }
+        val parentPackage = packageName.substringBeforeLast(".")
         val imports = mutableSetOf(
             "import android.view.View;",
             "import android.view.LayoutInflater;",
             "import android.view.ViewGroup;",
-            "import ${rootView.fullType};"
+            "import ${rootView.fullType};",
+            "import $parentPackage.R;"
         )
 
         copy.forEach {
