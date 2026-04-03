@@ -98,6 +98,8 @@ public class AndroidStudioProjectImporter {
     private static final Pattern DATABINDING_INFLATE_PATTERN = Pattern.compile("DataBindingUtil\\s*\\.\\s*inflate\\s*\\([^,]+,\\s*R\\.layout\\.([A-Za-z0-9_]+)\\s*,");
     private static final Pattern VIEWBINDING_INFLATE_PATTERN = Pattern.compile("\\b([A-Za-z0-9_]+)Binding\\s*\\.\\s*inflate\\s*\\(");
     private static final Pattern ACTIVITY_THEME_PATTERN = Pattern.compile("Theme\\.(Material3|MaterialComponents|AppCompat)([^\\n]*)");
+    private static final java.util.concurrent.ConcurrentHashMap<String, Pattern> VALUE_PATTERN_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<String, Pattern> NUMERIC_PATTERN_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
     private static final long MAX_EXTRACTED_BYTES = 512L * 1024L * 1024L;
     private static final int MAX_EXTRACTED_FILES = 20000;
     private static final Set<String> TEST_SOURCE_SET_NAMES = new HashSet<>(Arrays.asList(
@@ -2292,7 +2294,8 @@ public class AndroidStudioProjectImporter {
 
     private String findFirstValue(String content, List<String> keys) {
         for (String key : keys) {
-            Matcher matcher = Pattern.compile("(?m)^[\\t ]*" + Pattern.quote(key) + "[\\t ]*=?[\\t ]*['\"]([^'\"]+)['\"]").matcher(content);
+            Pattern pattern = VALUE_PATTERN_CACHE.computeIfAbsent(key, k -> Pattern.compile("(?m)^[\\t ]*" + Pattern.quote(k) + "[\\t ]*=?[\\t ]*['\"]([^'\"]+)['\"]"));
+            Matcher matcher = pattern.matcher(content);
             if (matcher.find()) {
                 return matcher.group(1).trim();
             }
@@ -2344,7 +2347,8 @@ public class AndroidStudioProjectImporter {
 
     private String findFirstNumeric(String content, List<String> keys) {
         for (String key : keys) {
-            Matcher matcher = Pattern.compile("(?m)^[\\t ]*" + Pattern.quote(key) + "[\\t ]*=?[\\t ]*([0-9]+)").matcher(content);
+            Pattern pattern = NUMERIC_PATTERN_CACHE.computeIfAbsent(key, k -> Pattern.compile("(?m)^[\\t ]*" + Pattern.quote(k) + "[\\t ]*=?[\\t ]*([0-9]+)"));
+            Matcher matcher = pattern.matcher(content);
             if (matcher.find()) {
                 return matcher.group(1).trim();
             }
