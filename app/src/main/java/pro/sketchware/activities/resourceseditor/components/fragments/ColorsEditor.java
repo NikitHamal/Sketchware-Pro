@@ -85,7 +85,7 @@ public class ColorsEditor extends Fragment {
         notesMap = new HashMap<>(colorsEditorManager.notesMap);
 
         if (isSkippingMode) {
-            HashSet<String> existingColorNames = new HashSet<>();
+            HashSet<String> existingColorNames = new HashSet<>((int) (colorList.size() / 0.75f) + 1);
             for (ColorModel existingModel : colorList) {
                 existingColorNames.add(existingModel.getColorName());
             }
@@ -97,7 +97,7 @@ public class ColorsEditor extends Fragment {
             }
         } else {
             if (isMergeAndReplace) {
-                HashSet<String> newColorNames = new HashSet<>();
+                HashSet<String> newColorNames = new HashSet<>((int) (defaultColors.size() / 0.75f) + 1);
                 for (ColorModel color : defaultColors) {
                     newColorNames.add(color.getColorName());
                 }

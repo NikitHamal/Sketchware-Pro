@@ -73,7 +73,7 @@ public class ThemesEditor extends Fragment {
         ArrayList<StyleModel> defaultStyles = themesEditorManager.parseStylesFile(FileUtil.readFileIfExist(filePath));
 
         if (isSkippingMode) {
-            HashSet<String> existingThemeNames = new HashSet<>();
+            HashSet<String> existingThemeNames = new HashSet<>((int) (themesList.size() / 0.75f) + 1);
             for (StyleModel existingStyle : themesList) {
                 existingThemeNames.add(existingStyle.getStyleName());
             }
@@ -85,7 +85,7 @@ public class ThemesEditor extends Fragment {
             }
         } else {
             if (isMergeAndReplace) {
-                HashSet<String> newThemeNames = new HashSet<>();
+                HashSet<String> newThemeNames = new HashSet<>((int) (defaultStyles.size() / 0.75f) + 1);
                 for (StyleModel theme : defaultStyles) {
                     newThemeNames.add(theme.getStyleName());
                 }
