@@ -79,10 +79,10 @@ public class ArraysEditor extends Fragment {
         ArrayList<ArrayModel> defaultArrays = arraysEditorManager.parseArraysFile(FileUtil.readFileIfExist(filePath));
 
         if (isSkippingMode) {
-            HashSet<String> existingArrayNames = new HashSet<>();
-            for (ArrayModel existingArray : arraysList) {
-                existingArrayNames.add(existingArray.getArrayName());
-            }
+            HashSet<String> existingArrayNames = arraysList.stream()
+                    .map(ArrayModel::getArrayName)
+                    .collect(java.util.stream.Collectors.toCollection(
+                            () -> new HashSet<>((int) (arraysList.size() / 0.75f) + 1)));
 
             for (ArrayModel array : defaultArrays) {
                 if (!existingArrayNames.contains(array.getArrayName())) {
@@ -91,10 +91,10 @@ public class ArraysEditor extends Fragment {
             }
         } else {
             if (isMergeAndReplace) {
-                HashSet<String> newArrayNames = new HashSet<>();
-                for (ArrayModel array : defaultArrays) {
-                    newArrayNames.add(array.getArrayName());
-                }
+                HashSet<String> newArrayNames = defaultArrays.stream()
+                        .map(ArrayModel::getArrayName)
+                        .collect(java.util.stream.Collectors.toCollection(
+                                () -> new HashSet<>((int) (defaultArrays.size() / 0.75f) + 1)));
 
                 arraysList.removeIf(existingArray -> newArrayNames.contains(existingArray.getArrayName()));
             } else {
