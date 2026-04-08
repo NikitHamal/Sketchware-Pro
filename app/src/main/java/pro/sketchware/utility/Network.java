@@ -2,6 +2,7 @@ package pro.sketchware.utility;
 
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -18,6 +19,8 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class Network {
+
+    private static final String TAG = "Network";
 
     private final OkHttpClient client;
 
@@ -56,7 +59,7 @@ public class Network {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
-                e.printStackTrace();
+                Log.e(TAG, "Network request failed", e);
                 runOnUiThread(() -> handler.handleResponse(null));
             }
 
@@ -66,6 +69,7 @@ public class Network {
                     String responseBody = response.body() != null ? response.body().string() : null;
                     runOnUiThread(() -> handler.handleResponse(responseBody));
                 } catch (IOException e) {
+                    Log.e(TAG, "Error reading response body", e);
                     runOnUiThread(() -> handler.handleResponse(null));
                 }
             }
