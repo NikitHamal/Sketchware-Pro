@@ -53,6 +53,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -100,6 +103,7 @@ public class AndroidStudioProjectImporter {
     private static final Pattern ACTIVITY_THEME_PATTERN = Pattern.compile("Theme\\.(Material3|MaterialComponents|AppCompat)([^\\n]*)");
     private static final long MAX_EXTRACTED_BYTES = 512L * 1024L * 1024L;
     private static final int MAX_EXTRACTED_FILES = 20000;
+    private static final long DEPENDENCY_RESOLVE_TIMEOUT_MS = 120_000L;
     private static final Set<String> TEST_SOURCE_SET_NAMES = new HashSet<>(Arrays.asList(
             "test",
             "androidTest",
@@ -132,13 +136,17 @@ public class AndroidStudioProjectImporter {
 
     public ImportResult importFromZipUri(Uri uri) throws Exception {
         File tempZip = new File(context.getCacheDir(), "import-" + System.currentTimeMillis() + ".zip");
-        try (InputStream inputStream = context.getContentResolver().openInputStream(uri)) {
-            if (inputStream == null) {
-                throw new IOException("Unable to open selected file");
+        try {
+            try (InputStream inputStream = context.getContentResolver().openInputStream(uri)) {
+                if (inputStream == null) {
+                    throw new IOException("Unable to open selected file");
+                }
+                copyStreamToFile(inputStream, tempZip);
             }
-            copyStreamToFile(inputStream, tempZip);
+            return importFromZipFile(tempZip, "android_studio_zip", null);
+        } finally {
+            deleteQuietly(tempZip);
         }
-        return importFromZipFile(tempZip, "android_studio_zip", null);
     }
 
     public ImportResult importFromGitHub(String repoUrl, String branch, String token) throws Exception {
@@ -148,29 +156,48 @@ public class AndroidStudioProjectImporter {
             repoSpec.branch = fetchDefaultBranch(repoSpec, token);
         }
         File archive = new File(context.getCacheDir(), repoSpec.repo + "-" + System.currentTimeMillis() + ".zip");
-        notifyProgress("Downloading GitHub archive for " + repoSpec.owner + "/" + repoSpec.repo + "#" + repoSpec.branch + "...");
-        downloadGitHubArchive(repoSpec, token, archive);
-        ImportResult result = importFromZipFile(archive, "github", repoSpec.repo);
-        result.sourceLabel = repoSpec.owner + "/" + repoSpec.repo + "#" + repoSpec.branch;
-        return result;
+        try {
+            notifyProgress("Downloading GitHub archive for " + repoSpec.owner + "/" + repoSpec.repo + "#" + repoSpec.branch + "...");
+            downloadGitHubArchive(repoSpec, token, archive);
+            ImportResult result = importFromZipFile(archive, "github", repoSpec.repo);
+            result.sourceLabel = repoSpec.owner + "/" + repoSpec.repo + "#" + repoSpec.branch;
+            return result;
+        } finally {
+            deleteQuietly(archive);
+        }
     }
 
     public ImportResult importFromZipFile(File zipFile, String sourceType, String preferredProjectName) throws Exception {
         notifyProgress("Extracting archive...");
         File extractDir = new File(context.getCacheDir(), "import-extracted-" + System.currentTimeMillis());
-        safeExtract(zipFile, extractDir);
-        notifyProgress("Analyzing Gradle modules and manifests...");
-        DetectedProject detectedProject = detectProject(extractDir);
-        if (detectedProject != null) {
-            detectedProject.archiveLabel = zipFile.getName();
+        try {
+            safeExtract(zipFile, extractDir);
+            notifyProgress("Analyzing Gradle modules and manifests...");
+            DetectedProject detectedProject = detectProject(extractDir);
+            if (detectedProject != null) {
+                detectedProject.archiveLabel = zipFile.getName();
+            }
+            if (detectedProject == null) {
+                throw new IOException("No supported Android application module was found in the selected archive");
+            }
+            if (detectedProject.roundTripMetadataJson != null && detectedProject.roundTripMetadataJson.isFile()) {
+                return restoreRoundTripProject(detectedProject, sourceType, preferredProjectName);
+            }
+            return importGenericAndroidProject(detectedProject, sourceType, preferredProjectName);
+        } finally {
+            deleteQuietly(extractDir);
         }
-        if (detectedProject == null) {
-            throw new IOException("No supported Android application module was found in the selected archive");
+    }
+
+    private void deleteQuietly(File file) {
+        if (file == null || !file.exists()) {
+            return;
         }
-        if (detectedProject.roundTripMetadataJson != null && detectedProject.roundTripMetadataJson.isFile()) {
-            return restoreRoundTripProject(detectedProject, sourceType, preferredProjectName);
+        try {
+            FileUtil.deleteFile(file.getAbsolutePath());
+        } catch (Exception exception) {
+            Log.w(TAG, "Failed to clean up temporary import file: " + file.getAbsolutePath(), exception);
         }
-        return importGenericAndroidProject(detectedProject, sourceType, preferredProjectName);
     }
 
     public static void writeRoundTripMetadata(String scId, HashMap<String, Object> metadata, String androidStudioProjectRoot) {
@@ -254,7 +281,7 @@ public class AndroidStudioProjectImporter {
         importLocalJarsAndAars(detectedProject.libsDirectories, scId);
 
         notifyProgress("Resolving Maven dependencies and local libraries...");
-        resolveAndRegisterDependencies(scId, gradle.dependencies);
+        List<String> dependencyWarnings = resolveAndRegisterDependencies(scId, gradle.dependencies);
 
         if (!manifest.permissions.isEmpty()) {
             FileUtil.writeFile(filePathUtil.getPathPermission(scId), gson.toJson(manifest.permissions));
@@ -272,6 +299,7 @@ public class AndroidStudioProjectImporter {
         result.sourceLabel = sourceType.equals("android_studio_zip") ? detectedProject.archiveLabel : detectedProject.rootDirectory.getName();
         result.importedDependencies.addAll(gradle.dependencies);
         result.unsupportedFeatures.addAll(gradle.warnings);
+        result.warnings.addAll(dependencyWarnings);
 
         notifyProgress("Normalizing imported resources and launcher icons...");
         normalizeImportedProjectResources(scId, manifest, new File(filePathUtil.getPathJava(scId)),
@@ -859,7 +887,8 @@ public class AndroidStudioProjectImporter {
         return filename.substring(0, extensionIndex);
     }
 
-    private void resolveAndRegisterDependencies(String scId, List<String> dependencies) {
+    private List<String> resolveAndRegisterDependencies(String scId, List<String> dependencies) {
+        ArrayList<String> warnings = new ArrayList<>();
         ArrayList<HashMap<String, Object>> localLibraries = LocalLibrariesUtil.getLocalLibraries(scId);
         Set<String> existingDependencies = new LinkedHashSet<>();
         Set<String> existingLibraryNames = new LinkedHashSet<>();
@@ -874,7 +903,7 @@ public class AndroidStudioProjectImporter {
             }
         }
         if (dependencies.isEmpty()) {
-            return;
+            return warnings;
         }
 
         BuiltInLibraries.maybeExtractAndroidJar();
@@ -889,9 +918,47 @@ public class AndroidStudioProjectImporter {
                 continue;
             }
 
-            List<String> resolvedArtifacts = new ArrayList<>();
+            notifyProgress("Resolving dependency " + dependency + "...");
+            List<String> resolvedArtifacts;
             try {
-                new DependencyResolver(parts[0], parts[1], parts[2], false, new BuildSettings(scId))
+                resolvedArtifacts = resolveDependencyArtifactsWithTimeout(scId, parts[0], parts[1], parts[2]);
+            } catch (Exception exception) {
+                Log.e(TAG, "Dependency resolution failed for " + dependency, exception);
+                warnings.add("Dependency '" + dependency + "' could not be resolved automatically: " + exception.getMessage());
+                continue;
+            }
+
+            if (resolvedArtifacts.isEmpty()) {
+                String fallbackLibraryName = sanitizeLibraryName(parts[1] + "-v" + parts[2]);
+                warnings.add("Dependency '" + dependency + "' did not report any downloaded artifacts. Sketchware registered '" + fallbackLibraryName + "', but you may need to download it manually.");
+                resolvedArtifacts = Collections.singletonList(fallbackLibraryName);
+            }
+
+            String rootLibraryName = sanitizeLibraryName(parts[1] + "-v" + parts[2]);
+            for (String artifactName : resolvedArtifacts) {
+                String safeArtifactName = sanitizeLibraryName(artifactName);
+                if (existingLibraryNames.contains(safeArtifactName)) {
+                    continue;
+                }
+                String rootDependency = safeArtifactName.equals(rootLibraryName) ? dependency : null;
+                localLibraries.add(LocalLibrariesUtil.createLibraryMap(safeArtifactName, rootDependency));
+                existingLibraryNames.add(safeArtifactName);
+            }
+            existingDependencies.add(dependency);
+        }
+        LocalLibrariesUtil.rewriteLocalLibFile(scId, gson.toJson(localLibraries));
+        return warnings;
+    }
+
+    private List<String> resolveDependencyArtifactsWithTimeout(String scId, String groupId, String artifactId, String version) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<List<String>> artifactsRef = new AtomicReference<>(new ArrayList<>());
+        AtomicReference<Throwable> failureRef = new AtomicReference<>();
+
+        Thread worker = new Thread(() -> {
+            try {
+                List<String> resolvedArtifacts = new ArrayList<>();
+                new DependencyResolver(groupId, artifactId, version, false, new BuildSettings(scId))
                         .resolveDependency(new DependencyResolver.DependencyResolverCallback() {
                             @Override
                             public void onTaskCompleted(List<String> artifacts) {
@@ -900,28 +967,30 @@ public class AndroidStudioProjectImporter {
                                 }
                             }
                         });
+                artifactsRef.set(resolvedArtifacts);
             } catch (Throwable throwable) {
-                Log.e(TAG, "Dependency resolution failed for " + dependency, throwable);
-                continue;
+                failureRef.set(throwable);
+            } finally {
+                latch.countDown();
             }
+        }, "ImporterDependencyResolver-" + artifactId + '-' + version);
+        worker.setDaemon(true);
+        worker.start();
 
-            if (resolvedArtifacts.isEmpty()) {
-                resolvedArtifacts.add(sanitizeLibraryName(parts[1] + "-v" + parts[2]));
-            }
-
-            for (String artifactName : resolvedArtifacts) {
-                String safeArtifactName = sanitizeLibraryName(artifactName);
-                if (existingLibraryNames.contains(safeArtifactName)) {
-                    continue;
-                }
-                String rootDependency = dependency.equals(parts[0] + ":" + parts[1] + ":" + parts[2]) && safeArtifactName.equals(sanitizeLibraryName(parts[1] + "-v" + parts[2]))
-                        ? dependency : null;
-                localLibraries.add(LocalLibrariesUtil.createLibraryMap(safeArtifactName, rootDependency));
-                existingLibraryNames.add(safeArtifactName);
-            }
-            existingDependencies.add(dependency);
+        if (!latch.await(DEPENDENCY_RESOLVE_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+            worker.interrupt();
+            throw new IOException("Timed out while resolving '" + groupId + ':' + artifactId + ':' + version + "'. The project was imported, but this dependency must be downloaded manually from the Local Libraries manager.");
         }
-        LocalLibrariesUtil.rewriteLocalLibFile(scId, gson.toJson(localLibraries));
+
+        Throwable failure = failureRef.get();
+        if (failure != null) {
+            if (failure instanceof Exception exception) {
+                throw exception;
+            }
+            throw new IOException(failure.getMessage() == null ? failure.toString() : failure.getMessage(), failure);
+        }
+
+        return artifactsRef.get();
     }
 
     private void importLocalJarsAndAars(List<File> libraryDirectories, String scId) throws IOException {

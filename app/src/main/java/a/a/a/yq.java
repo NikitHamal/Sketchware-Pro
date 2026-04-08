@@ -989,11 +989,11 @@ public class yq {
             return FileUtil.readFile(filePath);
         }
         XmlBuilderHelper colorsFileBuilder = new XmlBuilderHelper();
-        colorsFileBuilder.addColor("colorPrimary", String.format("#%06X", colorPrimary & 0xffffff));
-        colorsFileBuilder.addColor("colorPrimaryDark", String.format("#%06X", colorPrimaryDark & 0xffffff));
-        colorsFileBuilder.addColor("colorAccent", String.format("#%06X", colorAccent & 0xffffff));
-        colorsFileBuilder.addColor("colorControlHighlight", String.format("#%06X", colorControlHighlight & 0xffffff));
-        colorsFileBuilder.addColor("colorControlNormal", String.format("#%06X", colorControlNormal & 0xffffff));
+        colorsFileBuilder.addColor("colorPrimary", Ox.formatColor(colorPrimary));
+        colorsFileBuilder.addColor("colorPrimaryDark", Ox.formatColor(colorPrimaryDark));
+        colorsFileBuilder.addColor("colorAccent", Ox.formatColor(colorAccent));
+        colorsFileBuilder.addColor("colorControlHighlight", Ox.formatColor(colorControlHighlight));
+        colorsFileBuilder.addColor("colorControlNormal", Ox.formatColor(colorControlNormal));
         return CommandBlock.applyCommands("colors.xml", colorsFileBuilder.toCode());
     }
 
