@@ -18,6 +18,8 @@
         <item name="android:popupMenuStyle">@style/Widget.Material3.PopupMenu</item>
         <item name="materialCardViewStyle">?attr/materialCardViewFilledStyle</item>
         <item name="materialCardViewFilledStyle">@style/Widget.SketchwarePro.CardView</item>
+        <item name="fontFamily">@font/poppins</item>
+        <item name="android:fontFamily">@font/poppins</item>
         <!-- Type styles. -->
         <item name="textAppearanceDisplayLarge">@style/TextAppearance.SketchwarePro.DisplayLarge</item>
         <item name="textAppearanceDisplayMedium">@style/TextAppearance.SketchwarePro.DisplayMedium</item>
@@ -39,11 +41,6 @@
 
     <style name="Theme.SketchwarePro.Main">
         <item name="navigationViewStyle">@style/Widget.SketchwarePro.NavigationView.Main</item>
-    </style>
-
-    <style name="Theme.SketchwarePro.ProjectPreview">
-        <item name="bottomSheetDialogTheme">@style/ThemeOverlay.SketchwarePro.BottomSheetDialog
-        </item>
     </style>
 
     <style name="Theme.SketchwarePro.SmallToolbar">

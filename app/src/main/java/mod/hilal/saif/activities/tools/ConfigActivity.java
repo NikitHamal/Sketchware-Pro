@@ -4,6 +4,7 @@ import static pro.sketchware.utility.GsonUtils.getGson;
 
 import android.content.DialogInterface;
 import android.os.Bundle;
+import android.text.InputType;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -14,6 +15,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.preference.EditTextPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceDataStore;
 import androidx.preference.PreferenceFragmentCompat;
@@ -34,6 +36,8 @@ import java.util.Map;
 
 import mod.hey.studios.util.Helper;
 import mod.jbk.util.LogUtil;
+import pro.sketchware.ai.AgentModelRepository;
+import pro.sketchware.ai.AgentProvider;
 import pro.sketchware.R;
 import pro.sketchware.databinding.DialogCreateNewFileLayoutBinding;
 import pro.sketchware.databinding.PreferenceActivityBinding;
@@ -55,6 +59,9 @@ public class ConfigActivity extends BaseAppCompatActivity {
     public static final String SETTING_CRITICAL_UPDATE_REMINDER = "critical-update-reminder";
     public static final String SETTING_BLOCKMANAGER_DIRECTORY_PALETTE_FILE_PATH = "palletteDir";
     public static final String SETTING_BLOCKMANAGER_DIRECTORY_BLOCK_FILE_PATH = "blockDir";
+    public static final String SETTING_AI_PROVIDER_GEMINI_API_KEY = "ai-provider-gemini-api-key";
+    public static final String SETTING_AI_PROVIDER_NVIDIA_API_KEY = "ai-provider-nvidia-api-key";
+    public static final String SETTING_AI_PROVIDER_OPENROUTER_API_KEY = "ai-provider-openrouter-api-key";
 
     public static String getBackupPath() {
         return DataStore.getInstance().getString(SETTING_BACKUP_DIRECTORY, "/.sketchware/backups/");
@@ -136,6 +143,9 @@ public class ConfigActivity extends BaseAppCompatActivity {
                 SETTING_SHOW_EVERY_SINGLE_BLOCK,
                 SETTING_USE_NEW_VERSION_CONTROL,
                 SETTING_USE_ASD_HIGHLIGHTER,
+                SETTING_AI_PROVIDER_GEMINI_API_KEY,
+                SETTING_AI_PROVIDER_NVIDIA_API_KEY,
+                SETTING_AI_PROVIDER_OPENROUTER_API_KEY,
                 SETTING_BLOCKMANAGER_DIRECTORY_PALETTE_FILE_PATH,
                 SETTING_BLOCKMANAGER_DIRECTORY_BLOCK_FILE_PATH);
 
@@ -153,6 +163,9 @@ public class ConfigActivity extends BaseAppCompatActivity {
                  SETTING_USE_ASD_HIGHLIGHTER -> false;
             case SETTING_BACKUP_DIRECTORY -> "/.sketchware/backups/";
             case SETTING_ROOT_AUTO_OPEN_AFTER_INSTALLING -> true;
+            case SETTING_AI_PROVIDER_GEMINI_API_KEY,
+                 SETTING_AI_PROVIDER_NVIDIA_API_KEY,
+                 SETTING_AI_PROVIDER_OPENROUTER_API_KEY -> "";
             case SETTING_BLOCKMANAGER_DIRECTORY_PALETTE_FILE_PATH ->
                     "/.sketchware/resources/block/My Block/palette.json";
             case SETTING_BLOCKMANAGER_DIRECTORY_BLOCK_FILE_PATH ->
@@ -208,6 +221,7 @@ public class ConfigActivity extends BaseAppCompatActivity {
     public static class PreferenceFragment extends PreferenceFragmentCompat {
         private View snackbarView;
         private DataStore dataStore;
+        private final AgentModelRepository modelRepository = new AgentModelRepository();
 
         @Override
         public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
@@ -300,6 +314,63 @@ public class ConfigActivity extends BaseAppCompatActivity {
                 dialog.show();
                 return true;
             });
+
+            EditTextPreference geminiKeyPreference = findPreference(SETTING_AI_PROVIDER_GEMINI_API_KEY);
+            EditTextPreference nvidiaKeyPreference = findPreference(SETTING_AI_PROVIDER_NVIDIA_API_KEY);
+            EditTextPreference openRouterKeyPreference = findPreference(SETTING_AI_PROVIDER_OPENROUTER_API_KEY);
+            setupApiKeyPreference(geminiKeyPreference, AgentProvider.GEMINI);
+            setupApiKeyPreference(nvidiaKeyPreference, AgentProvider.NVIDIA);
+            setupApiKeyPreference(openRouterKeyPreference, AgentProvider.OPENROUTER);
+        }
+
+        private void setupApiKeyPreference(EditTextPreference preference, String provider) {
+            if (preference == null) {
+                return;
+            }
+            preference.setOnBindEditTextListener(editText -> {
+                editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+                editText.setSelection(editText.length());
+            });
+            preference.setSummary(maskedSummary(preference.getText()));
+            preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
+                String apiKey = newValue == null ? "" : String.valueOf(newValue).trim();
+                changedPreference.setSummary(maskedSummary(apiKey));
+                if (!apiKey.isEmpty()) {
+                    fetchAndCacheModels(provider, apiKey);
+                }
+                return true;
+            });
+        }
+
+        private String maskedSummary(String value) {
+            return value == null || value.trim().isEmpty() ? "Not set" : "Configured";
+        }
+
+        private void fetchAndCacheModels(String provider, String apiKey) {
+            Snackbar.make(snackbarView, "Fetching " + AgentProvider.getDisplayName(provider) + " models...", BaseTransientBottomBar.LENGTH_SHORT).show();
+            new Thread(() -> {
+                Exception error = null;
+                int count = 0;
+                try {
+                    count = modelRepository.refreshModels(provider, apiKey).size();
+                } catch (Exception e) {
+                    error = e;
+                }
+
+                int finalCount = count;
+                Exception finalError = error;
+                var activity = getActivity();
+                if (activity == null) {
+                    return;
+                }
+                activity.runOnUiThread(() -> {
+                    if (finalError != null) {
+                        Snackbar.make(snackbarView, "Failed to fetch models: " + finalError.getMessage(), BaseTransientBottomBar.LENGTH_LONG).show();
+                    } else {
+                        Snackbar.make(snackbarView, "Cached " + finalCount + " " + AgentProvider.getDisplayName(provider) + " models", BaseTransientBottomBar.LENGTH_SHORT).show();
+                    }
+                });
+            }).start();
         }
 
         public DataStore getDataStore() {

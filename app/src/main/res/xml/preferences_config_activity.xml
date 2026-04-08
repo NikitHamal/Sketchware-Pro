@@ -53,4 +53,26 @@
         app:key="backup-filename"
         app:summary="Default is &quot;$projectName v$versionName ($pkgName, $versionCode) $time(yyyy-MM-dd'T'HHmmss)&quot;"
         app:title="Backup filename format" />
+
+    <PreferenceCategory
+        app:iconSpaceReserved="false"
+        app:title="AI Providers" />
+
+    <EditTextPreference
+        app:iconSpaceReserved="false"
+        app:key="ai-provider-gemini-api-key"
+        app:summary="Not set"
+        app:title="Gemini API key" />
+
+    <EditTextPreference
+        app:iconSpaceReserved="false"
+        app:key="ai-provider-nvidia-api-key"
+        app:summary="Not set"
+        app:title="Nvidia API key" />
+
+    <EditTextPreference
+        app:iconSpaceReserved="false"
+        app:key="ai-provider-openrouter-api-key"
+        app:summary="Not set"
+        app:title="OpenRouter API key" />
 </PreferenceScreen>
