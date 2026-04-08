@@ -1,35 +1,50 @@
 package pro.sketchware.ai.tools;
 
-import android.os.Environment;
+import static mod.hey.studios.util.ProjectFile.COLOR_ACCENT;
+import static mod.hey.studios.util.ProjectFile.COLOR_CONTROL_HIGHLIGHT;
+import static mod.hey.studios.util.ProjectFile.COLOR_CONTROL_NORMAL;
+import static mod.hey.studios.util.ProjectFile.COLOR_PRIMARY;
+import static mod.hey.studios.util.ProjectFile.COLOR_PRIMARY_DARK;
+import static mod.hey.studios.util.ProjectFile.getDefaultColor;
 
+import android.text.TextUtils;
+
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.google.gson.JsonSyntaxException;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 
+import a.a.a.GB;
+import a.a.a.lC;
+import a.a.a.oB;
+import a.a.a.wq;
+import mod.hey.studios.project.ProjectSettings;
 import pro.sketchware.ai.models.ToolResult;
+import pro.sketchware.ai.models.Workspace;
+import pro.sketchware.ai.storage.WorkspaceManager;
+import pro.sketchware.utility.FilePathUtil;
+import pro.sketchware.utility.FileUtil;
 
-/**
- * Contains tools for project-level operations: listing, creating, deleting,
- * duplicating, and retrieving project information.
- */
 public final class ProjectTools {
+
+    private static final Gson GSON = new Gson();
 
     private ProjectTools() {
     }
 
     private static File getSketchwareDir() {
-        return new File(Environment.getExternalStorageDirectory(), ".sketchware");
+        return new File(android.os.Environment.getExternalStorageDirectory(), ".sketchware");
     }
 
     private static File getDataDir() {
@@ -42,28 +57,6 @@ public final class ProjectTools {
 
     private static File getMyscDir() {
         return new File(getSketchwareDir(), "mysc");
-    }
-
-    private static String readFileContent(File file) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            char[] buffer = new char[4096];
-            int read;
-            while ((read = reader.read(buffer)) != -1) {
-                sb.append(buffer, 0, read);
-            }
-        }
-        return sb.toString();
-    }
-
-    private static void writeFileContent(File file, String content) throws IOException {
-        File parent = file.getParentFile();
-        if (parent != null && !parent.exists()) {
-            parent.mkdirs();
-        }
-        try (FileWriter writer = new FileWriter(file)) {
-            writer.write(content);
-        }
     }
 
     private static void copyDirectory(File source, File target) throws IOException {
@@ -110,44 +103,7 @@ public final class ProjectTools {
     }
 
     private static String generateNewScId() {
-        int maxId = 600;
-        File dataDir = getDataDir();
-        if (dataDir.exists()) {
-            File[] files = dataDir.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    if (file.isDirectory()) {
-                        try {
-                            int id = Integer.parseInt(file.getName());
-                            if (id > maxId) {
-                                maxId = id;
-                            }
-                        } catch (NumberFormatException ignored) {
-                        }
-                    }
-                }
-            }
-        }
-
-        File myscListDir = getMyscListDir();
-        if (myscListDir.exists()) {
-            File[] files = myscListDir.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    if (file.isDirectory()) {
-                        try {
-                            int id = Integer.parseInt(file.getName());
-                            if (id > maxId) {
-                                maxId = id;
-                            }
-                        } catch (NumberFormatException ignored) {
-                        }
-                    }
-                }
-            }
-        }
-
-        return String.valueOf(maxId + 1);
+        return lC.b();
     }
 
     private static ToolResult success(String output) {
@@ -158,11 +114,114 @@ public final class ProjectTools {
         return new ToolResult(null, false, null, message);
     }
 
-    /**
-     * Lists all projects visible to the workspace.
-     */
-    public static class ListProjectsTool implements AgentTool {
+    private static void ensureProjectDirectories(String scId) {
+        FilePathUtil filePathUtil = new FilePathUtil();
+        FileUtil.makeDir(wq.b(scId));
+        FileUtil.makeDir(filePathUtil.getPathJava(scId));
+        FileUtil.makeDir(filePathUtil.getPathResource(scId));
+        FileUtil.makeDir(filePathUtil.getPathResource(scId) + File.separator + "layout");
+        FileUtil.makeDir(filePathUtil.getPathResource(scId) + File.separator + "values");
+        FileUtil.makeDir(filePathUtil.getPathAssets(scId));
+        FileUtil.makeDir(filePathUtil.getPathNativelibs(scId));
+        FileUtil.makeDir(wq.b(scId) + File.separator + "files" + File.separator + "classpath");
+    }
 
+    private static void seedDefaultResources(String scId, String appName) {
+        FilePathUtil filePathUtil = new FilePathUtil();
+        String valuesDir = filePathUtil.getPathResource(scId) + File.separator + "values";
+        FileUtil.makeDir(valuesDir);
+        FileUtil.writeFile(valuesDir + File.separator + "strings.xml",
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n    <string name=\"app_name\">"
+                        + escapeXml(appName) + "</string>\n</resources>\n");
+        FileUtil.writeFile(valuesDir + File.separator + "colors.xml",
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n"
+                        + "    <color name=\"colorPrimary\">#2196F3</color>\n"
+                        + "    <color name=\"colorPrimaryDark\">#1976D2</color>\n"
+                        + "    <color name=\"colorAccent\">#2196F3</color>\n"
+                        + "</resources>\n");
+        FileUtil.writeFile(filePathUtil.getPathResource(scId) + File.separator + "layout" + File.separator + "main.xml",
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                        + "<LinearLayout xmlns:android=\"http://schemas.android.com/apk/res/android\"\n"
+                        + "    android:layout_width=\"match_parent\"\n"
+                        + "    android:layout_height=\"match_parent\"\n"
+                        + "    android:gravity=\"center\"\n"
+                        + "    android:orientation=\"vertical\"\n"
+                        + "    android:padding=\"16dp\">\n\n"
+                        + "    <TextView\n"
+                        + "        android:layout_width=\"wrap_content\"\n"
+                        + "        android:layout_height=\"wrap_content\"\n"
+                        + "        android:text=\"Hello from Sketchware AI\"\n"
+                        + "        android:textSize=\"20sp\" />\n\n"
+                        + "</LinearLayout>\n");
+    }
+
+    private static String escapeXml(String value) {
+        if (value == null) return "";
+        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&apos;");
+    }
+
+    private static HashMap<String, Object> createProjectMetadata(ToolContext context, String scId,
+                                                                 String projectName, String packageName,
+                                                                 String appName, String versionCode,
+                                                                 String versionName) {
+        HashMap<String, Object> data = new HashMap<>();
+        data.put("sc_id", scId);
+        data.put("proj_type", 1);
+        data.put("my_sc_pkg_name", packageName);
+        data.put("my_ws_name", sanitizeProjectName(projectName));
+        data.put("my_app_name", TextUtils.isEmpty(appName) ? projectName : appName);
+        data.put("my_sc_reg_dt", new SimpleDateFormat("yyyyMMddHHmmss", Locale.US).format(new Date()));
+        data.put("custom_icon", false);
+        data.put("isIconAdaptive", false);
+        data.put("sc_ver_code", versionCode);
+        data.put("sc_ver_name", versionName);
+        data.put("sketchware_ver", GB.d(context.getAppContext()));
+        data.put(COLOR_ACCENT, getDefaultColor(COLOR_ACCENT));
+        data.put(COLOR_PRIMARY, getDefaultColor(COLOR_PRIMARY));
+        data.put(COLOR_PRIMARY_DARK, getDefaultColor(COLOR_PRIMARY_DARK));
+        data.put(COLOR_CONTROL_HIGHLIGHT, getDefaultColor(COLOR_CONTROL_HIGHLIGHT));
+        data.put(COLOR_CONTROL_NORMAL, getDefaultColor(COLOR_CONTROL_NORMAL));
+        return data;
+    }
+
+    private static void addProjectToWorkspace(ToolContext context, String scId) {
+        if (context.getWorkspaceId() == null || context.getWorkspaceId().isEmpty()) {
+            return;
+        }
+        WorkspaceManager manager = new WorkspaceManager(context.getAppContext());
+        Workspace workspace = manager.getWorkspace(context.getWorkspaceId());
+        if (workspace != null && !workspace.hasProject(scId)) {
+            workspace.addProject(scId);
+            manager.updateWorkspace(workspace);
+        }
+    }
+
+    private static void removeProjectFromWorkspace(ToolContext context, String scId) {
+        if (context.getWorkspaceId() == null || context.getWorkspaceId().isEmpty()) {
+            return;
+        }
+        WorkspaceManager manager = new WorkspaceManager(context.getAppContext());
+        Workspace workspace = manager.getWorkspace(context.getWorkspaceId());
+        if (workspace != null && workspace.hasProject(scId)) {
+            workspace.removeProject(scId);
+            manager.updateWorkspace(workspace);
+        }
+    }
+
+    private static String sanitizeProjectName(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return "NewProject";
+        }
+        value = value.replaceAll("[^A-Za-z0-9 _.-]", " ").trim();
+        return value.isEmpty() ? "NewProject" : value;
+    }
+
+    private static boolean isValidPackageName(String packageName) {
+        return packageName != null && packageName.matches("[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+");
+    }
+
+    public static class ListProjectsTool implements AgentTool {
         @Override
         public String getName() {
             return "list_projects";
@@ -186,46 +245,20 @@ public final class ProjectTools {
         public ToolResult execute(JsonObject arguments, ToolContext context) {
             try {
                 JsonArray projects = new JsonArray();
-                File dataDir = getDataDir();
-                if (!dataDir.exists()) {
-                    return success(projects.toString());
-                }
-
-                File[] projectDirs = dataDir.listFiles();
-                if (projectDirs == null) {
-                    return success(projects.toString());
-                }
-
-                for (File dir : projectDirs) {
-                    if (!dir.isDirectory()) continue;
-
-                    String scId = dir.getName();
+                List<HashMap<String, Object>> allProjects = lC.a();
+                for (HashMap<String, Object> data : allProjects) {
+                    String scId = String.valueOf(data.get("sc_id"));
                     if (!context.isProjectAllowed(scId)) continue;
 
-                    File projectFile = new File(dir, "project");
-                    if (!projectFile.exists()) continue;
-
-                    try {
-                        String content = readFileContent(projectFile);
-                        JsonObject projectData = JsonParser.parseString(content).getAsJsonObject();
-
-                        JsonObject entry = new JsonObject();
-                        entry.addProperty("sc_id", scId);
-                        entry.addProperty("name",
-                                projectData.has("my_app_name")
-                                        ? projectData.get("my_app_name").getAsString() : "");
-                        entry.addProperty("package_name",
-                                projectData.has("my_sc_pkg_name")
-                                        ? projectData.get("my_sc_pkg_name").getAsString() : "");
-                        entry.addProperty("version_name",
-                                projectData.has("sc_ver_name")
-                                        ? projectData.get("sc_ver_name").getAsString() : "");
-                        projects.add(entry);
-                    } catch (IOException | JsonSyntaxException e) {
-                        // Skip unreadable projects
-                    }
+                    JsonObject entry = new JsonObject();
+                    entry.addProperty("sc_id", scId);
+                    entry.addProperty("name", String.valueOf(data.get("my_app_name")));
+                    entry.addProperty("workspace_name", String.valueOf(data.get("my_ws_name")));
+                    entry.addProperty("package_name", String.valueOf(data.get("my_sc_pkg_name")));
+                    entry.addProperty("version_name", String.valueOf(data.get("sc_ver_name")));
+                    entry.addProperty("version_code", String.valueOf(data.get("sc_ver_code")));
+                    projects.add(entry);
                 }
-
                 return success(projects.toString());
             } catch (Exception e) {
                 return error("Failed to list projects: " + e.getMessage());
@@ -233,11 +266,7 @@ public final class ProjectTools {
         }
     }
 
-    /**
-     * Gets detailed information about a specific project.
-     */
     public static class GetProjectInfoTool implements AgentTool {
-
         @Override
         public String getName() {
             return "get_project_info";
@@ -246,13 +275,12 @@ public final class ProjectTools {
         @Override
         public String getDescription() {
             return "Gets detailed metadata about a Sketchware Pro project including app name, "
-                    + "package name, version info, and configuration.";
+                    + "package name, version info, configuration, and file-system readiness.";
         }
 
         @Override
         public JsonObject getParametersSchema() {
             JsonObject properties = new JsonObject();
-
             JsonObject scIdProp = new JsonObject();
             scIdProp.addProperty("type", "string");
             scIdProp.addProperty("description", "The project SC ID (e.g., \"601\")");
@@ -279,28 +307,25 @@ public final class ProjectTools {
                 return error("Access denied: project " + scId + " is not in the current workspace");
             }
 
-            File projectFile = new File(context.getProjectDataDir(scId), "project");
-            if (!projectFile.exists()) {
-                return error("Project not found: " + scId);
-            }
-
             try {
-                String content = readFileContent(projectFile);
-                JsonObject projectData = JsonParser.parseString(content).getAsJsonObject();
-                return success(projectData.toString());
-            } catch (IOException e) {
-                return error("Failed to read project file: " + e.getMessage());
-            } catch (JsonSyntaxException e) {
-                return error("Project file contains invalid JSON: " + e.getMessage());
+                HashMap<String, Object> data = lC.b(scId);
+                if (data == null) {
+                    return error("Project not found: " + scId);
+                }
+
+                JsonObject result = GSON.toJsonTree(data).getAsJsonObject();
+                result.addProperty("data_dir_exists", new File(wq.b(scId)).exists());
+                result.addProperty("mysc_dir_exists", new File(wq.d(scId)).exists());
+                result.addProperty("mysc_list_dir_exists", new File(wq.c(scId)).exists());
+                result.addProperty("project_config_exists", new File(wq.b(scId), "project_config").exists());
+                return success(result.toString());
+            } catch (Exception e) {
+                return error("Failed to read project info: " + e.getMessage());
             }
         }
     }
 
-    /**
-     * Creates a new Sketchware Pro project.
-     */
     public static class CreateProjectTool implements AgentTool {
-
         @Override
         public String getName() {
             return "create_project";
@@ -308,8 +333,8 @@ public final class ProjectTools {
 
         @Override
         public String getDescription() {
-            return "Creates a new Sketchware Pro project with the specified app name, package name, "
-                    + "and optional version information. Returns the new project's SC ID.";
+            return "Creates a new Sketchware Pro project using the real project bootstrap flow, "
+                    + "including metadata, storage directories, resources, and default project settings.";
         }
 
         @Override
@@ -361,79 +386,56 @@ public final class ProjectTools {
                 return error("Missing required parameter: package_name");
             }
 
-            String appName = arguments.get("app_name").getAsString();
-            String packageName = arguments.get("package_name").getAsString();
+            String appName = arguments.get("app_name").getAsString().trim();
+            String packageName = arguments.get("package_name").getAsString().trim();
             String projectName = arguments.has("project_name") && !arguments.get("project_name").isJsonNull()
-                    ? arguments.get("project_name").getAsString() : appName;
+                    ? arguments.get("project_name").getAsString().trim() : appName;
             String versionName = arguments.has("version_name") && !arguments.get("version_name").isJsonNull()
-                    ? arguments.get("version_name").getAsString() : "1.0";
-            int versionCode = arguments.has("version_code") && !arguments.get("version_code").isJsonNull()
-                    ? arguments.get("version_code").getAsInt() : 1;
+                    ? arguments.get("version_name").getAsString().trim() : "1.0";
+            String versionCode = arguments.has("version_code") && !arguments.get("version_code").isJsonNull()
+                    ? String.valueOf(arguments.get("version_code").getAsInt()) : "1";
+
+            if (appName.isEmpty()) {
+                return error("app_name must not be empty");
+            }
+            if (!isValidPackageName(packageName)) {
+                return error("Invalid package_name. Use a Java-style package such as com.example.app");
+            }
+            if (lC.a(packageName) != null) {
+                return error("A project with package " + packageName + " already exists");
+            }
 
             try {
                 String scId = generateNewScId();
+                HashMap<String, Object> metadata = createProjectMetadata(
+                        context, scId, projectName, packageName, appName, versionCode, versionName);
 
-                // Create project metadata
-                JsonObject projectData = new JsonObject();
-                projectData.addProperty("sc_id", scId);
-                projectData.addProperty("my_app_name", appName);
-                projectData.addProperty("my_sc_pkg_name", packageName);
-                projectData.addProperty("my_ws_name", projectName);
-                projectData.addProperty("sc_ver_name", versionName);
-                projectData.addProperty("sc_ver_code", String.valueOf(versionCode));
-                projectData.addProperty("sketchware_ver", 150);
-                projectData.addProperty("color_accent", -1);
-                projectData.addProperty("color_primary", -12627531);
-                projectData.addProperty("color_primary_dark", -13615201);
-                projectData.addProperty("color_control_highlight", 520093696);
-                projectData.addProperty("color_control_normal", -5592406);
-                projectData.addProperty("custom_icon", false);
+                lC.a(scId, metadata);
+                wq.a(context.getAppContext(), scId);
+                new oB().b(wq.b(scId));
+                ensureProjectDirectories(scId);
+                seedDefaultResources(scId, appName);
 
-                // Create directory structure
-                File dataDir = new File(getDataDir(), scId);
-                File myscListDir = new File(getMyscListDir(), scId);
-                File myscDir = new File(getMyscDir(), scId);
-                dataDir.mkdirs();
-                myscListDir.mkdirs();
-                myscDir.mkdirs();
+                ProjectSettings projectSettings = new ProjectSettings(scId);
+                projectSettings.setValue(ProjectSettings.SETTING_NEW_XML_COMMAND, ProjectSettings.SETTING_GENERIC_VALUE_TRUE);
+                projectSettings.setValue(ProjectSettings.SETTING_ENABLE_VIEWBINDING, ProjectSettings.SETTING_GENERIC_VALUE_TRUE);
 
-                // Write project file
-                writeFileContent(new File(dataDir, "project"), projectData.toString());
-
-                // Create default main activity file entry
-                JsonArray fileArray = new JsonArray();
-                JsonObject mainActivity = new JsonObject();
-                mainActivity.addProperty("fileName", "main");
-                mainActivity.addProperty("fileType", 0);
-                mainActivity.addProperty("keyboardSetting", 0);
-                mainActivity.addProperty("orientation", 0);
-                mainActivity.addProperty("options", 0);
-                fileArray.add(mainActivity);
-                writeFileContent(new File(dataDir, "file"), fileArray.toString());
-
-                // Create empty logic, view, library, resource files
-                writeFileContent(new File(dataDir, "logic"), "[]");
-                writeFileContent(new File(dataDir, "view"), "[]");
-                writeFileContent(new File(dataDir, "library"), "[]");
-                writeFileContent(new File(dataDir, "resource"), "[]");
+                addProjectToWorkspace(context, scId);
 
                 JsonObject result = new JsonObject();
                 result.addProperty("sc_id", scId);
                 result.addProperty("app_name", appName);
                 result.addProperty("package_name", packageName);
+                result.addProperty("workspace_name", sanitizeProjectName(projectName));
                 result.addProperty("message", "Project created successfully");
                 return success(result.toString());
-            } catch (IOException e) {
+            } catch (Throwable e) {
                 return error("Failed to create project: " + e.getMessage());
             }
         }
     }
 
-    /**
-     * Deletes a project and all its associated files.
-     */
     public static class DeleteProjectTool implements AgentTool {
-
         @Override
         public String getName() {
             return "delete_project";
@@ -447,7 +449,6 @@ public final class ProjectTools {
         @Override
         public JsonObject getParametersSchema() {
             JsonObject properties = new JsonObject();
-
             JsonObject scIdProp = new JsonObject();
             scIdProp.addProperty("type", "string");
             scIdProp.addProperty("description", "The project SC ID to delete");
@@ -481,29 +482,26 @@ public final class ProjectTools {
 
             try {
                 boolean allDeleted = true;
-
-                // Delete data directory
                 if (dataDir.exists()) {
                     allDeleted &= deleteRecursive(dataDir);
                 }
 
-                // Delete mysc/list directory
                 File myscListDir = context.getProjectMyscListDir(scId);
                 if (myscListDir.exists()) {
                     allDeleted &= deleteRecursive(myscListDir);
                 }
 
-                // Delete mysc directory
                 File myscDir = context.getProjectMyscDir(scId);
                 if (myscDir.exists()) {
                     allDeleted &= deleteRecursive(myscDir);
                 }
 
-                // Delete backup directory
                 File bakDir = context.getProjectBackupDir(scId);
                 if (bakDir.exists()) {
                     allDeleted &= deleteRecursive(bakDir);
                 }
+
+                removeProjectFromWorkspace(context, scId);
 
                 if (allDeleted) {
                     JsonObject result = new JsonObject();
@@ -519,11 +517,7 @@ public final class ProjectTools {
         }
     }
 
-    /**
-     * Duplicates an existing project under a new SC ID.
-     */
     public static class DuplicateProjectTool implements AgentTool {
-
         @Override
         public String getName() {
             return "duplicate_project";
@@ -531,14 +525,12 @@ public final class ProjectTools {
 
         @Override
         public String getDescription() {
-            return "Duplicates a Sketchware Pro project, creating a copy with a new SC ID. "
-                    + "Optionally sets a new app name for the duplicate.";
+            return "Duplicates an existing Sketchware Pro project with a new SC ID and preserves its storage structure.";
         }
 
         @Override
         public JsonObject getParametersSchema() {
             JsonObject properties = new JsonObject();
-
             JsonObject scIdProp = new JsonObject();
             scIdProp.addProperty("type", "string");
             scIdProp.addProperty("description", "The SC ID of the project to duplicate");
@@ -566,7 +558,7 @@ public final class ProjectTools {
             }
             String sourceScId = arguments.get("sc_id").getAsString();
             String newAppName = arguments.has("new_app_name") && !arguments.get("new_app_name").isJsonNull()
-                    ? arguments.get("new_app_name").getAsString() : null;
+                    ? arguments.get("new_app_name").getAsString().trim() : null;
 
             if (!context.isProjectAllowed(sourceScId)) {
                 return error("Access denied: project " + sourceScId + " is not in the current workspace");
@@ -580,45 +572,41 @@ public final class ProjectTools {
             try {
                 String newScId = generateNewScId();
 
-                // Copy data directory
                 File newDataDir = new File(getDataDir(), newScId);
                 copyDirectory(sourceDataDir, newDataDir);
 
-                // Copy mysc/list directory if exists
                 File sourceMyscListDir = context.getProjectMyscListDir(sourceScId);
                 if (sourceMyscListDir.exists()) {
                     File newMyscListDir = new File(getMyscListDir(), newScId);
                     copyDirectory(sourceMyscListDir, newMyscListDir);
                 }
 
-                // Copy mysc directory if exists
                 File sourceMyscDir = context.getProjectMyscDir(sourceScId);
                 if (sourceMyscDir.exists()) {
                     File newMyscDir = new File(getMyscDir(), newScId);
                     copyDirectory(sourceMyscDir, newMyscDir);
                 }
 
-                // Update the project file with new SC ID and optionally new name
-                File newProjectFile = new File(newDataDir, "project");
-                if (newProjectFile.exists()) {
-                    String content = readFileContent(newProjectFile);
-                    JsonObject projectData = JsonParser.parseString(content).getAsJsonObject();
-                    projectData.addProperty("sc_id", newScId);
-                    if (newAppName != null) {
-                        projectData.addProperty("my_app_name", newAppName);
-                    }
-                    writeFileContent(newProjectFile, projectData.toString());
+                HashMap<String, Object> metadata = lC.b(sourceScId);
+                if (metadata == null) {
+                    return error("Failed to load source project metadata");
                 }
+                metadata.put("sc_id", newScId);
+                metadata.put("my_sc_reg_dt", new SimpleDateFormat("yyyyMMddHHmmss", Locale.US).format(new Date()));
+                if (newAppName != null && !newAppName.isEmpty()) {
+                    metadata.put("my_app_name", newAppName);
+                    metadata.put("my_ws_name", sanitizeProjectName(newAppName));
+                }
+                lC.a(newScId, metadata);
+                addProjectToWorkspace(context, newScId);
 
                 JsonObject result = new JsonObject();
                 result.addProperty("sc_id", newScId);
                 result.addProperty("source_sc_id", sourceScId);
                 result.addProperty("message", "Project duplicated successfully");
                 return success(result.toString());
-            } catch (IOException e) {
+            } catch (Throwable e) {
                 return error("Failed to duplicate project: " + e.getMessage());
-            } catch (JsonSyntaxException e) {
-                return error("Failed to parse project data: " + e.getMessage());
             }
         }
     }

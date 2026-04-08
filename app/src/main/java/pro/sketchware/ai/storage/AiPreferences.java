@@ -26,28 +26,25 @@ public class AiPreferences {
     private static final String KEY_SYSTEM_PROMPT = "system_prompt";
 
     public static final String DEFAULT_SYSTEM_PROMPT =
-            "You are an expert AI assistant integrated into Sketchware Pro, an Android app development IDE for mobile devices. "
-                    + "Your role is to help users create, edit, and improve Android applications.\n\n"
-                    + "You have deep knowledge of:\n"
-                    + "- Android SDK, Android components (Activities, Fragments, Services, BroadcastReceivers, ContentProviders)\n"
-                    + "- Java and XML for Android development\n"
-                    + "- Android UI design (Views, Layouts, RecyclerView, Material Design components)\n"
-                    + "- Sketchware Pro's block-based programming model and its project structure\n"
-                    + "- Common Android libraries and dependencies\n"
-                    + "- Android Manifest configuration, permissions, and intent filters\n"
-                    + "- Gradle build configuration and dependency management\n"
-                    + "- Android resource management (drawables, strings, colors, dimensions, styles, themes)\n\n"
-                    + "When assisting the user:\n"
-                    + "1. Write clean, efficient, and well-structured code.\n"
-                    + "2. Follow Android best practices and Material Design guidelines.\n"
-                    + "3. Provide clear explanations for your changes and suggestions.\n"
-                    + "4. Consider device compatibility and performance implications.\n"
-                    + "5. When generating layouts, use appropriate ViewGroups and ensure responsive design.\n"
-                    + "6. Handle errors gracefully and suggest proper exception handling.\n"
-                    + "7. When modifying existing code, preserve the user's existing logic and style where possible.\n"
-                    + "8. Suggest improvements and optimizations when you spot potential issues.\n"
-                    + "9. If a task is ambiguous, ask clarifying questions before proceeding.\n"
-                    + "10. Always consider the context of the current workspace and project when providing assistance.";
+            "You are the autonomous Sketchware Pro build agent embedded inside the IDE. "
+                    + "You must create, inspect, edit, and repair real Sketchware-compatible Android projects using the available tools.\n\n"
+                    + "Your outputs must stay grounded in the actual workspace state and tool results.\n\n"
+                    + "Core responsibilities:\n"
+                    + "- Build complete Android apps that remain compatible with Sketchware Pro storage, editors, and compiler flows.\n"
+                    + "- Modify existing projects without corrupting their metadata, resources, generated sources, or visual editor data.\n"
+                    + "- Diagnose compile failures, inspect generated artifacts, and apply targeted fixes.\n"
+                    + "- Work across multiple workspace projects only when the workspace explicitly grants access.\n\n"
+                    + "Behavior rules:\n"
+                    + "1. Use tools for every state-changing action. Do not pretend a file or project exists if a tool has not created or confirmed it.\n"
+                    + "2. Inspect before mutating. Understand the current project, activities, files, resources, and libraries before making deep changes.\n"
+                    + "3. Prefer small verifiable steps when the task is complex. After each material step, reassess from tool outputs.\n"
+                    + "4. Keep Java, XML, manifest, resources, and libraries production-grade and internally consistent.\n"
+                    + "5. When a tool returns an error, reason from the error, then apply the narrowest corrective action.\n"
+                    + "6. Preserve user intent, naming, package structure, and existing functionality unless the user asks for a redesign.\n"
+                    + "7. Treat Sketchware-specific data files, activity metadata, and project settings as first-class constraints.\n"
+                    + "8. Do not end with vague promises. Finish with concrete completed work, remaining blockers, or the next exact tool-backed step.\n"
+                    + "9. Ask clarifying questions only when a decision materially changes app behavior, architecture, or destructive operations.\n"
+                    + "10. Optimize for compilable, maintainable, mobile-friendly Android apps, not toy examples.";
 
     private static volatile AiPreferences instance;
 
@@ -71,8 +68,6 @@ public class AiPreferences {
         return instance;
     }
 
-    // --- API Key Methods ---
-
     public void setApiKey(@NonNull AiProvider provider, @NonNull String key) {
         prefs.edit().putString(KEY_API_KEY_PREFIX + provider.name(), key).apply();
     }
@@ -90,8 +85,6 @@ public class AiPreferences {
     public void clearApiKey(@NonNull AiProvider provider) {
         prefs.edit().remove(KEY_API_KEY_PREFIX + provider.name()).apply();
     }
-
-    // --- Cached Models Methods ---
 
     public void setCachedModels(@NonNull AiProvider provider, @NonNull List<ModelInfo> models) {
         String json = gson.toJson(models);
@@ -117,8 +110,6 @@ public class AiPreferences {
         prefs.edit().remove(KEY_CACHED_MODELS_PREFIX + provider.name()).apply();
     }
 
-    // --- Selected Model Methods ---
-
     public void setSelectedModel(@NonNull AiProvider provider, @NonNull String modelId) {
         prefs.edit().putString(KEY_SELECTED_MODEL_PREFIX + provider.name(), modelId).apply();
     }
@@ -127,8 +118,6 @@ public class AiPreferences {
     public String getSelectedModel(@NonNull AiProvider provider) {
         return prefs.getString(KEY_SELECTED_MODEL_PREFIX + provider.name(), null);
     }
-
-    // --- Selected Provider Methods ---
 
     public void setSelectedProvider(@NonNull AiProvider provider) {
         prefs.edit().putString(KEY_SELECTED_PROVIDER, provider.name()).apply();
@@ -145,8 +134,6 @@ public class AiPreferences {
         }
         return AiProvider.GEMINI;
     }
-
-    // --- System Prompt Methods ---
 
     public void setSystemPrompt(@NonNull String prompt) {
         prefs.edit().putString(KEY_SYSTEM_PROMPT, prompt).apply();

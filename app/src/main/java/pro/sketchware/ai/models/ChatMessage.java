@@ -16,12 +16,10 @@ public class ChatMessage {
     private String content;
     private List<ToolCall> toolCalls;
     private String toolCallId;
+    private String toolName;
     private final long timestamp;
     private transient boolean isStreaming;
 
-    /**
-     * Constructor for a user message.
-     */
     public ChatMessage(String conversationId, String content) {
         this.id = UUID.randomUUID().toString();
         this.conversationId = conversationId;
@@ -29,13 +27,11 @@ public class ChatMessage {
         this.content = content;
         this.toolCalls = null;
         this.toolCallId = null;
+        this.toolName = null;
         this.timestamp = System.currentTimeMillis();
         this.isStreaming = false;
     }
 
-    /**
-     * Constructor for an assistant message with optional tool calls.
-     */
     public ChatMessage(String conversationId, String content, List<ToolCall> toolCalls) {
         this.id = UUID.randomUUID().toString();
         this.conversationId = conversationId;
@@ -43,35 +39,32 @@ public class ChatMessage {
         this.content = content;
         this.toolCalls = toolCalls != null ? new ArrayList<>(toolCalls) : null;
         this.toolCallId = null;
+        this.toolName = null;
         this.timestamp = System.currentTimeMillis();
         this.isStreaming = false;
     }
 
-    /**
-     * Constructor for a tool result message.
-     */
-    public ChatMessage(String conversationId, String toolCallId, String content, boolean isToolResult) {
+    public ChatMessage(String conversationId, String toolCallId, String toolName, String content, boolean isToolResult) {
         this.id = UUID.randomUUID().toString();
         this.conversationId = conversationId;
         this.role = "tool";
         this.content = content;
         this.toolCalls = null;
         this.toolCallId = toolCallId;
+        this.toolName = toolName;
         this.timestamp = System.currentTimeMillis();
         this.isStreaming = false;
     }
 
-    /**
-     * Full constructor for deserialization.
-     */
     private ChatMessage(String id, String conversationId, String role, String content,
-                        List<ToolCall> toolCalls, String toolCallId, long timestamp) {
+                        List<ToolCall> toolCalls, String toolCallId, String toolName, long timestamp) {
         this.id = id;
         this.conversationId = conversationId;
         this.role = role;
         this.content = content;
         this.toolCalls = toolCalls;
         this.toolCallId = toolCallId;
+        this.toolName = toolName;
         this.timestamp = timestamp;
         this.isStreaming = false;
     }
@@ -112,6 +105,14 @@ public class ChatMessage {
         this.toolCallId = toolCallId;
     }
 
+    public String getToolName() {
+        return toolName;
+    }
+
+    public void setToolName(String toolName) {
+        this.toolName = toolName;
+    }
+
     public long getTimestamp() {
         return timestamp;
     }
@@ -124,8 +125,6 @@ public class ChatMessage {
         this.isStreaming = streaming;
     }
 
-    // --- Static Factory Methods ---
-
     public static ChatMessage userMessage(String conversationId, String content) {
         return new ChatMessage(conversationId, content);
     }
@@ -135,7 +134,11 @@ public class ChatMessage {
     }
 
     public static ChatMessage toolResultMessage(String toolCallId, String content) {
-        return new ChatMessage(null, toolCallId, content, true);
+        return new ChatMessage(null, toolCallId, null, content, true);
+    }
+
+    public static ChatMessage toolResultMessage(String toolCallId, String toolName, String content) {
+        return new ChatMessage(null, toolCallId, toolName, content, true);
     }
 
     public void appendContent(String chunk) {
@@ -147,6 +150,10 @@ public class ChatMessage {
         }
     }
 
+    public boolean hasVisibleAssistantContent() {
+        return content != null && !content.trim().isEmpty();
+    }
+
     public JsonObject toJson() {
         JsonObject json = new JsonObject();
         json.addProperty("id", id);
@@ -154,6 +161,7 @@ public class ChatMessage {
         json.addProperty("role", role);
         json.addProperty("content", content);
         json.addProperty("toolCallId", toolCallId);
+        json.addProperty("toolName", toolName);
         json.addProperty("timestamp", timestamp);
 
         if (toolCalls != null && !toolCalls.isEmpty()) {
@@ -180,6 +188,8 @@ public class ChatMessage {
                 ? json.get("content").getAsString() : null;
         String toolCallId = json.has("toolCallId") && !json.get("toolCallId").isJsonNull()
                 ? json.get("toolCallId").getAsString() : null;
+        String toolName = json.has("toolName") && !json.get("toolName").isJsonNull()
+                ? json.get("toolName").getAsString() : null;
         long timestamp = json.has("timestamp") && !json.get("timestamp").isJsonNull()
                 ? json.get("timestamp").getAsLong() : System.currentTimeMillis();
 
@@ -200,7 +210,7 @@ public class ChatMessage {
             }
         }
 
-        return new ChatMessage(id, conversationId, role, content, toolCalls, toolCallId, timestamp);
+        return new ChatMessage(id, conversationId, role, content, toolCalls, toolCallId, toolName, timestamp);
     }
 
     @Override

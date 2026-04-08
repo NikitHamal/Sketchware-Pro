@@ -187,7 +187,7 @@ public class WorkspaceActivity extends AppCompatActivity {
                 workspaceId,
                 "New Chat",
                 modelId != null ? modelId : "",
-                provider.getDisplayName()
+                provider.name()
         );
         conversationManager.saveConversation(conversation);
 

@@ -4,15 +4,15 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import pro.sketchware.ai.api.AiApiClient;
@@ -33,6 +33,7 @@ import pro.sketchware.ai.tools.ToolRegistry;
 public class AgentExecutor {
 
     private static final int MAX_TOOL_ITERATIONS = 20;
+    private static final long STREAM_TIMEOUT_MS = 180_000L;
 
     private final Context context;
     private final ToolRegistry toolRegistry;
@@ -43,8 +44,10 @@ public class AgentExecutor {
 
     public interface AgentCallback {
         void onStreamingChunk(String chunk);
+        void onAssistantMessage(ChatMessage assistantMessage);
         void onToolCallStarted(ToolCall toolCall);
         void onToolCallCompleted(ToolCall toolCall, ToolResult result);
+        void onToolMessage(ChatMessage toolMessage);
         void onResponseComplete(ChatMessage assistantMessage);
         void onError(String error);
         void onThinking(String status);
@@ -96,9 +99,8 @@ public class AgentExecutor {
                     StringBuilder fullResponse = new StringBuilder();
                     List<ToolCall> pendingToolCalls = new ArrayList<>();
                     AtomicBoolean hasError = new AtomicBoolean(false);
-
-                    Object lock = new Object();
-                    AtomicBoolean streamComplete = new AtomicBoolean(false);
+                    CountDownLatch streamLatch = new CountDownLatch(1);
+                    String[] streamError = new String[1];
 
                     mainHandler.post(() -> callback.onThinking("Thinking..."));
 
@@ -106,48 +108,48 @@ public class AgentExecutor {
                             new StreamingResponseHandler() {
                                 @Override
                                 public void onChunk(String textDelta) {
+                                    if (textDelta == null || isCancelled.get()) return;
                                     fullResponse.append(textDelta);
                                     mainHandler.post(() -> callback.onStreamingChunk(textDelta));
                                 }
 
                                 @Override
                                 public void onToolCall(ToolCall toolCall) {
+                                    if (toolCall == null || isCancelled.get()) return;
                                     pendingToolCalls.add(toolCall);
                                     mainHandler.post(() -> callback.onToolCallStarted(toolCall));
                                 }
 
                                 @Override
                                 public void onComplete(String response) {
-                                    synchronized (lock) {
-                                        streamComplete.set(true);
-                                        lock.notifyAll();
-                                    }
+                                    streamLatch.countDown();
                                 }
 
                                 @Override
                                 public void onError(String error) {
                                     hasError.set(true);
-                                    mainHandler.post(() -> callback.onError(error));
-                                    synchronized (lock) {
-                                        streamComplete.set(true);
-                                        lock.notifyAll();
-                                    }
+                                    streamError[0] = error;
+                                    streamLatch.countDown();
                                 }
                             });
 
-                    synchronized (lock) {
-                        while (!streamComplete.get()) {
-                            lock.wait(30000);
-                            if (!streamComplete.get()) break;
-                        }
+                    boolean completed = streamLatch.await(STREAM_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                    if (!completed) {
+                        postError(callback, "The AI provider timed out before completing the response.");
+                        return;
+                    }
+                    if (isCancelled.get()) {
+                        return;
+                    }
+                    if (hasError.get()) {
+                        postError(callback, streamError[0] != null ? streamError[0] : "Unknown AI request error");
+                        return;
                     }
 
-                    if (hasError.get() || isCancelled.get()) return;
-
-                    String responseText = fullResponse.toString();
                     ChatMessage assistantMsg = ChatMessage.assistantMessage(
-                            responseText, pendingToolCalls.isEmpty() ? null : pendingToolCalls);
+                            fullResponse.toString(), pendingToolCalls.isEmpty() ? null : pendingToolCalls);
                     messages.add(assistantMsg);
+                    mainHandler.post(() -> callback.onAssistantMessage(assistantMsg));
 
                     if (pendingToolCalls.isEmpty()) {
                         mainHandler.post(() -> callback.onResponseComplete(assistantMsg));
@@ -157,21 +159,22 @@ public class AgentExecutor {
                     for (ToolCall tc : pendingToolCalls) {
                         if (isCancelled.get()) return;
 
-                        mainHandler.post(() ->
-                                callback.onThinking("Running: " + tc.getName()));
-
+                        mainHandler.post(() -> callback.onThinking("Running: " + tc.getName()));
                         ToolResult result = executeTool(tc, toolContext);
                         mainHandler.post(() -> callback.onToolCallCompleted(tc, result));
 
-                        ChatMessage toolResultMsg = ChatMessage.toolResultMessage(
-                                tc.getId(), result.getOutput() != null ? result.getOutput() : result.getError());
+                        String toolContent = result.isSuccess()
+                                ? (result.getOutput() != null ? result.getOutput() : "")
+                                : "Error: " + (result.getError() != null ? result.getError() : "Tool execution failed");
+                        ChatMessage toolResultMsg = ChatMessage.toolResultMessage(tc.getId(), tc.getName(), toolContent);
                         messages.add(toolResultMsg);
+                        mainHandler.post(() -> callback.onToolMessage(toolResultMsg));
                     }
                 }
 
                 if (iteration >= MAX_TOOL_ITERATIONS) {
                     postError(callback, "Agent reached maximum tool call iterations (" +
-                            MAX_TOOL_ITERATIONS + "). Please try a simpler request.");
+                            MAX_TOOL_ITERATIONS + "). Please try a more focused request.");
                 }
 
             } catch (Exception e) {
@@ -219,20 +222,32 @@ public class AgentExecutor {
         StringBuilder sb = new StringBuilder();
 
         if (userSystemPrompt != null && !userSystemPrompt.isEmpty()) {
-            sb.append(userSystemPrompt);
+            sb.append(userSystemPrompt.trim());
         } else {
-            sb.append(AiPreferences.DEFAULT_SYSTEM_PROMPT);
+            sb.append(AiPreferences.DEFAULT_SYSTEM_PROMPT.trim());
         }
 
-        sb.append("\n\n## Available Tools\n");
+        sb.append("\n\n## Operating Rules\n");
+        sb.append("- Use tools for all project, file, activity, resource, library, and compilation actions.\n");
+        sb.append("- Never claim a file, screen, resource, dependency, or project was created unless a tool result confirms it.\n");
+        sb.append("- Before changing an existing project, inspect it first with project and activity/file tools.\n");
+        sb.append("- Keep all changes compatible with Sketchware Pro storage, code generation, and compilation flows.\n");
+        sb.append("- When a tool fails, inspect the returned error, adapt the plan, and retry only with a more specific corrective action.\n");
+        sb.append("- Prefer incremental, verifiable steps over large speculative edits.\n");
+
+        sb.append("\n## Available Tools\n");
         for (AgentTool tool : toolRegistry.getAllTools()) {
             sb.append("- **").append(tool.getName()).append("**: ").append(tool.getDescription()).append("\n");
         }
 
         if (projectIds != null && !projectIds.isEmpty()) {
             sb.append("\n## Workspace Projects\n");
-            sb.append("You have access to projects with IDs: ").append(String.join(", ", projectIds));
-            sb.append("\nUse get_project_info to learn about each project before modifying it.\n");
+            sb.append("You can access only these workspace project IDs: ")
+                    .append(String.join(", ", projectIds)).append(".\n");
+            sb.append("Use get_project_info and list_activities or file tools before mutating them.\n");
+        } else {
+            sb.append("\n## Workspace Projects\n");
+            sb.append("No existing projects are currently attached to this workspace. If the task requires a project, create one first.\n");
         }
 
         return sb.toString();

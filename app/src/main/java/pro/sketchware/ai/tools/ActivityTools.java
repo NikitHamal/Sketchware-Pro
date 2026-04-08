@@ -1,5 +1,6 @@
 package pro.sketchware.ai.tools;
 
+import com.besome.sketch.beans.ProjectFileBean;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -11,13 +12,11 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
 
+import a.a.a.jC;
 import pro.sketchware.ai.models.ToolResult;
 
-/**
- * Contains tools for managing activities within Sketchware Pro projects.
- * Activities are stored in .sketchware/data/{sc_id}/file as a JSON array.
- */
 public final class ActivityTools {
 
     private ActivityTools() {
@@ -68,23 +67,16 @@ public final class ActivityTools {
         return new JsonArray();
     }
 
-    /**
-     * Calculates the options integer from boolean flags.
-     * Options is a bitmask: bit 0 = has toolbar, bit 1 = has FAB, bit 2 = has drawer
-     */
-    private static int calculateOptions(boolean hasToolbar, boolean hasFab, boolean hasDrawer) {
+    private static int calculateOptions(boolean hasToolbar, boolean fullscreen, boolean hasFab, boolean hasDrawer) {
         int options = 0;
-        if (hasToolbar) options |= 1;
-        if (hasFab) options |= 2;
-        if (hasDrawer) options |= 4;
+        if (hasToolbar) options |= ProjectFileBean.OPTION_ACTIVITY_TOOLBAR;
+        if (fullscreen) options |= ProjectFileBean.OPTION_ACTIVITY_FULLSCREEN;
+        if (hasFab) options |= ProjectFileBean.OPTION_ACTIVITY_FAB;
+        if (hasDrawer) options |= ProjectFileBean.OPTION_ACTIVITY_DRAWER;
         return options;
     }
 
-    /**
-     * Lists all activities in a project.
-     */
     public static class ListActivitiesTool implements AgentTool {
-
         @Override
         public String getName() {
             return "list_activities";
@@ -92,14 +84,12 @@ public final class ActivityTools {
 
         @Override
         public String getDescription() {
-            return "Lists all activities defined in a Sketchware Pro project, including their "
-                    + "file name, type, orientation, keyboard setting, and options.";
+            return "Lists activities and visual files registered in a Sketchware Pro project.";
         }
 
         @Override
         public JsonObject getParametersSchema() {
             JsonObject properties = new JsonObject();
-
             JsonObject scIdProp = new JsonObject();
             scIdProp.addProperty("type", "string");
             scIdProp.addProperty("description", "The project SC ID");
@@ -120,68 +110,36 @@ public final class ActivityTools {
             if (!arguments.has("sc_id") || arguments.get("sc_id").isJsonNull()) {
                 return error("Missing required parameter: sc_id");
             }
-
             String scId = arguments.get("sc_id").getAsString();
 
             if (!context.isProjectAllowed(scId)) {
                 return error("Access denied: project " + scId + " is not in the current workspace");
             }
 
-            File fileFile = new File(context.getProjectDataDir(scId), "file");
-
             try {
-                JsonArray activities = readActivityArray(fileFile);
-
+                ArrayList<ProjectFileBean> files = jC.b(scId).b();
                 JsonArray result = new JsonArray();
-                for (JsonElement element : activities) {
-                    if (!element.isJsonObject()) continue;
-                    JsonObject activity = element.getAsJsonObject();
-
-                    JsonObject entry = new JsonObject();
-                    entry.addProperty("fileName",
-                            activity.has("fileName") ? activity.get("fileName").getAsString() : "");
-                    entry.addProperty("fileType",
-                            activity.has("fileType") ? activity.get("fileType").getAsInt() : 0);
-                    entry.addProperty("keyboardSetting",
-                            activity.has("keyboardSetting") ? activity.get("keyboardSetting").getAsInt() : 0);
-                    entry.addProperty("orientation",
-                            activity.has("orientation") ? activity.get("orientation").getAsInt() : 0);
-                    entry.addProperty("options",
-                            activity.has("options") ? activity.get("options").getAsInt() : 0);
-
-                    // Decode file type for readability
-                    int fileType = entry.get("fileType").getAsInt();
-                    String typeName;
-                    switch (fileType) {
-                        case 1:
-                            typeName = "custom_view";
-                            break;
-                        case 2:
-                            typeName = "drawer";
-                            break;
-                        default:
-                            typeName = "activity";
-                            break;
+                if (files != null) {
+                    for (ProjectFileBean file : files) {
+                        JsonObject entry = new JsonObject();
+                        entry.addProperty("fileName", file.fileName);
+                        entry.addProperty("xmlName", file.getXmlName());
+                        entry.addProperty("javaName", file.getJavaName());
+                        entry.addProperty("fileType", file.fileType);
+                        entry.addProperty("orientation", file.orientation);
+                        entry.addProperty("keyboardSetting", file.keyboardSetting);
+                        entry.addProperty("options", file.options);
+                        result.add(entry);
                     }
-                    entry.addProperty("fileTypeName", typeName);
-
-                    result.add(entry);
                 }
-
                 return success(result.toString());
-            } catch (IOException e) {
-                return error("Failed to read activities: " + e.getMessage());
-            } catch (JsonSyntaxException e) {
-                return error("Activities file contains invalid JSON: " + e.getMessage());
+            } catch (Throwable e) {
+                return error("Failed to list activities: " + e.getMessage());
             }
         }
     }
 
-    /**
-     * Creates a new activity in a project.
-     */
     public static class CreateActivityTool implements AgentTool {
-
         @Override
         public String getName() {
             return "create_activity";
@@ -189,8 +147,7 @@ public final class ActivityTools {
 
         @Override
         public String getDescription() {
-            return "Creates a new activity in a Sketchware Pro project. Also creates the "
-                    + "corresponding logic, view, and event data files for the activity.";
+            return "Creates a new activity entry using Sketchware's project-file manager so the IDE can recognize it.";
         }
 
         @Override
@@ -209,18 +166,23 @@ public final class ActivityTools {
 
             JsonObject orientProp = new JsonObject();
             orientProp.addProperty("type", "integer");
-            orientProp.addProperty("description", "Screen orientation: 0=both, 1=portrait, 2=landscape (default: 0)");
+            orientProp.addProperty("description", "Screen orientation: 0=portrait, 1=landscape, 2=both (default: 0)");
             properties.add("orientation", orientProp);
 
             JsonObject kbProp = new JsonObject();
             kbProp.addProperty("type", "integer");
-            kbProp.addProperty("description", "Keyboard setting: 0=unspecified, 1=hidden, 2=visible (default: 0)");
+            kbProp.addProperty("description", "Keyboard setting: 0=unspecified, 1=visible, 2=hidden (default: 0)");
             properties.add("keyboard_setting", kbProp);
 
             JsonObject toolbarProp = new JsonObject();
             toolbarProp.addProperty("type", "boolean");
-            toolbarProp.addProperty("description", "Whether the activity has a toolbar (default: false)");
+            toolbarProp.addProperty("description", "Whether the activity has a toolbar (default: true)");
             properties.add("has_toolbar", toolbarProp);
+
+            JsonObject fullscreenProp = new JsonObject();
+            fullscreenProp.addProperty("type", "boolean");
+            fullscreenProp.addProperty("description", "Whether the activity is fullscreen (default: false)");
+            properties.add("fullscreen", fullscreenProp);
 
             JsonObject fabProp = new JsonObject();
             fabProp.addProperty("type", "boolean");
@@ -253,187 +215,63 @@ public final class ActivityTools {
             }
 
             String scId = arguments.get("sc_id").getAsString();
-            String activityName = arguments.get("activity_name").getAsString();
+            String activityName = arguments.get("activity_name").getAsString().trim();
 
             if (!context.isProjectAllowed(scId)) {
                 return error("Access denied: project " + scId + " is not in the current workspace");
             }
-
-            // Validate activity name
             if (!activityName.matches("[a-zA-Z][a-zA-Z0-9_]*")) {
                 return error("Invalid activity name: must start with a letter and contain only letters, digits, and underscores");
             }
 
             int orientation = arguments.has("orientation") && !arguments.get("orientation").isJsonNull()
-                    ? arguments.get("orientation").getAsInt() : 0;
+                    ? arguments.get("orientation").getAsInt() : ProjectFileBean.ORIENTATION_PORTRAIT;
             int keyboardSetting = arguments.has("keyboard_setting") && !arguments.get("keyboard_setting").isJsonNull()
-                    ? arguments.get("keyboard_setting").getAsInt() : 0;
-            boolean hasToolbar = arguments.has("has_toolbar") && !arguments.get("has_toolbar").isJsonNull()
-                    && arguments.get("has_toolbar").getAsBoolean();
+                    ? arguments.get("keyboard_setting").getAsInt() : ProjectFileBean.KEYBOARD_STATE_UNSPECIFIED;
+            boolean hasToolbar = !arguments.has("has_toolbar") || arguments.get("has_toolbar").isJsonNull()
+                    || arguments.get("has_toolbar").getAsBoolean();
+            boolean fullscreen = arguments.has("fullscreen") && !arguments.get("fullscreen").isJsonNull()
+                    && arguments.get("fullscreen").getAsBoolean();
             boolean hasFab = arguments.has("has_fab") && !arguments.get("has_fab").isJsonNull()
                     && arguments.get("has_fab").getAsBoolean();
             boolean hasDrawer = arguments.has("has_drawer") && !arguments.get("has_drawer").isJsonNull()
                     && arguments.get("has_drawer").getAsBoolean();
 
-            File dataDir = context.getProjectDataDir(scId);
-            File fileFile = new File(dataDir, "file");
-
             try {
-                // Read existing activities
-                JsonArray activities = readActivityArray(fileFile);
-
-                // Check for duplicate
-                for (JsonElement element : activities) {
-                    if (element.isJsonObject()) {
-                        JsonObject existing = element.getAsJsonObject();
-                        if (existing.has("fileName")
-                                && existing.get("fileName").getAsString().equals(activityName)) {
+                ArrayList<ProjectFileBean> files = jC.b(scId).b();
+                if (files != null) {
+                    for (ProjectFileBean file : files) {
+                        if (activityName.equals(file.fileName)) {
                             return error("Activity already exists: " + activityName);
                         }
                     }
                 }
 
-                // Create new activity entry
-                JsonObject newActivity = new JsonObject();
-                newActivity.addProperty("fileName", activityName);
-                newActivity.addProperty("fileType", 0);
-                newActivity.addProperty("keyboardSetting", keyboardSetting);
-                newActivity.addProperty("orientation", orientation);
-                newActivity.addProperty("options", calculateOptions(hasToolbar, hasFab, hasDrawer));
-                activities.add(newActivity);
-
-                // Write updated file
-                writeFileContent(fileFile, activities.toString());
-
-                // Create corresponding logic file entry if logic file exists
-                File logicFile = new File(dataDir, "logic");
-                JsonArray logicArray;
-                if (logicFile.exists()) {
-                    String logicContent = readFileContent(logicFile);
-                    if (!logicContent.trim().isEmpty()) {
-                        logicArray = JsonParser.parseString(logicContent).getAsJsonArray();
-                    } else {
-                        logicArray = new JsonArray();
-                    }
-                } else {
-                    logicArray = new JsonArray();
-                }
-                // Add empty logic entry for the new activity
-                JsonObject logicEntry = new JsonObject();
-                logicEntry.addProperty("name", activityName + ".java_onCreate_initializeLogic");
-                logicEntry.add("blocks", new JsonArray());
-                logicArray.add(logicEntry);
-                writeFileContent(logicFile, logicArray.toString());
-
-                // Create corresponding view file entry
-                File viewFile = new File(dataDir, "view");
-                JsonArray viewArray;
-                if (viewFile.exists()) {
-                    String viewContent = readFileContent(viewFile);
-                    if (!viewContent.trim().isEmpty()) {
-                        viewArray = JsonParser.parseString(viewContent).getAsJsonArray();
-                    } else {
-                        viewArray = new JsonArray();
-                    }
-                } else {
-                    viewArray = new JsonArray();
-                }
-                // Add empty view entry for the new activity
-                JsonObject viewEntry = new JsonObject();
-                viewEntry.addProperty("id", activityName + ".xml");
-                JsonObject rootView = new JsonObject();
-                rootView.addProperty("adSize", "");
-                rootView.addProperty("adUnitId", "");
-                rootView.addProperty("alpha", 1.0f);
-                rootView.addProperty("checked", 0);
-                rootView.addProperty("choiceMode", 0);
-                rootView.addProperty("clickable", 0);
-                rootView.addProperty("customView", "");
-                rootView.addProperty("dividerHeight", 0);
-                rootView.addProperty("enabled", 1);
-                rootView.addProperty("firstDayOfWeek", 1);
-                rootView.addProperty("gravity", 0);
-                rootView.addProperty("id", "root");
-                rootView.addProperty("image.rotate", 0);
-                rootView.addProperty("image.scaleType", "CENTER");
-                rootView.addProperty("indeterminate", "false");
-                rootView.addProperty("layout.backgroundColor", -1);
-                rootView.addProperty("layout.gravity", 0);
-                rootView.addProperty("layout.height", -2);
-                rootView.addProperty("layout.marginBottom", 0);
-                rootView.addProperty("layout.marginLeft", 0);
-                rootView.addProperty("layout.marginRight", 0);
-                rootView.addProperty("layout.marginTop", 0);
-                rootView.addProperty("layout.orientation", 1);
-                rootView.addProperty("layout.paddingBottom", 8);
-                rootView.addProperty("layout.paddingLeft", 8);
-                rootView.addProperty("layout.paddingRight", 8);
-                rootView.addProperty("layout.paddingTop", 8);
-                rootView.addProperty("layout.weight", 0);
-                rootView.addProperty("layout.weightSum", 0);
-                rootView.addProperty("layout.width", -1);
-                rootView.addProperty("max", 100);
-                rootView.addProperty("padding", 8);
-                rootView.addProperty("parentType", 0);
-                rootView.addProperty("preId", "");
-                rootView.addProperty("preParent", "");
-                rootView.addProperty("preParentType", 0);
-                rootView.addProperty("progress", 0);
-                rootView.addProperty("progressStyle", "?android:progressBarStyle");
-                rootView.addProperty("scaleX", 1.0f);
-                rootView.addProperty("scaleY", 1.0f);
-                rootView.addProperty("spinnerMode", 1);
-                rootView.addProperty("text.color", -16777216);
-                rootView.addProperty("text.font", "default_font");
-                rootView.addProperty("text.hint", "");
-                rootView.addProperty("text.hintColor", -10453621);
-                rootView.addProperty("text.imeOption", 0);
-                rootView.addProperty("text.inputType", 0);
-                rootView.addProperty("text.line", 0);
-                rootView.addProperty("text.singleLine", 0);
-                rootView.addProperty("text.text", "");
-                rootView.addProperty("text.textSize", 12);
-                rootView.addProperty("text.textType", 0);
-                rootView.addProperty("translationX", 0);
-                rootView.addProperty("translationY", 0);
-                rootView.addProperty("type", 0);
-                viewEntry.add("root", rootView);
-                viewEntry.add("children", new JsonArray());
-                viewArray.add(viewEntry);
-                writeFileContent(viewFile, viewArray.toString());
-
-                // Create event file entry
-                File eventFile = new File(dataDir, "event");
-                JsonArray eventArray;
-                if (eventFile.exists()) {
-                    String eventContent = readFileContent(eventFile);
-                    if (!eventContent.trim().isEmpty()) {
-                        eventArray = JsonParser.parseString(eventContent).getAsJsonArray();
-                    } else {
-                        eventArray = new JsonArray();
-                    }
-                } else {
-                    eventArray = new JsonArray();
-                }
-                writeFileContent(eventFile, eventArray.toString());
+                ProjectFileBean fileBean = new ProjectFileBean(
+                        ProjectFileBean.PROJECT_FILE_TYPE_ACTIVITY,
+                        activityName,
+                        orientation,
+                        keyboardSetting,
+                        calculateOptions(hasToolbar, fullscreen, hasFab, hasDrawer)
+                );
+                jC.b(scId).a(fileBean);
+                jC.b(scId).j();
+                jC.b(scId).l();
 
                 JsonObject result = new JsonObject();
+                result.addProperty("sc_id", scId);
                 result.addProperty("activity_name", activityName);
+                result.addProperty("xml_name", fileBean.getXmlName());
+                result.addProperty("java_name", fileBean.getJavaName());
                 result.addProperty("message", "Activity created successfully");
                 return success(result.toString());
-            } catch (IOException e) {
+            } catch (Throwable e) {
                 return error("Failed to create activity: " + e.getMessage());
-            } catch (JsonSyntaxException e) {
-                return error("Invalid JSON in project data: " + e.getMessage());
             }
         }
     }
 
-    /**
-     * Deletes an activity from a project.
-     */
     public static class DeleteActivityTool implements AgentTool {
-
         @Override
         public String getName() {
             return "delete_activity";
@@ -441,23 +279,21 @@ public final class ActivityTools {
 
         @Override
         public String getDescription() {
-            return "Deletes an activity from a Sketchware Pro project, removing its entry from "
-                    + "the file list and associated logic/view/event data.";
+            return "Deletes an activity entry from a Sketchware project.";
         }
 
         @Override
         public JsonObject getParametersSchema() {
             JsonObject properties = new JsonObject();
-
             JsonObject scIdProp = new JsonObject();
             scIdProp.addProperty("type", "string");
             scIdProp.addProperty("description", "The project SC ID");
             properties.add("sc_id", scIdProp);
 
-            JsonObject nameProp = new JsonObject();
-            nameProp.addProperty("type", "string");
-            nameProp.addProperty("description", "Name of the activity to delete");
-            properties.add("activity_name", nameProp);
+            JsonObject activityProp = new JsonObject();
+            activityProp.addProperty("type", "string");
+            activityProp.addProperty("description", "The activity file name");
+            properties.add("activity_name", activityProp);
 
             JsonArray required = new JsonArray();
             required.add("sc_id");
@@ -485,6 +321,9 @@ public final class ActivityTools {
             if (!context.isProjectAllowed(scId)) {
                 return error("Access denied: project " + scId + " is not in the current workspace");
             }
+            if ("main".equals(activityName)) {
+                return error("The main activity cannot be deleted");
+            }
 
             File dataDir = context.getProjectDataDir(scId);
             File fileFile = new File(dataDir, "file");
@@ -500,7 +339,7 @@ public final class ActivityTools {
                         if (activity.has("fileName")
                                 && activity.get("fileName").getAsString().equals(activityName)) {
                             found = true;
-                            continue; // Skip this entry to remove it
+                            continue;
                         }
                     }
                     updated.add(element);
@@ -512,7 +351,6 @@ public final class ActivityTools {
 
                 writeFileContent(fileFile, updated.toString());
 
-                // Remove associated logic entries
                 File logicFile = new File(dataDir, "logic");
                 if (logicFile.exists()) {
                     try {
@@ -537,7 +375,6 @@ public final class ActivityTools {
                     }
                 }
 
-                // Remove associated view entries
                 File viewFile = new File(dataDir, "view");
                 if (viewFile.exists()) {
                     try {
@@ -562,39 +399,12 @@ public final class ActivityTools {
                     }
                 }
 
-                // Remove associated event entries
-                File eventFile = new File(dataDir, "event");
-                if (eventFile.exists()) {
-                    try {
-                        String eventContent = readFileContent(eventFile);
-                        if (!eventContent.trim().isEmpty()) {
-                            JsonArray eventArray = JsonParser.parseString(eventContent).getAsJsonArray();
-                            JsonArray updatedEvents = new JsonArray();
-                            String eventPrefix = activityName + "_";
-                            for (JsonElement element : eventArray) {
-                                if (element.isJsonObject()) {
-                                    JsonObject eventEntry = element.getAsJsonObject();
-                                    if (eventEntry.has("name")
-                                            && eventEntry.get("name").getAsString().startsWith(eventPrefix)) {
-                                        continue;
-                                    }
-                                }
-                                updatedEvents.add(element);
-                            }
-                            writeFileContent(eventFile, updatedEvents.toString());
-                        }
-                    } catch (JsonSyntaxException ignored) {
-                    }
-                }
-
                 JsonObject result = new JsonObject();
                 result.addProperty("activity_name", activityName);
                 result.addProperty("message", "Activity deleted successfully");
                 return success(result.toString());
             } catch (IOException e) {
                 return error("Failed to delete activity: " + e.getMessage());
-            } catch (JsonSyntaxException e) {
-                return error("Invalid JSON in activity file: " + e.getMessage());
             }
         }
     }

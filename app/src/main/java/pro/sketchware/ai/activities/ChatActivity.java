@@ -6,7 +6,6 @@ import android.text.TextWatcher;
 import android.view.View;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -152,7 +151,6 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
     private void updateModelDisplay() {
         if (currentModelId != null && !currentModelId.isEmpty()) {
             String displayName = currentModelId;
-            // Shorten model IDs that contain a path separator
             if (displayName.contains("/")) {
                 displayName = displayName.substring(displayName.lastIndexOf("/") + 1);
             }
@@ -165,9 +163,16 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
     private void loadMessages() {
         List<ChatMessage> messages = conversationManager.getMessages(conversationId);
         chatAdapter.setMessages(messages);
+        updateEmptyState();
         if (!messages.isEmpty()) {
             binding.messagesList.scrollToPosition(chatAdapter.getItemCount() - 1);
         }
+    }
+
+    private void updateEmptyState() {
+        boolean showEmpty = chatAdapter.getItemCount() == 0 && !isAgentRunning;
+        binding.emptyState.setVisibility(showEmpty ? View.VISIBLE : View.GONE);
+        binding.messagesList.setVisibility(showEmpty ? View.INVISIBLE : View.VISIBLE);
     }
 
     private void sendMessage() {
@@ -191,13 +196,13 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
 
         binding.inputMessage.setText("");
 
-        // Create and save user message
         ChatMessage userMsg = new ChatMessage(conversationId, text);
         conversationManager.saveMessage(conversationId, userMsg);
         chatAdapter.addUserMessage(userMsg);
+        updateConversationTimestamp();
+        updateEmptyState();
         scrollToBottom();
 
-        // Update conversation title on first message
         if ("New Chat".equals(conversation.getTitle())) {
             String title = text.length() > 50 ? text.substring(0, 50) + "..." : text;
             conversation.setTitle(title);
@@ -205,10 +210,10 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
             binding.toolbarTitle.setText(title);
         }
 
-        // Create a placeholder assistant message for streaming
         ChatMessage assistantPlaceholder = new ChatMessage(conversationId, "", null);
         assistantPlaceholder.setStreaming(true);
         chatAdapter.addAssistantMessage(assistantPlaceholder);
+        updateEmptyState();
         scrollToBottom();
 
         setAgentRunning(true);
@@ -229,6 +234,12 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
                 && binding.inputMessage.getText().length() > 0);
         binding.typingIndicator.setVisibility(running ? View.VISIBLE : View.GONE);
         binding.inputMessage.setEnabled(!running);
+        if (running) {
+            binding.emptyDescription.setText("The agent is planning and executing tools in this workspace.");
+        } else {
+            binding.emptyDescription.setText("Create or open a conversation and ask for a Sketchware-compatible app, feature, fix, or refactor.");
+        }
+        updateEmptyState();
     }
 
     private void scrollToBottom() {
@@ -237,6 +248,16 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
                     binding.messagesList.smoothScrollToPosition(
                             chatAdapter.getItemCount() - 1));
         }
+    }
+
+    private void updateConversationTimestamp() {
+        conversation.setUpdatedAt(System.currentTimeMillis());
+        conversationManager.saveConversation(conversation);
+    }
+
+    private void persistToolMessage(ChatMessage toolMessage) {
+        conversationManager.saveMessage(conversationId, toolMessage);
+        updateConversationTimestamp();
     }
 
     private void showModelSelector() {
@@ -261,7 +282,6 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
             return;
         }
 
-        // Add a tab for each provider that has an API key
         for (AiProvider p : availableProviders) {
             dialogBinding.providerTabs.addTab(
                     dialogBinding.providerTabs.newTab()
@@ -286,11 +306,9 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
         modelAdapter.setSelectedModelId(currentModelId);
         dialogBinding.modelsList.setAdapter(modelAdapter);
 
-        // Load models for the first available provider
         AiProvider firstProvider = availableProviders.get(0);
         loadModelsForProvider(firstProvider, modelAdapter, dialogBinding);
 
-        // Select the tab matching the current provider
         for (int i = 0; i < availableProviders.size(); i++) {
             if (availableProviders.get(i) == currentProvider) {
                 TabLayout.Tab tab = dialogBinding.providerTabs.getTabAt(i);
@@ -339,17 +357,26 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
         }
     }
 
-    // --- AgentExecutor.AgentCallback implementation ---
-
     @Override
     public void onStreamingChunk(String chunk) {
         chatAdapter.updateLastAssistantMessage(chunk);
+        updateEmptyState();
+        scrollToBottom();
+    }
+
+    @Override
+    public void onAssistantMessage(ChatMessage assistantMessage) {
+        conversationManager.saveMessage(conversationId, assistantMessage);
+        updateConversationTimestamp();
+        chatAdapter.replaceStreamingAssistantMessage(assistantMessage);
+        updateEmptyState();
         scrollToBottom();
     }
 
     @Override
     public void onToolCallStarted(ToolCall toolCall) {
         chatAdapter.addToolCall(toolCall);
+        updateEmptyState();
         scrollToBottom();
     }
 
@@ -360,16 +387,24 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
     }
 
     @Override
+    public void onToolMessage(ChatMessage toolMessage) {
+        persistToolMessage(toolMessage);
+    }
+
+    @Override
     public void onResponseComplete(ChatMessage assistantMessage) {
-        conversationManager.saveMessage(conversationId, assistantMessage);
-        conversation.setUpdatedAt(System.currentTimeMillis());
-        conversationManager.saveConversation(conversation);
         setAgentRunning(false);
     }
 
     @Override
     public void onError(String error) {
         setAgentRunning(false);
+        ChatMessage errorMessage = new ChatMessage(conversationId, "⚠️ " + error, null);
+        conversationManager.saveMessage(conversationId, errorMessage);
+        updateConversationTimestamp();
+        chatAdapter.replaceStreamingAssistantMessage(errorMessage);
+        updateEmptyState();
+        scrollToBottom();
         Toast.makeText(this, error, Toast.LENGTH_LONG).show();
     }
 

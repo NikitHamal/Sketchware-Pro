@@ -7,11 +7,17 @@ public class ToolCall {
     private final String id;
     private final String name;
     private final String arguments;
+    private final String thoughtSignature;
 
     public ToolCall(String id, String name, String arguments) {
+        this(id, name, arguments, null);
+    }
+
+    public ToolCall(String id, String name, String arguments, String thoughtSignature) {
         this.id = id;
         this.name = name;
         this.arguments = arguments;
+        this.thoughtSignature = thoughtSignature;
     }
 
     public String getId() {
@@ -26,11 +32,18 @@ public class ToolCall {
         return arguments;
     }
 
+    public String getThoughtSignature() {
+        return thoughtSignature;
+    }
+
     public JsonObject toJson() {
         JsonObject json = new JsonObject();
         json.addProperty("id", id);
         json.addProperty("name", name);
         json.addProperty("arguments", arguments);
+        if (thoughtSignature != null && !thoughtSignature.isEmpty()) {
+            json.addProperty("thoughtSignature", thoughtSignature);
+        }
         return json;
     }
 
@@ -43,8 +56,10 @@ public class ToolCall {
                 ? json.get("name").getAsString() : null;
         String arguments = json.has("arguments") && !json.get("arguments").isJsonNull()
                 ? json.get("arguments").getAsString() : null;
+        String thoughtSignature = json.has("thoughtSignature") && !json.get("thoughtSignature").isJsonNull()
+                ? json.get("thoughtSignature").getAsString() : null;
 
-        return new ToolCall(id, name, arguments);
+        return new ToolCall(id, name, arguments, thoughtSignature);
     }
 
     @Override

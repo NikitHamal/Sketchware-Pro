@@ -9,10 +9,14 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.RecyclerView;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 import io.noties.markwon.Markwon;
+import pro.sketchware.R;
 import pro.sketchware.ai.models.ChatMessage;
 import pro.sketchware.ai.models.ToolCall;
 import pro.sketchware.ai.models.ToolResult;
@@ -26,7 +30,8 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     static final int TYPE_ASSISTANT = 1;
     static final int TYPE_TOOL_CALL = 2;
 
-    private static final int MAX_TOOL_ARG_LENGTH = 200;
+    private static final int MAX_TOOL_ARG_LENGTH = 260;
+    private static final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("h:mm a", Locale.getDefault());
 
     public static class ChatItem {
         final int type;
@@ -118,6 +123,9 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     public void addAssistantMessage(@NonNull ChatMessage msg) {
+        if (!shouldRenderAssistantMessage(msg)) {
+            return;
+        }
         items.add(ChatItem.assistantMessage(msg));
         notifyItemInserted(items.size() - 1);
     }
@@ -125,9 +133,44 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     public void updateLastAssistantMessage(@NonNull String chunk) {
         for (int i = items.size() - 1; i >= 0; i--) {
             ChatItem item = items.get(i);
-            if (item.type == TYPE_ASSISTANT && item.message != null) {
+            if (item.type == TYPE_ASSISTANT && item.message != null && item.message.isStreaming()) {
                 item.message.appendContent(chunk);
                 notifyItemChanged(i);
+                return;
+            }
+        }
+    }
+
+    public void replaceStreamingAssistantMessage(@NonNull ChatMessage finalMessage) {
+        int streamingIndex = -1;
+        for (int i = items.size() - 1; i >= 0; i--) {
+            ChatItem item = items.get(i);
+            if (item.type == TYPE_ASSISTANT && item.message != null && item.message.isStreaming()) {
+                streamingIndex = i;
+                break;
+            }
+        }
+
+        boolean renderFinal = shouldRenderAssistantMessage(finalMessage);
+        if (streamingIndex >= 0) {
+            if (renderFinal) {
+                items.set(streamingIndex, ChatItem.assistantMessage(finalMessage));
+                notifyItemChanged(streamingIndex);
+            } else {
+                items.remove(streamingIndex);
+                notifyItemRemoved(streamingIndex);
+            }
+        } else if (renderFinal) {
+            addAssistantMessage(finalMessage);
+        }
+    }
+
+    public void removeLastStreamingAssistantMessage() {
+        for (int i = items.size() - 1; i >= 0; i--) {
+            ChatItem item = items.get(i);
+            if (item.type == TYPE_ASSISTANT && item.message != null && item.message.isStreaming()) {
+                items.remove(i);
+                notifyItemRemoved(i);
                 return;
             }
         }
@@ -158,7 +201,9 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             if ("user".equals(role)) {
                 items.add(ChatItem.userMessage(msg));
             } else if ("assistant".equals(role)) {
-                items.add(ChatItem.assistantMessage(msg));
+                if (shouldRenderAssistantMessage(msg)) {
+                    items.add(ChatItem.assistantMessage(msg));
+                }
                 List<ToolCall> toolCalls = msg.getToolCalls();
                 if (toolCalls != null) {
                     for (ToolCall tc : toolCalls) {
@@ -168,8 +213,10 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             } else if ("tool".equals(role)) {
                 String toolCallId = msg.getToolCallId();
                 if (toolCallId != null) {
-                    ToolResult result = new ToolResult(
-                            toolCallId, true, msg.getContent(), null);
+                    String content = msg.getContent() != null ? msg.getContent() : "";
+                    ToolResult result = content.startsWith("Error:")
+                            ? new ToolResult(toolCallId, false, null, content.substring("Error:".length()).trim())
+                            : new ToolResult(toolCallId, true, content, null);
                     for (int i = items.size() - 1; i >= 0; i--) {
                         ChatItem item = items.get(i);
                         if (item.type == TYPE_TOOL_CALL
@@ -185,15 +232,23 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         notifyDataSetChanged();
     }
 
+    private boolean shouldRenderAssistantMessage(@Nullable ChatMessage message) {
+        return message != null && (message.hasVisibleAssistantContent() || message.isStreaming());
+    }
+
     private static String formatToolArguments(@Nullable String arguments) {
         if (TextUtils.isEmpty(arguments)) {
-            return "";
+            return "No arguments";
         }
         String trimmed = arguments.trim();
         if (trimmed.length() > MAX_TOOL_ARG_LENGTH) {
             return trimmed.substring(0, MAX_TOOL_ARG_LENGTH) + "...";
         }
         return trimmed;
+    }
+
+    private static String formatTimestamp(long timestamp) {
+        return TIME_FORMAT.format(new Date(timestamp));
     }
 
     static class UserViewHolder extends RecyclerView.ViewHolder {
@@ -207,6 +262,7 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         void bind(@NonNull ChatItem item) {
             String content = item.message != null ? item.message.getContent() : "";
             binding.messageContent.setText(content != null ? content : "");
+            binding.messageMeta.setText(item.message != null ? formatTimestamp(item.message.getTimestamp()) : "");
         }
     }
 
@@ -219,12 +275,15 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
 
         void bind(@NonNull ChatItem item, @NonNull Markwon markwon) {
-            String content = item.message != null ? item.message.getContent() : "";
+            ChatMessage message = item.message;
+            String content = message != null ? message.getContent() : "";
+            binding.messageMeta.setText(message != null ? formatTimestamp(message.getTimestamp()) : "");
             if (TextUtils.isEmpty(content)) {
                 binding.messageContent.setText("");
             } else {
                 markwon.setMarkdown(binding.messageContent, content);
             }
+            binding.streamingBadge.setVisibility(message != null && message.isStreaming() ? View.VISIBLE : View.GONE);
         }
     }
 
@@ -243,22 +302,27 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 binding.toolArguments.setText(formatToolArguments(tc.getArguments()));
             } else {
                 binding.toolName.setText("Unknown tool");
-                binding.toolArguments.setText("");
+                binding.toolArguments.setText("No arguments");
             }
 
             ToolResult result = item.toolResult;
             if (result != null) {
                 binding.toolStatusIcon.setVisibility(View.VISIBLE);
                 binding.toolResult.setVisibility(View.VISIBLE);
+                binding.toolStatus.setVisibility(View.VISIBLE);
                 if (result.isSuccess()) {
-                    String output = result.getOutput();
-                    binding.toolResult.setText(output != null ? output : "");
+                    binding.toolStatusIcon.setImageResource(R.drawable.ic_mtrl_check);
+                    binding.toolStatus.setText("Completed");
+                    binding.toolResult.setText(result.getOutput() != null ? result.getOutput() : "Completed");
                 } else {
-                    String error = result.getError();
-                    binding.toolResult.setText(error != null ? "Error: " + error : "Error");
+                    binding.toolStatusIcon.setImageResource(R.drawable.ic_mtrl_warning);
+                    binding.toolStatus.setText("Failed");
+                    binding.toolResult.setText(result.getError() != null ? result.getError() : "Tool failed");
                 }
             } else {
                 binding.toolStatusIcon.setVisibility(View.INVISIBLE);
+                binding.toolStatus.setVisibility(View.VISIBLE);
+                binding.toolStatus.setText("Running");
                 binding.toolResult.setVisibility(View.GONE);
             }
         }
