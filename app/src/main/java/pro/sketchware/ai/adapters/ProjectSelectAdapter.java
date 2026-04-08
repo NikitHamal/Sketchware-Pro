@@ -81,11 +81,10 @@ public class ProjectSelectAdapter extends RecyclerView.Adapter<ProjectSelectAdap
             boolean isAlreadyAdded = alreadyAddedIds.contains(scId);
             boolean isSelected = selectedIds.contains(scId);
 
-            if (binding.getRoot() instanceof MaterialCardView cardView) {
-                cardView.setChecked(isAlreadyAdded || isSelected);
-                cardView.setEnabled(!isAlreadyAdded);
-                cardView.setAlpha(isAlreadyAdded ? 0.5f : 1.0f);
-            }
+            MaterialCardView cardView = binding.getRoot();
+            cardView.setChecked(isAlreadyAdded || isSelected);
+            cardView.setEnabled(!isAlreadyAdded);
+            cardView.setAlpha(isAlreadyAdded ? 0.5f : 1.0f);
 
             binding.getRoot().setOnClickListener(v -> {
                 if (isAlreadyAdded) return;

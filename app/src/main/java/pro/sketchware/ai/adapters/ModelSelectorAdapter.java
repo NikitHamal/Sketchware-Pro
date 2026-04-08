@@ -84,9 +84,7 @@ public class ModelSelectorAdapter extends RecyclerView.Adapter<ModelSelectorAdap
 
             boolean isSelected = model.getId() != null
                     && model.getId().equals(selectedModelId);
-            if (binding.getRoot() instanceof MaterialCardView cardView) {
-                cardView.setChecked(isSelected);
-            }
+            binding.getRoot().setChecked(isSelected);
 
             binding.getRoot().setOnClickListener(v -> {
                 String previousId = selectedModelId;
