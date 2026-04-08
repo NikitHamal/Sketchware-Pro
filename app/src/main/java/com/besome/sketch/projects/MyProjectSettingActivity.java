@@ -59,8 +59,8 @@ import pro.sketchware.utility.SketchwareUtil;
 public class MyProjectSettingActivity extends BaseAppCompatActivity implements View.OnClickListener {
 
     private static final int REQUEST_CODE_CREATE_ICON = 200212;
-    private final String[] themeColorKeys = {"color_accent", "color_primary", "color_primary_dark", "color_control_highlight", "color_control_normal"};
-    private final String[] themeColorLabels = {"colorAccent", "colorPrimary", "colorPrimaryDark", "colorControlHighlight", "colorControlNormal"};
+    private final String[] themeColorKeys = {ProjectFile.COLOR_ACCENT, ProjectFile.COLOR_PRIMARY, ProjectFile.COLOR_PRIMARY_DARK, ProjectFile.COLOR_ON_PRIMARY, ProjectFile.COLOR_CONTROL_HIGHLIGHT, ProjectFile.COLOR_CONTROL_NORMAL};
+    private final String[] themeColorLabels = {"colorAccent", "colorPrimary", "colorPrimaryDark", "colorOnPrimary", "colorControlHighlight", "colorControlNormal"};
     private final int[] projectThemeColors = new int[themeColorKeys.length];
     public MyprojectSettingBinding binding;
     private PackageNameValidator projectPackageNameValidator;
@@ -130,8 +130,9 @@ public class MyProjectSettingActivity extends BaseAppCompatActivity implements V
         projectThemeColors[0] = getDefaultColor(ProjectFile.COLOR_ACCENT);
         projectThemeColors[1] = getDefaultColor(ProjectFile.COLOR_PRIMARY);
         projectThemeColors[2] = getDefaultColor(ProjectFile.COLOR_PRIMARY_DARK);
-        projectThemeColors[3] = getDefaultColor(ProjectFile.COLOR_CONTROL_HIGHLIGHT);
-        projectThemeColors[4] = getDefaultColor(ProjectFile.COLOR_CONTROL_NORMAL);
+        projectThemeColors[3] = getDefaultColor(ProjectFile.COLOR_ON_PRIMARY);
+        projectThemeColors[4] = getDefaultColor(ProjectFile.COLOR_CONTROL_HIGHLIGHT);
+        projectThemeColors[5] = getDefaultColor(ProjectFile.COLOR_CONTROL_NORMAL);
 
         for (int i = 0; i < themeColorKeys.length; i++) {
             ThemeColorView colorView = new ThemeColorView(this, i);
@@ -474,8 +475,9 @@ public class MyProjectSettingActivity extends BaseAppCompatActivity implements V
         projectThemeColors[0] = theme.colorAccent;
         projectThemeColors[1] = theme.colorPrimary;
         projectThemeColors[2] = theme.colorPrimaryDark;
-        projectThemeColors[3] = theme.colorControlHighlight;
-        projectThemeColors[4] = theme.colorControlNormal;
+        projectThemeColors[3] = theme.colorOnPrimary;
+        projectThemeColors[4] = theme.colorControlHighlight;
+        projectThemeColors[5] = theme.colorControlNormal;
 
         syncThemeColors();
     }
