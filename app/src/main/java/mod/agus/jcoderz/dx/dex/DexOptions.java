@@ -38,8 +38,8 @@ public final class DexOptions {
     */
     public boolean ALIGN_64BIT_REGS_IN_OUTPUT_FINISHER = ALIGN_64BIT_REGS_SUPPORT;
 
-    /** minimum SDK version targeted */
-    public int minSdkVersion = DexFormat.API_NO_EXTENDED_OPCODES;
+    /** target API level */
+    public int targetApiLevel = DexFormat.API_NO_EXTENDED_OPCODES;
 
     /** force generation of jumbo opcodes */
     public boolean forceJumbo = false;
@@ -63,17 +63,15 @@ public final class DexOptions {
      * @return string representing the dex file magic number
      */
     public String getMagic() {
-        return DexFormat.apiToMagic(minSdkVersion);
+        return DexFormat.apiToMagic(targetApiLevel);
     }
 
     /**
      * Checks whether an API feature is supported.
      * @param apiLevel the API level to test
-     * @return returns true if the current API level is at least sdkVersion
+     * @return returns true if the target API level is at least apiLevel
      */
     public boolean apiIsSupported(int apiLevel) {
-        // TODO: the naming here is awkward. Tooling may rely on the minSdkVersion,
-        // but it is referred to as API in DexFormat. Currently indistinguishable.
-        return minSdkVersion >= apiLevel;
+        return targetApiLevel >= apiLevel;
     }
 }
