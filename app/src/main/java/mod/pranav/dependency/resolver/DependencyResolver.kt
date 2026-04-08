@@ -111,13 +111,13 @@ class DependencyResolver(
         }
 
         val libraryJars = mutableListOf<Path>()
-        libraryJars += BuiltInLibraries.EXTRACTED_COMPILE_ASSETS_PATH.toPath().resolve("core-lambda-stubs.jar")
-        libraryJars += Paths.get(
+        libraryJars.add(BuiltInLibraries.EXTRACTED_COMPILE_ASSETS_PATH.toPath().resolve("core-lambda-stubs.jar"))
+        libraryJars.add(Paths.get(
             buildSettings.getValue(
                 BuildSettings.SETTING_ANDROID_JAR_PATH,
                 BuiltInLibraries.EXTRACTED_COMPILE_ASSETS_PATH.resolve("android.jar").absolutePath
             )
-        )
+        ))
 
         val baseClasspath = linkedSetOf<Path>()
         buildSettings.getValue(BuildSettings.SETTING_CLASSPATH, "")
@@ -133,8 +133,8 @@ class DependencyResolver(
             callback.onDependenciesNotFound(dependency)
             return@runBlocking
         }
-        downloadedArtifactJars += rootJar
-        resolvedArtifactNames += "${dependency.artifactId}-v${dependency.version}"
+        downloadedArtifactJars.add(rootJar)
+        resolvedArtifactNames.add("${dependency.artifactId}-v${dependency.version}")
 
         if (!skipDependencies) {
             dependency.resolveDependencyTree()
@@ -155,8 +155,8 @@ class DependencyResolver(
                     return@forEach
                 }
 
-                downloadedArtifactJars += jar
-                resolvedArtifactNames += "${dep.artifactId}-v${dep.version}"
+                downloadedArtifactJars.add(jar)
+                resolvedArtifactNames.add("${dep.artifactId}-v${dep.version}")
             }
         }
 
@@ -175,8 +175,8 @@ class DependencyResolver(
             callback.dexing(artifact)
             try {
                 val compileClasspath = linkedSetOf<Path>()
-                compileClasspath += baseClasspath
-                compileClasspath += downloadedArtifactJars.filter { it != jar }
+                compileClasspath.addAll(baseClasspath)
+                compileClasspath.addAll(downloadedArtifactJars.filter { it != jar })
                 compileJar(jar, compileClasspath.toList(), libraryJars)
                 callback.onResolutionComplete(artifact)
             } catch (e: Exception) {
