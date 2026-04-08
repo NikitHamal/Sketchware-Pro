@@ -15,7 +15,6 @@ import androidx.activity.EdgeToEdge;
 import androidx.activity.SystemBarStyle;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.ContextCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.besome.sketch.lib.ui.LoadingDialog;
