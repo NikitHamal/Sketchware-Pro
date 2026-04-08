@@ -53,6 +53,7 @@ public class PaletteSelector extends RecyclerView {
     };
 
     private String searchValue = "";
+    private String searchValueLower = "";
     private PaletteSelectorAdapter paletteAdapter;
     private List<paletteSelectorRecord> allPalettes;
 
@@ -102,7 +103,7 @@ public class PaletteSelector extends RecyclerView {
     }
 
     public boolean matchesSearch(String title) {
-        return searchValue.isEmpty() || title.toLowerCase().contains(searchValue.toLowerCase());
+        return searchValueLower.isEmpty() || title.toLowerCase().contains(searchValueLower);
     }
 
     public void showSearchDialog() {
@@ -140,6 +141,7 @@ public class PaletteSelector extends RecyclerView {
 
     private void startSearch(DialogInterface dialog, String query) {
         searchValue = query;
+        searchValueLower = query.toLowerCase();
         Executors.newSingleThreadExecutor().execute(() ->
                 new Handler(Looper.getMainLooper()).post(() -> {
                     initializePalettes();
