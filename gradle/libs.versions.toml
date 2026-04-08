@@ -1,4 +1,5 @@
 [versions]
+junit = "4.13.2"
 activity = "1.11.0"
 appcompat = "1.7.1"
 desugar_jdk_libs_nio = "2.1.5"
@@ -42,6 +43,7 @@ woodstoxCore = "7.1.1"
 zipalignJava = "1.2.2"
 
 [libraries]
+junit = { module = "junit:junit", version.ref = "junit" }
 androidx-activity = { module = "androidx.activity:activity", version.ref = "activity" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-cardview = { module = "androidx.cardview:cardview", version.ref = "cardview" }
