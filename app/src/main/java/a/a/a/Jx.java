@@ -653,7 +653,7 @@ public class Jx {
                 EOL +
                 "@Deprecated" + EOL +
                 "public int getRandom(int _min, int _max) {" + EOL +
-                "Random random = new Random();" + EOL +
+                "SecureRandom random = new SecureRandom();" + EOL +
                 "return random.nextInt(_max - _min + 1) + _min;" + EOL +
                 "}" + EOL +
                 EOL +
@@ -822,6 +822,7 @@ public class Jx {
         addImport("android.view.animation.*");
         addImport("java.io.*");
         addImport("java.util.*");
+        addImport("java.security.SecureRandom");
         addImport("java.util.regex.*");
         addImport("java.text.*");
         addImport("org.json.*");

@@ -20,12 +20,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Optional;
-import java.util.Random;
 import java.util.function.Consumer;
 
 import a.a.a.bB;
@@ -34,6 +34,8 @@ import mod.jbk.util.LogUtil;
 import pro.sketchware.R;
 
 public class SketchwareUtil {
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     public static boolean isConnected() {
         ConnectivityManager connectivityManager = (ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -46,7 +48,7 @@ public class SketchwareUtil {
     }
 
     public static int getRandom(int _min, int _max) {
-        return new Random().nextInt(_max - _min + 1) + _min;
+        return SECURE_RANDOM.nextInt(_max - _min + 1) + _min;
     }
 
     public static float getDip(int input) {

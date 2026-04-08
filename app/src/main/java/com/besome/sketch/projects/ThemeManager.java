@@ -4,12 +4,14 @@ import static mod.hey.studios.util.ProjectFile.getDefaultColor;
 
 import android.graphics.Color;
 
-import java.util.Random;
+import java.security.SecureRandom;
 
 import mod.hey.studios.util.ProjectFile;
 
 
 public class ThemeManager {
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     public static class ThemePreset {
         public String name;
@@ -73,12 +75,10 @@ public class ThemeManager {
     }
 
     public static ThemePreset generateRandomTheme() {
-        Random random = new Random();
-
         int primaryColor = Color.HSVToColor(new float[]{
-                random.nextFloat() * 360,
-                0.6f + random.nextFloat() * 0.3f,
-                0.5f + random.nextFloat() * 0.4f
+                SECURE_RANDOM.nextFloat() * 360,
+                0.6f + SECURE_RANDOM.nextFloat() * 0.3f,
+                0.5f + SECURE_RANDOM.nextFloat() * 0.4f
         });
 
         int primaryDarkColor = darkenColor(primaryColor, 0.3f);
@@ -86,8 +86,8 @@ public class ThemeManager {
         float[] hsv = new float[3];
         Color.colorToHSV(primaryColor, hsv);
         hsv[0] = (hsv[0] + 180) % 360;
-        hsv[1] = 0.7f + random.nextFloat() * 0.2f;
-        hsv[2] = 0.8f + random.nextFloat() * 0.2f;
+        hsv[1] = 0.7f + SECURE_RANDOM.nextFloat() * 0.2f;
+        hsv[2] = 0.8f + SECURE_RANDOM.nextFloat() * 0.2f;
         int accentColor = Color.HSVToColor(hsv);
 
         int controlHighlightColor = lightenColor(primaryColor, 0.9f);

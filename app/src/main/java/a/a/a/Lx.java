@@ -2831,6 +2831,7 @@ public class Lx {
                 import android.widget.*;
                 
                 import java.io.*;
+                import java.security.SecureRandom;
                 import java.util.*;
                 
                 """);
@@ -3013,9 +3014,10 @@ public class Lx {
                         return _location[1];
                     }
                 
+                    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
                     public static int getRandom(int _min, int _max) {
-                        Random random = new Random();
-                        return random.nextInt(_max - _min + 1) + _min;
+                        return SECURE_RANDOM.nextInt(_max - _min + 1) + _min;
                     }
                 
                     public static ArrayList<Double> getCheckedItemPositionsToArray(ListView _list) {

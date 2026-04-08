@@ -12,8 +12,8 @@ import android.widget.LinearLayout;
 
 import com.besome.sketch.beans.QuizBean;
 
+import java.security.SecureRandom;
 import java.util.ArrayList;
-import java.util.Random;
 
 import a.a.a.mB;
 import a.a.a.tq;
@@ -22,6 +22,7 @@ import pro.sketchware.databinding.QuizBoardBinding;
 
 public class QuizBoard extends LinearLayout implements View.OnClickListener {
 
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private ArrayList<QuizBean> q;
     private QuizBean quizBean;
     private a s;
@@ -85,7 +86,7 @@ public class QuizBoard extends LinearLayout implements View.OnClickListener {
             q = tq.a();
         }
 
-        int var1 = new Random().nextInt(q.size());
+        int var1 = SECURE_RANDOM.nextInt(q.size());
         setData(q.remove(var1));
         e();
     }
