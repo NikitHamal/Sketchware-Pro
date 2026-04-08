@@ -80,7 +80,7 @@ public class StylesEditor extends Fragment {
         }
 
         if (isSkippingMode) {
-            HashSet<String> existingStyleNames = new HashSet<>();
+            HashSet<String> existingStyleNames = new HashSet<>((int) (stylesList.size() / 0.75f) + 1);
             for (StyleModel existingStyle : stylesList) {
                 existingStyleNames.add(existingStyle.getStyleName());
             }
@@ -92,7 +92,7 @@ public class StylesEditor extends Fragment {
             }
         } else {
             if (isMergeAndReplace) {
-                HashSet<String> newStyleNames = new HashSet<>();
+                HashSet<String> newStyleNames = new HashSet<>((int) (defaultStyles.size() / 0.75f) + 1);
                 for (StyleModel style : defaultStyles) {
                     newStyleNames.add(style.getStyleName());
                 }

@@ -78,7 +78,7 @@ public class StringsEditor extends Fragment {
         notesMap = new HashMap<>(stringsEditorManager.notesMap);
 
         if (isSkippingMode) {
-            HashSet<String> existingKeys = new HashSet<>();
+            HashSet<String> existingKeys = new HashSet<>((int) (listmap.size() / 0.75f) + 1);
             for (HashMap<String, Object> existingMap : listmap) {
                 existingKeys.add((String) existingMap.get("key"));
             }
@@ -91,7 +91,7 @@ public class StringsEditor extends Fragment {
             }
         } else {
             if (isMergeAndReplace) {
-                HashSet<String> newKeys = new HashSet<>();
+                HashSet<String> newKeys = new HashSet<>((int) (defaultStrings.size() / 0.75f) + 1);
                 for (HashMap<String, Object> stringMap : defaultStrings) {
                     newKeys.add((String) stringMap.get("key"));
                 }

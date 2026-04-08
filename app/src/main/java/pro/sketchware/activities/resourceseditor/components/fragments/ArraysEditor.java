@@ -79,7 +79,7 @@ public class ArraysEditor extends Fragment {
         ArrayList<ArrayModel> defaultArrays = arraysEditorManager.parseArraysFile(FileUtil.readFileIfExist(filePath));
 
         if (isSkippingMode) {
-            HashSet<String> existingArrayNames = new HashSet<>();
+            HashSet<String> existingArrayNames = new HashSet<>((int) (arraysList.size() / 0.75f) + 1);
             for (ArrayModel existingArray : arraysList) {
                 existingArrayNames.add(existingArray.getArrayName());
             }
@@ -91,7 +91,7 @@ public class ArraysEditor extends Fragment {
             }
         } else {
             if (isMergeAndReplace) {
-                HashSet<String> newArrayNames = new HashSet<>();
+                HashSet<String> newArrayNames = new HashSet<>((int) (defaultArrays.size() / 0.75f) + 1);
                 for (ArrayModel array : defaultArrays) {
                     newArrayNames.add(array.getArrayName());
                 }
