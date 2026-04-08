@@ -889,7 +889,7 @@ public final class LocalList extends FixedSizeList {
                      * update it.
                      */
                     result.set(endAt, endEntry.withDisposition(disposition));
-                    regs.remove(spec); // TODO: Is this line superfluous?
+
                     return;
                 }
             }
