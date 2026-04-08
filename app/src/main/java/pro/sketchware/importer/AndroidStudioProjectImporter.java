@@ -11,7 +11,6 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.net.Uri;
-import android.os.Environment;
 import android.text.TextUtils;
 import android.util.Log;
 
