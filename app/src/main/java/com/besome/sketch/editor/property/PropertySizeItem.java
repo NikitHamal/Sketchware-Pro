@@ -100,10 +100,6 @@ public class PropertySizeItem extends RelativeLayout implements View.OnClickList
         imgLeftIcon = findViewById(R.id.img_left_icon);
         propertyItem = findViewById(R.id.property_item);
         propertyMenuItem = findViewById(R.id.property_menu_item);
-//        if (z) {
-//            propertyMenuItem.setSoundEffectsEnabled(true);
-//            propertyMenuItem.setOnClickListener(this);
-//        }
     }
 
     private void showDialog() {
