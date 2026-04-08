@@ -454,7 +454,12 @@ public class AndroidManifestInjection extends BaseAppCompatActivity {
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-            CustomAttributeView attributeView = new CustomAttributeView(parent.getContext());
+            CustomAttributeView attributeView;
+            if (convertView == null) {
+                attributeView = new CustomAttributeView(parent.getContext());
+            } else {
+                attributeView = (CustomAttributeView) convertView;
+            }
 
             attributeView.getImageView().setVisibility(View.GONE);
             attributeView.getTextView().setText((String) activitiesListMap.get(position).get("act_name"));
