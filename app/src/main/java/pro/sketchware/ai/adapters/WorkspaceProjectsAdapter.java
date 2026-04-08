@@ -1,5 +1,6 @@
 package pro.sketchware.ai.adapters;
 
+import android.graphics.BitmapFactory;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
@@ -8,9 +9,14 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.RecyclerView;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
+import a.a.a.lC;
+import a.a.a.wq;
+import a.a.a.yB;
+import pro.sketchware.R;
 import pro.sketchware.databinding.ItemWorkspaceProjectBinding;
 
 public class WorkspaceProjectsAdapter extends RecyclerView.Adapter<WorkspaceProjectsAdapter.ViewHolder> {
@@ -94,10 +100,31 @@ public class WorkspaceProjectsAdapter extends RecyclerView.Adapter<WorkspaceProj
                             ? ""
                             : project.getPackageName());
 
-            binding.projectIcon.setImageDrawable(null);
+            binding.projectIcon.setImageResource(R.drawable.default_icon);
+            loadProjectIcon(project.getScId());
 
             binding.btnRemoveProject.setOnClickListener(
                     v -> listener.onRemoveProject(project.getScId()));
+        }
+
+        private void loadProjectIcon(@NonNull String scId) {
+            try {
+                if (!yB.a(lC.b(scId), "custom_icon")) {
+                    return;
+                }
+
+                File iconFile = new File(wq.e() + File.separator + scId, "icon.png");
+                if (!iconFile.exists()) {
+                    return;
+                }
+
+                android.graphics.Bitmap bitmap = BitmapFactory.decodeFile(iconFile.getAbsolutePath());
+                if (bitmap != null) {
+                    binding.projectIcon.setImageBitmap(bitmap);
+                }
+            } catch (Exception ignored) {
+                binding.projectIcon.setImageResource(R.drawable.default_icon);
+            }
         }
     }
 }

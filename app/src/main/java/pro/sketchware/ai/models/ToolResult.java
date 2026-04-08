@@ -16,6 +16,14 @@ public class ToolResult {
         this.error = error;
     }
 
+    public static ToolResult success(String toolCallId, String output) {
+        return new ToolResult(toolCallId, true, output, null);
+    }
+
+    public static ToolResult failure(String toolCallId, String error) {
+        return new ToolResult(toolCallId, false, null, error);
+    }
+
     public String getToolCallId() {
         return toolCallId;
     }
@@ -36,8 +44,12 @@ public class ToolResult {
         JsonObject json = new JsonObject();
         json.addProperty("toolCallId", toolCallId);
         json.addProperty("success", success);
-        json.addProperty("output", output);
-        json.addProperty("error", error);
+        if (output != null) {
+            json.addProperty("output", output);
+        }
+        if (error != null) {
+            json.addProperty("error", error);
+        }
         return json;
     }
 

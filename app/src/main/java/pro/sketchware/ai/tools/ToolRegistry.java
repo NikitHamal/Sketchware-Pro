@@ -115,14 +115,19 @@ public class ToolRegistry {
         registry.register(new ResourceTools.AddColorResourceTool());
         registry.register(new ResourceTools.ListResourcesTool());
 
-        // Compile tools
+        // Compile and build tools
         registry.register(new CompileTools.GetCompileLogsTool());
         registry.register(new CompileTools.GetProjectStructureTool());
+        registry.register(new BuildTools.BuildProjectTool());
+        registry.register(new BuildTools.RunProjectTool());
 
-        // Library tools
+        // Library and dependency tools
         registry.register(new LibraryTools.ListLibrariesTool());
         registry.register(new LibraryTools.AddLibraryTool());
         registry.register(new LibraryTools.RemoveLibraryTool());
+        registry.register(new LibraryTools.AttachLocalLibraryTool());
+        registry.register(new LibraryTools.DetachLocalLibraryTool());
+        registry.register(new LibraryTools.DownloadDependencyTool());
 
         return registry;
     }

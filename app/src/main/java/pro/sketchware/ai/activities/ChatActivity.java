@@ -1,21 +1,27 @@
 package pro.sketchware.ai.activities;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 import androidx.core.view.WindowCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.tabs.TabLayout;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
+import pro.sketchware.R;
 import pro.sketchware.ai.adapters.ChatAdapter;
 import pro.sketchware.ai.adapters.ModelSelectorAdapter;
 import pro.sketchware.ai.engine.AgentExecutor;
@@ -32,7 +38,8 @@ import pro.sketchware.ai.storage.WorkspaceManager;
 import pro.sketchware.databinding.ActivityChatBinding;
 import pro.sketchware.databinding.DialogModelSelectorBinding;
 
-public class ChatActivity extends AppCompatActivity implements AgentExecutor.AgentCallback {
+public class ChatActivity extends AppCompatActivity implements AgentExecutor.AgentCallback,
+        ChatAdapter.OnArtifactActionListener {
 
     public static final String EXTRA_CONVERSATION_ID = "conversation_id";
     public static final String EXTRA_WORKSPACE_ID = "workspace_id";
@@ -97,6 +104,7 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
 
     private void setupChat() {
         chatAdapter = new ChatAdapter();
+        chatAdapter.setArtifactActionListener(this);
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         layoutManager.setStackFromEnd(true);
         binding.messagesList.setLayoutManager(layoutManager);
@@ -104,7 +112,13 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
     }
 
     private void setupInput() {
-        binding.btnSend.setOnClickListener(v -> sendMessage());
+        binding.btnSend.setOnClickListener(v -> {
+            if (isAgentRunning) {
+                stopAgent();
+            } else {
+                sendMessage();
+            }
+        });
         binding.btnSend.setEnabled(false);
 
         binding.inputMessage.addTextChangedListener(new TextWatcher() {
@@ -114,13 +128,34 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                binding.btnSend.setEnabled(s.length() > 0 && !isAgentRunning);
+                refreshComposerState();
             }
 
             @Override
             public void afterTextChanged(Editable s) {
             }
         });
+    }
+
+    private void refreshComposerState() {
+        if (isAgentRunning) {
+            binding.btnSend.setEnabled(true);
+            binding.btnSend.setImageResource(R.drawable.ic_mtrl_cancel);
+            binding.btnSend.setContentDescription("Stop");
+        } else {
+            boolean hasInput = binding.inputMessage.getText() != null && binding.inputMessage.getText().length() > 0;
+            binding.btnSend.setEnabled(hasInput);
+            binding.btnSend.setImageResource(R.drawable.ic_send);
+            binding.btnSend.setContentDescription("Send");
+        }
+    }
+
+    private void stopAgent() {
+        if (agentExecutor != null) {
+            agentExecutor.cancel();
+        }
+        binding.typingText.setText("Stopping…");
+        setAgentRunning(false);
     }
 
     private void loadModelInfo() {
@@ -152,7 +187,7 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
         if (currentModelId != null && !currentModelId.isEmpty()) {
             String displayName = currentModelId;
             if (displayName.contains("/")) {
-                displayName = displayName.substring(displayName.lastIndexOf("/") + 1);
+                displayName = displayName.substring(displayName.lastIndexOf('/') + 1);
             }
             binding.toolbarModel.setText(displayName);
         } else {
@@ -217,11 +252,11 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
         scrollToBottom();
 
         setAgentRunning(true);
+        binding.typingText.setText("Thinking…");
 
         List<ChatMessage> history = conversationManager.getMessages(conversationId);
         String systemPrompt = preferences.getSystemPrompt();
-        List<String> projectIds = workspace != null
-                ? workspace.getProjectIds() : new ArrayList<>();
+        List<String> projectIds = workspace != null ? workspace.getProjectIds() : new ArrayList<>();
 
         agentExecutor = new AgentExecutor(this, projectIds, workspaceId);
         agentExecutor.execute(history, currentModelId, currentProvider, systemPrompt,
@@ -230,23 +265,20 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
 
     private void setAgentRunning(boolean running) {
         isAgentRunning = running;
-        binding.btnSend.setEnabled(!running && binding.inputMessage.getText() != null
-                && binding.inputMessage.getText().length() > 0);
-        binding.typingIndicator.setVisibility(running ? View.VISIBLE : View.GONE);
         binding.inputMessage.setEnabled(!running);
+        binding.typingIndicator.setVisibility(running ? View.VISIBLE : View.GONE);
         if (running) {
             binding.emptyDescription.setText("The agent is planning and executing tools in this workspace.");
         } else {
             binding.emptyDescription.setText("Create or open a conversation and ask for a Sketchware-compatible app, feature, fix, or refactor.");
         }
+        refreshComposerState();
         updateEmptyState();
     }
 
     private void scrollToBottom() {
         if (chatAdapter.getItemCount() > 0) {
-            binding.messagesList.post(() ->
-                    binding.messagesList.smoothScrollToPosition(
-                            chatAdapter.getItemCount() - 1));
+            binding.messagesList.post(() -> binding.messagesList.smoothScrollToPosition(chatAdapter.getItemCount() - 1));
         }
     }
 
@@ -262,8 +294,7 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
 
     private void showModelSelector() {
         BottomSheetDialog dialog = new BottomSheetDialog(this);
-        DialogModelSelectorBinding dialogBinding =
-                DialogModelSelectorBinding.inflate(getLayoutInflater());
+        DialogModelSelectorBinding dialogBinding = DialogModelSelectorBinding.inflate(getLayoutInflater());
         dialog.setContentView(dialogBinding.getRoot());
 
         List<AiProvider> availableProviders = new ArrayList<>();
@@ -276,17 +307,15 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
         if (availableProviders.isEmpty()) {
             dialogBinding.emptyState.setVisibility(View.VISIBLE);
             dialogBinding.modelsList.setVisibility(View.GONE);
-            dialogBinding.emptyText.setText(
-                    "No API keys configured.\nGo to AI Settings to add one.");
+            dialogBinding.emptyText.setText("No API keys configured.\nGo to AI Settings to add one.");
             dialog.show();
             return;
         }
 
         for (AiProvider p : availableProviders) {
-            dialogBinding.providerTabs.addTab(
-                    dialogBinding.providerTabs.newTab()
-                            .setText(p.getDisplayName())
-                            .setTag(p));
+            dialogBinding.providerTabs.addTab(dialogBinding.providerTabs.newTab()
+                    .setText(p.getDisplayName())
+                    .setTag(p));
         }
 
         ModelSelectorAdapter modelAdapter = new ModelSelectorAdapter(model -> {
@@ -318,24 +347,23 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
             }
         }
 
-        dialogBinding.providerTabs.addOnTabSelectedListener(
-                new TabLayout.OnTabSelectedListener() {
-                    @Override
-                    public void onTabSelected(TabLayout.Tab tab) {
-                        AiProvider provider = (AiProvider) tab.getTag();
-                        if (provider != null) {
-                            loadModelsForProvider(provider, modelAdapter, dialogBinding);
-                        }
-                    }
+        dialogBinding.providerTabs.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
+            @Override
+            public void onTabSelected(TabLayout.Tab tab) {
+                AiProvider provider = (AiProvider) tab.getTag();
+                if (provider != null) {
+                    loadModelsForProvider(provider, modelAdapter, dialogBinding);
+                }
+            }
 
-                    @Override
-                    public void onTabUnselected(TabLayout.Tab tab) {
-                    }
+            @Override
+            public void onTabUnselected(TabLayout.Tab tab) {
+            }
 
-                    @Override
-                    public void onTabReselected(TabLayout.Tab tab) {
-                    }
-                });
+            @Override
+            public void onTabReselected(TabLayout.Tab tab) {
+            }
+        });
 
         dialog.show();
     }
@@ -351,9 +379,7 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
             adapter.setModels(new ArrayList<>());
             dialogBinding.modelsList.setVisibility(View.GONE);
             dialogBinding.emptyState.setVisibility(View.VISIBLE);
-            dialogBinding.emptyText.setText(
-                    "No models cached for " + provider.getDisplayName()
-                            + ".\nRefresh models in AI Settings.");
+            dialogBinding.emptyText.setText("No models cached for " + provider.getDisplayName() + ".\nRefresh models in AI Settings.");
         }
     }
 
@@ -376,8 +402,15 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
     @Override
     public void onToolCallStarted(ToolCall toolCall) {
         chatAdapter.addToolCall(toolCall);
-        updateEmptyState();
         scrollToBottom();
+    }
+
+    @Override
+    public void onToolCallProgress(String toolCallId, String status, int progress, boolean indeterminate) {
+        chatAdapter.updateToolCallProgress(toolCallId, status, progress, indeterminate);
+        if (status != null && !status.isEmpty()) {
+            binding.typingText.setText(status);
+        }
     }
 
     @Override
@@ -397,6 +430,13 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
     }
 
     @Override
+    public void onCancelled() {
+        setAgentRunning(false);
+        binding.typingText.setText("Stopped");
+        Toast.makeText(this, "Agent stopped", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
     public void onError(String error) {
         setAgentRunning(false);
         ChatMessage errorMessage = new ChatMessage(conversationId, "⚠️ " + error, null);
@@ -411,6 +451,22 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
     @Override
     public void onThinking(String status) {
         binding.typingText.setText(status);
+    }
+
+    @Override
+    public void onInstallArtifact(@NonNull String artifactPath) {
+        try {
+            File artifact = new File(artifactPath);
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".provider", artifact);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            intent.setDataAndType(uri, "application/vnd.android.package-archive");
+            startActivity(intent);
+        } catch (Exception e) {
+            Toast.makeText(this, "Unable to open installer: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
     }
 
     @Override

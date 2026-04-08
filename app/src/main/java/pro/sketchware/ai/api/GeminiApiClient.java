@@ -201,12 +201,12 @@ public class GeminiApiClient extends AiApiClient {
                     } catch (Exception e) {
                         functionCall.add("args", new JsonObject());
                     }
-                    if (tc.getThoughtSignature() != null && !tc.getThoughtSignature().isEmpty()) {
-                        functionCall.addProperty("thoughtSignature", tc.getThoughtSignature());
-                    }
 
                     JsonObject functionCallPart = new JsonObject();
                     functionCallPart.add("functionCall", functionCall);
+                    if (tc.getThoughtSignature() != null && !tc.getThoughtSignature().isEmpty()) {
+                        functionCallPart.addProperty("thoughtSignature", tc.getThoughtSignature());
+                    }
                     parts.add(functionCallPart);
                 }
             }
@@ -319,7 +319,8 @@ public class GeminiApiClient extends AiApiClient {
                 String name = getStringOrDefault(functionCall, "name", "unknown");
                 JsonObject args = functionCall.has("args")
                         ? functionCall.getAsJsonObject("args") : new JsonObject();
-                String thoughtSignature = getStringOrDefault(functionCall, "thoughtSignature", null);
+                String thoughtSignature = getStringOrDefault(part, "thoughtSignature",
+                        getStringOrDefault(part, "thought_signature", null));
 
                 String callId = "call_" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
                 ToolCall toolCall = new ToolCall(callId, name, args.toString(), thoughtSignature);

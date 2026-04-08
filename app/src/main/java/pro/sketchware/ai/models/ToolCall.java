@@ -56,8 +56,12 @@ public class ToolCall {
                 ? json.get("name").getAsString() : null;
         String arguments = json.has("arguments") && !json.get("arguments").isJsonNull()
                 ? json.get("arguments").getAsString() : null;
-        String thoughtSignature = json.has("thoughtSignature") && !json.get("thoughtSignature").isJsonNull()
-                ? json.get("thoughtSignature").getAsString() : null;
+        String thoughtSignature = null;
+        if (json.has("thoughtSignature") && !json.get("thoughtSignature").isJsonNull()) {
+            thoughtSignature = json.get("thoughtSignature").getAsString();
+        } else if (json.has("thought_signature") && !json.get("thought_signature").isJsonNull()) {
+            thoughtSignature = json.get("thought_signature").getAsString();
+        }
 
         return new ToolCall(id, name, arguments, thoughtSignature);
     }

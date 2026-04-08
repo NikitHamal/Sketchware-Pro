@@ -8,15 +8,30 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import pro.sketchware.utility.FilePathUtil;
+
 /**
  * Context passed to tools during execution. Contains the application context,
  * the workspace identifier, and the list of project IDs the agent is allowed to access.
  */
 public class ToolContext {
 
+    public interface ToolProgressListener {
+        void onToolProgress(String toolCallId, String status, int progress, boolean indeterminate);
+    }
+
+    public interface CancellationChecker {
+        boolean isCancelled();
+    }
+
     private final Context appContext;
     private final List<String> allowedProjectIds;
     private final String workspaceId;
+    private final FilePathUtil filePathUtil = new FilePathUtil();
+
+    private ToolProgressListener progressListener;
+    private CancellationChecker cancellationChecker;
+    private String currentToolCallId;
 
     public ToolContext(Context appContext, List<String> allowedProjectIds, String workspaceId) {
         this.appContext = appContext;
@@ -26,33 +41,18 @@ public class ToolContext {
         this.workspaceId = workspaceId;
     }
 
-    /**
-     * Returns the application context.
-     */
     public Context getAppContext() {
         return appContext;
     }
 
-    /**
-     * Returns an unmodifiable list of project SC IDs the agent is allowed to access.
-     */
     public List<String> getAllowedProjectIds() {
         return Collections.unmodifiableList(allowedProjectIds);
     }
 
-    /**
-     * Returns the workspace identifier for this session.
-     */
     public String getWorkspaceId() {
         return workspaceId;
     }
 
-    /**
-     * Checks whether the agent is allowed to access the given project.
-     *
-     * @param scId the project SC ID to check
-     * @return true if the project is in the allowed list, false otherwise
-     */
     public boolean isProjectAllowed(String scId) {
         if (scId == null || scId.isEmpty()) {
             return false;
@@ -60,42 +60,77 @@ public class ToolContext {
         return allowedProjectIds.contains(scId);
     }
 
-    /**
-     * Returns the root .sketchware directory on external storage.
-     */
+    public void setToolProgressListener(ToolProgressListener progressListener) {
+        this.progressListener = progressListener;
+    }
+
+    public void setCancellationChecker(CancellationChecker cancellationChecker) {
+        this.cancellationChecker = cancellationChecker;
+    }
+
+    public void beginToolCall(String toolCallId) {
+        currentToolCallId = toolCallId;
+    }
+
+    public void endToolCall() {
+        currentToolCallId = null;
+    }
+
+    public boolean isCancelled() {
+        return cancellationChecker != null && cancellationChecker.isCancelled();
+    }
+
+    public void reportProgress(String status) {
+        reportProgress(status, -1, true);
+    }
+
+    public void reportProgress(String status, int progress) {
+        reportProgress(status, progress, false);
+    }
+
+    public void reportProgress(String status, int progress, boolean indeterminate) {
+        if (progressListener != null && currentToolCallId != null) {
+            progressListener.onToolProgress(currentToolCallId, status, progress, indeterminate);
+        }
+    }
+
     public File getSketchwareDir() {
         return new File(Environment.getExternalStorageDirectory(), ".sketchware");
     }
 
-    /**
-     * Returns the data directory for a specific project.
-     * Path: .sketchware/data/{sc_id}/
-     */
     public File getProjectDataDir(String scId) {
         return new File(getSketchwareDir(), "data" + File.separator + scId);
     }
 
-    /**
-     * Returns the mysc directory for a specific project.
-     * Path: .sketchware/mysc/{sc_id}/
-     */
     public File getProjectMyscDir(String scId) {
         return new File(getSketchwareDir(), "mysc" + File.separator + scId);
     }
 
-    /**
-     * Returns the mysc list directory for a specific project.
-     * Path: .sketchware/mysc/list/{sc_id}/
-     */
     public File getProjectMyscListDir(String scId) {
         return new File(getSketchwareDir(), "mysc" + File.separator + "list" + File.separator + scId);
     }
 
-    /**
-     * Returns the backup directory for a specific project.
-     * Path: .sketchware/bak/{sc_id}/
-     */
     public File getProjectBackupDir(String scId) {
         return new File(getSketchwareDir(), "bak" + File.separator + scId);
+    }
+
+    public File getProjectJavaDir(String scId) {
+        return new File(filePathUtil.getPathJava(scId));
+    }
+
+    public File getProjectResourceDir(String scId) {
+        return new File(filePathUtil.getPathResource(scId));
+    }
+
+    public File getProjectAssetsDir(String scId) {
+        return new File(filePathUtil.getPathAssets(scId));
+    }
+
+    public File getProjectLocalLibraryFile(String scId) {
+        return new File(filePathUtil.getPathLocalLibrary(scId));
+    }
+
+    public File getProjectCompileLogFile(String scId) {
+        return new File(FilePathUtil.getLastCompileLogPath(scId));
     }
 }

@@ -12,24 +12,156 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import pro.sketchware.ai.models.ToolResult;
 
 /**
- * Contains tools for file operations within Sketchware Pro projects.
- * Files are stored under .sketchware/mysc/{sc_id}/.
+ * File tools operate on the editable Sketchware source roots under .sketchware/data/{sc_id}/files.
+ * Common Android Studio style aliases such as app/src/main/java and app/src/main/res are normalized
+ * automatically so the agent does not accidentally mutate generated build output under .sketchware/mysc.
  */
 public final class FileTools {
 
     private FileTools() {
     }
 
+    private static final List<String> JAVA_PREFIXES = Arrays.asList(
+            "app/src/main/java/", "src/main/java/", "java/");
+    private static final List<String> RES_PREFIXES = Arrays.asList(
+            "app/src/main/res/", "src/main/res/", "res/");
+    private static final List<String> ASSET_PREFIXES = Arrays.asList(
+            "app/src/main/assets/", "src/main/assets/", "assets/");
+    private static final List<String> GENERATED_PREFIXES = Arrays.asList(
+            "app/", "bin/", "gen/");
+
     private static ToolResult success(String output) {
-        return new ToolResult(null, true, output, null);
+        return ToolResult.success(null, output);
     }
 
     private static ToolResult error(String message) {
-        return new ToolResult(null, false, null, message);
+        return ToolResult.failure(null, message);
+    }
+
+    private static final class ResolvedPath {
+        final File file;
+        final String logicalPath;
+        final String root;
+        final boolean editable;
+
+        ResolvedPath(File file, String logicalPath, String root, boolean editable) {
+            this.file = file;
+            this.logicalPath = logicalPath;
+            this.root = root;
+            this.editable = editable;
+        }
+    }
+
+    private static String normalizePath(String relativePath) {
+        if (relativePath == null) {
+            return "";
+        }
+        String normalized = relativePath.trim().replace('\\', '/');
+        while (normalized.startsWith("./")) {
+            normalized = normalized.substring(2);
+        }
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        return normalized;
+    }
+
+    private static boolean isPathSafe(String relativePath) {
+        String normalized = normalizePath(relativePath);
+        if (normalized.isEmpty()) {
+            return false;
+        }
+        for (String segment : normalized.split("/")) {
+            if ("..".equals(segment)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String stripAnyPrefix(String normalized, List<String> prefixes) {
+        for (String prefix : prefixes) {
+            if (normalized.equals(prefix.substring(0, prefix.length() - 1))) {
+                return "";
+            }
+            if (normalized.startsWith(prefix)) {
+                return normalized.substring(prefix.length());
+            }
+        }
+        return null;
+    }
+
+    private static ResolvedPath resolveEditablePath(ToolContext context, String scId, String requestedPath) {
+        String normalized = normalizePath(requestedPath);
+        if (!isPathSafe(normalized)) {
+            return null;
+        }
+
+        String relative = stripAnyPrefix(normalized, JAVA_PREFIXES);
+        if (relative != null) {
+            return new ResolvedPath(new File(context.getProjectJavaDir(scId), relative),
+                    relative.isEmpty() ? "java" : "java/" + relative, "java", true);
+        }
+
+        relative = stripAnyPrefix(normalized, RES_PREFIXES);
+        if (relative != null) {
+            return new ResolvedPath(new File(context.getProjectResourceDir(scId), relative),
+                    relative.isEmpty() ? "res" : "res/" + relative, "res", true);
+        }
+
+        relative = stripAnyPrefix(normalized, ASSET_PREFIXES);
+        if (relative != null) {
+            return new ResolvedPath(new File(context.getProjectAssetsDir(scId), relative),
+                    relative.isEmpty() ? "assets" : "assets/" + relative, "assets", true);
+        }
+
+        File dataDir = context.getProjectDataDir(scId);
+        if ("project".equals(normalized) || "file".equals(normalized) || "library".equals(normalized)
+                || "resource".equals(normalized) || "view".equals(normalized)
+                || "local_library".equals(normalized) || "compile_log".equals(normalized)
+                || "proguard-rules.pro".equals(normalized)) {
+            return new ResolvedPath(new File(dataDir, normalized), normalized, "project-data", true);
+        }
+
+        return null;
+    }
+
+    private static ResolvedPath resolveReadablePath(ToolContext context, String scId, String requestedPath) {
+        String normalized = normalizePath(requestedPath);
+        if (normalized.isEmpty()) {
+            return new ResolvedPath(context.getProjectDataDir(scId), "", "project-roots", true);
+        }
+        if (!isPathSafe(normalized)) {
+            return null;
+        }
+
+        ResolvedPath editable = resolveEditablePath(context, scId, normalized);
+        if (editable != null) {
+            return editable;
+        }
+
+        for (String prefix : GENERATED_PREFIXES) {
+            if (normalized.equals(prefix.substring(0, prefix.length() - 1)) || normalized.startsWith(prefix)) {
+                return new ResolvedPath(new File(context.getProjectMyscDir(scId), normalized), normalized,
+                        "generated", false);
+            }
+        }
+
+        if (normalized.startsWith("mysc/")) {
+            String relative = normalized.substring("mysc/".length());
+            return new ResolvedPath(new File(context.getProjectMyscDir(scId), relative), relative,
+                    "generated", false);
+        }
+
+        return new ResolvedPath(new File(context.getProjectDataDir(scId), normalized), normalized,
+                "project-data", false);
     }
 
     private static String readFileContent(File file) throws IOException {
@@ -81,26 +213,28 @@ public final class FileTools {
         return file.delete();
     }
 
-    /**
-     * Validates that a relative file path does not escape the project directory.
-     */
-    private static boolean isPathSafe(String relativePath) {
-        if (relativePath == null || relativePath.isEmpty()) {
-            return false;
+    private static JsonObject buildFileInfo(File file, String logicalPath) {
+        JsonObject result = new JsonObject();
+        result.addProperty("file_path", logicalPath);
+        result.addProperty("name", file.getName());
+        result.addProperty("type", file.isDirectory() ? "directory" : "file");
+        if (file.isFile()) {
+            result.addProperty("size", file.length());
         }
-        // Reject paths that try to escape via ".."
-        String normalized = relativePath.replace('\\', '/');
-        for (String segment : normalized.split("/")) {
-            if ("..".equals(segment)) {
-                return false;
-            }
-        }
-        return !normalized.startsWith("/");
+        return result;
     }
 
-    /**
-     * Reads a file from a project.
-     */
+    private static String summarizeRoots() {
+        JsonArray roots = new JsonArray();
+        for (String root : new String[]{"java", "res", "assets", "project", "file", "library", "local_library", "compile_log"}) {
+            JsonObject entry = new JsonObject();
+            entry.addProperty("name", root);
+            entry.addProperty("type", "root");
+            roots.add(entry);
+        }
+        return roots.toString();
+    }
+
     public static class ReadFileTool implements AgentTool {
 
         @Override
@@ -110,9 +244,8 @@ public final class FileTools {
 
         @Override
         public String getDescription() {
-            return "Reads the contents of a file from a Sketchware Pro project. "
-                    + "The file_path is relative to the project's mysc directory "
-                    + "(e.g., \"src/main.java\", \"res/layout/main.xml\").";
+            return "Reads an editable project file. Use logical roots like java/, res/, and assets/. "
+                    + "Android Studio style aliases such as app/src/main/java/... are normalized automatically.";
         }
 
         @Override
@@ -126,7 +259,7 @@ public final class FileTools {
 
             JsonObject pathProp = new JsonObject();
             pathProp.addProperty("type", "string");
-            pathProp.addProperty("description", "File path relative to the project root (e.g., \"src/MainActivity.java\")");
+            pathProp.addProperty("description", "Logical file path such as java/com/example/MainActivity.java or res/layout/main.xml");
             properties.add("file_path", pathProp);
 
             JsonArray required = new JsonArray();
@@ -156,25 +289,25 @@ public final class FileTools {
                 return error("Access denied: project " + scId + " is not in the current workspace");
             }
 
-            if (!isPathSafe(filePath)) {
+            ResolvedPath resolved = resolveReadablePath(context, scId, filePath);
+            if (resolved == null) {
                 return error("Invalid file path: path must be relative and cannot contain '..'");
             }
 
-            File file = new File(context.getProjectMyscDir(scId), filePath);
-            if (!file.exists()) {
+            if (!resolved.file.exists()) {
                 return error("File not found: " + filePath);
             }
 
-            if (file.isDirectory()) {
+            if (resolved.file.isDirectory()) {
                 return error("Path is a directory, not a file: " + filePath);
             }
 
             try {
-                String content = readFileContent(file);
-                JsonObject result = new JsonObject();
-                result.addProperty("file_path", filePath);
+                String content = readFileContent(resolved.file);
+                JsonObject result = buildFileInfo(resolved.file, resolved.logicalPath);
                 result.addProperty("content", content);
-                result.addProperty("size", file.length());
+                result.addProperty("root", resolved.root);
+                result.addProperty("editable", resolved.editable);
                 return success(result.toString());
             } catch (IOException e) {
                 return error("Failed to read file: " + e.getMessage());
@@ -182,9 +315,6 @@ public final class FileTools {
         }
     }
 
-    /**
-     * Writes or overwrites a file in a project.
-     */
     public static class WriteFileTool implements AgentTool {
 
         @Override
@@ -194,9 +324,8 @@ public final class FileTools {
 
         @Override
         public String getDescription() {
-            return "Writes content to a file in a Sketchware Pro project. "
-                    + "Creates the file and parent directories if they don't exist. "
-                    + "Overwrites the file if it already exists.";
+            return "Writes content to an editable Sketchware project source file. Use java/, res/, or assets/ paths. "
+                    + "Generated build output under .sketchware/mysc is never written directly.";
         }
 
         @Override
@@ -210,7 +339,7 @@ public final class FileTools {
 
             JsonObject pathProp = new JsonObject();
             pathProp.addProperty("type", "string");
-            pathProp.addProperty("description", "File path relative to the project root");
+            pathProp.addProperty("description", "Logical file path relative to java/, res/, assets/, or a supported project metadata file");
             properties.add("file_path", pathProp);
 
             JsonObject contentProp = new JsonObject();
@@ -250,19 +379,17 @@ public final class FileTools {
                 return error("Access denied: project " + scId + " is not in the current workspace");
             }
 
-            if (!isPathSafe(filePath)) {
-                return error("Invalid file path: path must be relative and cannot contain '..'");
+            ResolvedPath resolved = resolveEditablePath(context, scId, filePath);
+            if (resolved == null) {
+                return error("Unsupported editable path. Use java/, res/, assets/, or supported project metadata files instead of generated mysc output.");
             }
 
-            File file = new File(context.getProjectMyscDir(scId), filePath);
-
             try {
-                writeFileContent(file, content);
+                writeFileContent(resolved.file, content);
 
-                JsonObject result = new JsonObject();
-                result.addProperty("file_path", filePath);
-                result.addProperty("size", file.length());
+                JsonObject result = buildFileInfo(resolved.file, resolved.logicalPath);
                 result.addProperty("message", "File written successfully");
+                result.addProperty("root", resolved.root);
                 return success(result.toString());
             } catch (IOException e) {
                 return error("Failed to write file: " + e.getMessage());
@@ -270,9 +397,6 @@ public final class FileTools {
         }
     }
 
-    /**
-     * Deletes a file from a project.
-     */
     public static class DeleteFileTool implements AgentTool {
 
         @Override
@@ -282,7 +406,7 @@ public final class FileTools {
 
         @Override
         public String getDescription() {
-            return "Deletes a file from a Sketchware Pro project.";
+            return "Deletes an editable project file or directory from java/, res/, assets/, or supported project metadata paths.";
         }
 
         @Override
@@ -296,7 +420,7 @@ public final class FileTools {
 
             JsonObject pathProp = new JsonObject();
             pathProp.addProperty("type", "string");
-            pathProp.addProperty("description", "File path relative to the project root");
+            pathProp.addProperty("description", "Logical file path relative to the editable project roots");
             properties.add("file_path", pathProp);
 
             JsonArray required = new JsonArray();
@@ -326,36 +450,26 @@ public final class FileTools {
                 return error("Access denied: project " + scId + " is not in the current workspace");
             }
 
-            if (!isPathSafe(filePath)) {
-                return error("Invalid file path: path must be relative and cannot contain '..'");
+            ResolvedPath resolved = resolveEditablePath(context, scId, filePath);
+            if (resolved == null) {
+                return error("Unsupported editable path. Delete files only from java/, res/, assets/, or supported project metadata files.");
             }
-
-            File file = new File(context.getProjectMyscDir(scId), filePath);
-            if (!file.exists()) {
+            if (!resolved.file.exists()) {
                 return error("File not found: " + filePath);
             }
 
-            boolean deleted;
-            if (file.isDirectory()) {
-                deleted = deleteRecursive(file);
-            } else {
-                deleted = file.delete();
-            }
-
-            if (deleted) {
-                JsonObject result = new JsonObject();
-                result.addProperty("file_path", filePath);
-                result.addProperty("message", "File deleted successfully");
-                return success(result.toString());
-            } else {
+            boolean deleted = resolved.file.isDirectory() ? deleteRecursive(resolved.file) : resolved.file.delete();
+            if (!deleted) {
                 return error("Failed to delete file: " + filePath);
             }
+
+            JsonObject result = new JsonObject();
+            result.addProperty("file_path", resolved.logicalPath);
+            result.addProperty("message", "File deleted successfully");
+            return success(result.toString());
         }
     }
 
-    /**
-     * Lists files in a project directory.
-     */
     public static class ListFilesTool implements AgentTool {
 
         @Override
@@ -365,8 +479,8 @@ public final class FileTools {
 
         @Override
         public String getDescription() {
-            return "Lists files and directories within a Sketchware Pro project directory. "
-                    + "Returns name, type (file/directory), and size for each entry.";
+            return "Lists files and directories from the editable project roots. "
+                    + "Use an empty directory parameter to discover the logical roots exposed to the agent.";
         }
 
         @Override
@@ -380,7 +494,7 @@ public final class FileTools {
 
             JsonObject dirProp = new JsonObject();
             dirProp.addProperty("type", "string");
-            dirProp.addProperty("description", "Directory path relative to the project root. Defaults to root if not specified.");
+            dirProp.addProperty("description", "Directory path relative to the logical roots. Leave empty to list top-level roots.");
             properties.add("directory", dirProp);
 
             JsonArray required = new JsonArray();
@@ -407,33 +521,29 @@ public final class FileTools {
                 return error("Access denied: project " + scId + " is not in the current workspace");
             }
 
-            if (!directory.isEmpty() && !isPathSafe(directory)) {
+            if (normalizePath(directory).isEmpty()) {
+                return success(summarizeRoots());
+            }
+
+            ResolvedPath resolved = resolveReadablePath(context, scId, directory);
+            if (resolved == null) {
                 return error("Invalid directory path: path must be relative and cannot contain '..'");
             }
-
-            File dir;
-            if (directory.isEmpty()) {
-                dir = context.getProjectMyscDir(scId);
-            } else {
-                dir = new File(context.getProjectMyscDir(scId), directory);
+            if (!resolved.file.exists()) {
+                return error("Directory not found: " + directory);
             }
-
-            if (!dir.exists()) {
-                return error("Directory not found: " + (directory.isEmpty() ? "/" : directory));
-            }
-
-            if (!dir.isDirectory()) {
+            if (!resolved.file.isDirectory()) {
                 return error("Path is not a directory: " + directory);
             }
 
             JsonArray entries = new JsonArray();
-            File[] files = dir.listFiles();
+            File[] files = resolved.file.listFiles();
             if (files != null) {
                 for (File file : files) {
-                    JsonObject entry = new JsonObject();
-                    entry.addProperty("name", file.getName());
-                    entry.addProperty("type", file.isDirectory() ? "directory" : "file");
-                    entry.addProperty("size", file.isFile() ? file.length() : 0);
+                    String logicalBase = resolved.logicalPath.isEmpty() ? "" : resolved.logicalPath + "/";
+                    String logicalPath = logicalBase + file.getName();
+                    JsonObject entry = buildFileInfo(file, logicalPath);
+                    entry.addProperty("editable", resolved.editable);
                     entries.add(entry);
                 }
             }
@@ -442,9 +552,6 @@ public final class FileTools {
         }
     }
 
-    /**
-     * Copies a file within or between projects.
-     */
     public static class CopyFileTool implements AgentTool {
 
         @Override
@@ -454,8 +561,7 @@ public final class FileTools {
 
         @Override
         public String getDescription() {
-            return "Copies a file within a project or between two projects. "
-                    + "Both source and target projects must be in the workspace.";
+            return "Copies a file within or between projects using the editable logical roots.";
         }
 
         @Override
@@ -469,7 +575,7 @@ public final class FileTools {
 
             JsonObject srcPathProp = new JsonObject();
             srcPathProp.addProperty("type", "string");
-            srcPathProp.addProperty("description", "Source file path relative to the project root");
+            srcPathProp.addProperty("description", "Source file path in a logical project root");
             properties.add("source_path", srcPathProp);
 
             JsonObject tgtScIdProp = new JsonObject();
@@ -479,7 +585,7 @@ public final class FileTools {
 
             JsonObject tgtPathProp = new JsonObject();
             tgtPathProp.addProperty("type", "string");
-            tgtPathProp.addProperty("description", "Target file path relative to the project root");
+            tgtPathProp.addProperty("description", "Target file path in a logical project root");
             properties.add("target_path", tgtPathProp);
 
             JsonArray required = new JsonArray();
@@ -522,26 +628,20 @@ public final class FileTools {
                 return error("Access denied: target project " + targetScId + " is not in the current workspace");
             }
 
-            if (!isPathSafe(sourcePath)) {
-                return error("Invalid source path: path must be relative and cannot contain '..'");
+            ResolvedPath sourceResolved = resolveReadablePath(context, sourceScId, sourcePath);
+            ResolvedPath targetResolved = resolveEditablePath(context, targetScId, targetPath);
+            if (sourceResolved == null || targetResolved == null) {
+                return error("Unsupported source or target path. Copy using the logical project roots only.");
             }
-            if (!isPathSafe(targetPath)) {
-                return error("Invalid target path: path must be relative and cannot contain '..'");
-            }
-
-            File sourceFile = new File(context.getProjectMyscDir(sourceScId), sourcePath);
-            File targetFile = new File(context.getProjectMyscDir(targetScId), targetPath);
-
-            if (!sourceFile.exists()) {
+            if (!sourceResolved.file.exists() || sourceResolved.file.isDirectory()) {
                 return error("Source file not found: " + sourcePath);
             }
 
             try {
-                copyFile(sourceFile, targetFile);
-
+                copyFile(sourceResolved.file, targetResolved.file);
                 JsonObject result = new JsonObject();
-                result.addProperty("source", sourceScId + ":" + sourcePath);
-                result.addProperty("target", targetScId + ":" + targetPath);
+                result.addProperty("source", sourceScId + ":" + sourceResolved.logicalPath);
+                result.addProperty("target", targetScId + ":" + targetResolved.logicalPath);
                 result.addProperty("message", "File copied successfully");
                 return success(result.toString());
             } catch (IOException e) {
@@ -550,9 +650,6 @@ public final class FileTools {
         }
     }
 
-    /**
-     * Moves a file within a project.
-     */
     public static class MoveFileTool implements AgentTool {
 
         @Override
@@ -562,7 +659,7 @@ public final class FileTools {
 
         @Override
         public String getDescription() {
-            return "Moves or renames a file within a Sketchware Pro project.";
+            return "Moves or renames an editable project file within a logical project root.";
         }
 
         @Override
@@ -576,12 +673,12 @@ public final class FileTools {
 
             JsonObject srcPathProp = new JsonObject();
             srcPathProp.addProperty("type", "string");
-            srcPathProp.addProperty("description", "Current file path relative to the project root");
+            srcPathProp.addProperty("description", "Current file path in a logical project root");
             properties.add("source_path", srcPathProp);
 
             JsonObject tgtPathProp = new JsonObject();
             tgtPathProp.addProperty("type", "string");
-            tgtPathProp.addProperty("description", "New file path relative to the project root");
+            tgtPathProp.addProperty("description", "New file path in a logical project root");
             properties.add("target_path", tgtPathProp);
 
             JsonArray required = new JsonArray();
@@ -616,51 +713,39 @@ public final class FileTools {
                 return error("Access denied: project " + scId + " is not in the current workspace");
             }
 
-            if (!isPathSafe(sourcePath)) {
-                return error("Invalid source path: path must be relative and cannot contain '..'");
+            ResolvedPath sourceResolved = resolveEditablePath(context, scId, sourcePath);
+            ResolvedPath targetResolved = resolveEditablePath(context, scId, targetPath);
+            if (sourceResolved == null || targetResolved == null) {
+                return error("Unsupported source or target path. Move files only within the logical project roots.");
             }
-            if (!isPathSafe(targetPath)) {
-                return error("Invalid target path: path must be relative and cannot contain '..'");
-            }
-
-            File projectDir = context.getProjectMyscDir(scId);
-            File sourceFile = new File(projectDir, sourcePath);
-            File targetFile = new File(projectDir, targetPath);
-
-            if (!sourceFile.exists()) {
+            if (!sourceResolved.file.exists()) {
                 return error("Source file not found: " + sourcePath);
             }
 
-            File targetParent = targetFile.getParentFile();
+            File targetParent = targetResolved.file.getParentFile();
             if (targetParent != null && !targetParent.exists()) {
                 targetParent.mkdirs();
             }
 
-            if (sourceFile.renameTo(targetFile)) {
-                JsonObject result = new JsonObject();
-                result.addProperty("source_path", sourcePath);
-                result.addProperty("target_path", targetPath);
-                result.addProperty("message", "File moved successfully");
-                return success(result.toString());
-            } else {
-                // renameTo can fail across filesystems; fall back to copy+delete
+            boolean moved = sourceResolved.file.renameTo(targetResolved.file);
+            if (!moved) {
                 try {
-                    copyFile(sourceFile, targetFile);
-                    if (sourceFile.delete()) {
-                        JsonObject result = new JsonObject();
-                        result.addProperty("source_path", sourcePath);
-                        result.addProperty("target_path", targetPath);
-                        result.addProperty("message", "File moved successfully");
-                        return success(result.toString());
-                    } else {
-                        // Clean up the copy since we couldn't delete the source
-                        targetFile.delete();
-                        return error("Failed to remove source file after copy");
+                    copyFile(sourceResolved.file, targetResolved.file);
+                    moved = sourceResolved.file.delete();
+                    if (!moved) {
+                        targetResolved.file.delete();
+                        return error("Failed to remove source file after copying");
                     }
                 } catch (IOException e) {
                     return error("Failed to move file: " + e.getMessage());
                 }
             }
+
+            JsonObject result = new JsonObject();
+            result.addProperty("source_path", sourceResolved.logicalPath);
+            result.addProperty("target_path", targetResolved.logicalPath);
+            result.addProperty("message", "File moved successfully");
+            return success(result.toString());
         }
     }
 }

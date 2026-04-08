@@ -107,7 +107,12 @@ public abstract class AiApiClient {
     /**
      * Shuts down the HTTP client, releasing any held resources.
      */
+    public void cancelAll() {
+        client.dispatcher().cancelAll();
+    }
+
     public void shutdown() {
+        cancelAll();
         client.dispatcher().executorService().shutdown();
         client.connectionPool().evictAll();
     }
