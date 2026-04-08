@@ -123,6 +123,8 @@ dependencies {
     implementation libs.bundles.firebase
 
     coreLibraryDesugaring libs.desugar.jdk.libs.nio
+
+    testImplementation libs.junit
 }
 
 tasks.register('createMockGoogleServices') {

@@ -108,6 +108,7 @@ stax-api = { module = "javax.xml.stream:stax-api", version.ref = "staxApi" }
 woodstox-core = { module = "com.fasterxml.woodstox:woodstox-core", version.ref = "woodstoxCore" }
 
 zipalign-java = { module = "com.github.Iyxan23:zipalign-java", version.ref = "zipalignJava" }
+junit = { module = "junit:junit", version = "4.13.2" }
 
 [bundles]
 ui = ["androidx-activity", "androidx-appcompat", "androidx-splashscreen", "androidx-recyclerview",
