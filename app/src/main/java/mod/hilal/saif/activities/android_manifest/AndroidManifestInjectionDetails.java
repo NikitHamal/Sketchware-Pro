@@ -219,23 +219,42 @@ public class AndroidManifestInjectionDetails extends BaseAppCompatActivity {
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-            CustomAttributeView attributeView = new CustomAttributeView(parent.getContext());
-
-            try {
-                int violet = ThemeUtils.getColor(attributeView, R.attr.colorViolet);
-                int onSurface = ThemeUtils.getColor(attributeView, R.attr.colorOnSurface);
-                int green = ThemeUtils.getColor(attributeView, R.attr.colorGreen);
-
-                SpannableString spannableString = new SpannableString((String) _data.get(position).get("value"));
-                spannableString.setSpan(new ForegroundColorSpan(violet), 0, ((String) _data.get(position).get("value")).indexOf(":"), 33);
-                spannableString.setSpan(new ForegroundColorSpan(onSurface), ((String) _data.get(position).get("value")).indexOf(":"), ((String) _data.get(position).get("value")).indexOf("=") + 1, 33);
-                spannableString.setSpan(new ForegroundColorSpan(green), ((String) _data.get(position).get("value")).indexOf("\""), ((String) _data.get(position).get("value")).length(), 33);
-                attributeView.getTextView().setText(spannableString);
-            } catch (Exception e) {
-                attributeView.getTextView().setText((String) _data.get(position).get("value"));
+            CustomAttributeView attributeView;
+            if (convertView == null) {
+                attributeView = new CustomAttributeView(parent.getContext());
+                attributeView.getImageView().setVisibility(View.GONE);
+            } else {
+                attributeView = (CustomAttributeView) convertView;
             }
 
-            attributeView.getImageView().setVisibility(View.GONE);
+            String value = (String) _data.get(position).get("value");
+
+            if (value != null) {
+                try {
+                    int violet = ThemeUtils.getColor(attributeView, R.attr.colorViolet);
+                    int onSurface = ThemeUtils.getColor(attributeView, R.attr.colorOnSurface);
+                    int green = ThemeUtils.getColor(attributeView, R.attr.colorGreen);
+
+                    int colonIndex = value.indexOf(":");
+                    int equalsIndex = value.indexOf("=");
+                    int quoteIndex = value.indexOf("\"");
+
+                    if (colonIndex != -1 && equalsIndex != -1 && quoteIndex != -1) {
+                        SpannableString spannableString = new SpannableString(value);
+                        spannableString.setSpan(new ForegroundColorSpan(violet), 0, colonIndex, 33);
+                        spannableString.setSpan(new ForegroundColorSpan(onSurface), colonIndex, equalsIndex + 1, 33);
+                        spannableString.setSpan(new ForegroundColorSpan(green), quoteIndex, value.length(), 33);
+                        attributeView.getTextView().setText(spannableString);
+                    } else {
+                        attributeView.getTextView().setText(value);
+                    }
+                } catch (Exception e) {
+                    attributeView.getTextView().setText(value);
+                }
+            } else {
+                attributeView.getTextView().setText("");
+            }
+
             attributeView.setOnClickListener(v -> showDial(position));
             attributeView.setOnLongClickListener(v -> {
                 new MaterialAlertDialogBuilder(AndroidManifestInjectionDetails.this)
