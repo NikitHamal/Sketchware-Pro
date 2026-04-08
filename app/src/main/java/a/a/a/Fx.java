@@ -22,6 +22,7 @@ import mod.pranav.viewbinding.ViewBindingBuilder;
 public class Fx {
 
     private static final Pattern PARAM_PATTERN = Pattern.compile("%m(?!\\.[\\w]+)");
+    private static final Pattern FORMAT_SPECIFIER_PATTERN = Pattern.compile("%(?:(\\d+)\\$)?s");
     public final boolean isViewBindingEnabled;
     private final ArrayList<String> viewParamsTypes = new ArrayList<>(List.of(
             "%m.view", "%m.layout", "%m.textview", "%m.button", "%m.edittext", "%m.imageview", "%m.recyclerview",
@@ -190,7 +191,8 @@ public class Fx {
         ArrayList<String> params = new ArrayList<>();
         ArrayList<String> paramsTypes = extractParamsTypes(bean.spec);
         for (int i = 0; i < bean.parameters.size(); i++) {
-            String param = getParamValue(bean.parameters.get(i), paramsTypes.get(i));
+            String paramType = i < paramsTypes.size() ? paramsTypes.get(i) : "";
+            String param = getParamValue(bean.parameters.get(i), paramType);
             int type = getBlockType(bean, i);
             params.add(a(param, type, bean.opCode));
         }
@@ -252,7 +254,8 @@ public class Fx {
 
                     for (int i = 0; i < params.size(); i++) {
                         if (i > 0) opcode += ", ";
-                        String param = getParamValue(params.get(i), paramsTypes.get(i));
+                        String paramType = i < paramsTypes.size() ? paramsTypes.get(i) : "";
+                        String param = getParamValue(params.get(i), paramType);
                         if (param.isEmpty()) {
                             Gx paramInfo = bean.getParamClassInfo().get(i);
                             if (paramInfo.b("boolean")) {
@@ -1421,73 +1424,159 @@ public class Fx {
         ArrayList<String> parameters = new ArrayList<>();
         ArrayList<String> paramsTypes = extractParamsTypes(blockBean.spec);
 
-        for (int i = 0; i < blockBean.parameters.size(); i++) {
-            String parameterValue = getParamValue(blockBean.parameters.get(i), paramsTypes.get(i));
-
-            switch (getBlockType(blockBean, i)) {
-                case 0:
-                    if (parameterValue.isEmpty()) {
-                        parameters.add("true");
-                    } else {
-                        parameters.add(a(parameterValue, getBlockType(blockBean, i), blockBean.opCode));
-                    }
-                    break;
-
-                case 1:
-                    if (parameterValue.isEmpty()) {
-                        parameters.add("0");
-                    } else {
-                        parameters.add(a(parameterValue, getBlockType(blockBean, i), blockBean.opCode));
-                    }
-                    break;
-
-                case 2:
-                    if (parameterValue.isEmpty()) {
-                        parameters.add("\"\"");
-                    } else {
-                        parameters.add(a(parameterValue, getBlockType(blockBean, i), blockBean.opCode));
-                    }
-                    break;
-
-                default:
-                    if (parameterValue.isEmpty()) {
-                        parameters.add("");
-                    } else {
-                        parameters.add(a(parameterValue, getBlockType(blockBean, i), blockBean.opCode));
-                    }
-            }
-        }
-
-        if (blockBean.subStack1 >= 0) {
-            parameters.add(a(String.valueOf(blockBean.subStack1), var2));
-        } else {
-            parameters.add(" ");
-        }
-
-        if (blockBean.subStack2 >= 0) {
-            parameters.add(a(String.valueOf(blockBean.subStack2), var2));
-        } else {
-            parameters.add(" ");
-        }
-
         ExtraBlockInfo blockInfo = BlockLoader.getBlockInfo(blockBean.opCode);
-
         if (blockInfo.isMissing) {
             blockInfo = BlockLoader.getBlockFromProject(buildConfig.sc_id, blockBean.opCode);
         }
 
+        String codeTemplate = blockInfo.getCode();
+
+        for (int i = 0; i < blockBean.parameters.size(); i++) {
+            String parameterSpec = i < paramsTypes.size() ? paramsTypes.get(i) : "";
+            String parameterValue = getParamValue(blockBean.parameters.get(i), parameterSpec);
+            int parameterType = getBlockType(blockBean, i);
+
+            if (parameterValue == null || parameterValue.trim().isEmpty()) {
+                parameters.add(getExtraBlockDefaultValue(parameterType, parameterSpec));
+            } else {
+                parameters.add(a(parameterValue, parameterType, blockBean.opCode));
+            }
+        }
+
+        parameters.add(blockBean.subStack1 >= 0 ? a(String.valueOf(blockBean.subStack1), var2) : "");
+        parameters.add(blockBean.subStack2 >= 0 ? a(String.valueOf(blockBean.subStack2), var2) : "");
+
+        ensureFormatArgumentsHaveSafeDefaults(codeTemplate, parameters);
+
         String formattedCode;
         if (!parameters.isEmpty()) {
             try {
-                formattedCode = String.format(blockInfo.getCode(), parameters.toArray(new Object[0]));
+                formattedCode = String.format(codeTemplate, parameters.toArray(new Object[0]));
             } catch (Exception e) {
                 formattedCode = "/* Failed to resolve Custom Block's code: " + e + " */";
             }
         } else {
-            formattedCode = blockInfo.getCode();
+            formattedCode = codeTemplate;
         }
 
-        return formattedCode;
+        return sanitizeMalformedGeneratedCode(formattedCode);
+    }
+
+    private String getExtraBlockDefaultValue(int parameterType, String parameterSpec) {
+        if (parameterSpec == null) {
+            parameterSpec = "";
+        }
+
+        return switch (parameterType) {
+            case 0 -> "false";
+            case 1 -> "0";
+            case 2 -> "\"\"";
+            default -> {
+                String normalizedSpec = parameterSpec.toLowerCase();
+                if (normalizedSpec.equals("%m.activity")) {
+                    yield isActivity ? activityName + ".this" : "requireActivity()";
+                }
+                if (normalizedSpec.equals("%m.context")) {
+                    yield isActivity ? activityName + ".this" : "requireContext()";
+                }
+                if (normalizedSpec.contains("color") || normalizedSpec.contains("int")
+                        || normalizedSpec.contains("number") || normalizedSpec.contains("float")
+                        || normalizedSpec.contains("double")) {
+                    yield "0";
+                }
+                yield "";
+            }
+        };
+    }
+
+    private void ensureFormatArgumentsHaveSafeDefaults(String codeTemplate, ArrayList<String> parameters) {
+        Matcher matcher = FORMAT_SPECIFIER_PATTERN.matcher(codeTemplate);
+        int nextSequentialArgument = 0;
+
+        while (matcher.find()) {
+            int argumentIndex;
+            String explicitIndex = matcher.group(1);
+            if (explicitIndex != null) {
+                argumentIndex = Integer.parseInt(explicitIndex) - 1;
+            } else {
+                argumentIndex = nextSequentialArgument;
+                nextSequentialArgument++;
+            }
+
+            while (argumentIndex >= parameters.size()) {
+                parameters.add("");
+            }
+
+            String currentValue = parameters.get(argumentIndex);
+            if (currentValue == null || currentValue.trim().isEmpty()) {
+                parameters.set(argumentIndex, inferDefaultValueFromCodeContext(codeTemplate, matcher.start(), matcher.end()));
+            }
+        }
+    }
+
+    private String inferDefaultValueFromCodeContext(String codeTemplate, int placeholderStart, int placeholderEnd) {
+        String before = codeTemplate.substring(Math.max(0, placeholderStart - 64), placeholderStart).toLowerCase();
+        String after = codeTemplate.substring(placeholderEnd, Math.min(codeTemplate.length(), placeholderEnd + 64)).toLowerCase();
+        String context = before + after;
+
+        if (before.matches("(?s).*\\b(if|while)\\s*\\(\\s*$")) {
+            return "false";
+        }
+
+        if (before.matches("(?s).*\\bswitch\\s*\\(\\s*\\(\\s*int\\s*\\)\\s*$")
+                || before.matches("(?s).*\\bcase\\s*\\(\\(\\s*int\\s*\\)\\s*$")
+                || context.contains("math.max(0, ((int)")
+                || context.contains("math.max(0, (int)")) {
+            return "0";
+        }
+
+        if (before.contains("requestoverlaydisplaypermission(")) {
+            return isActivity ? activityName + ".this" : "requireActivity()";
+        }
+
+        if (context.contains("(float)") || context.contains("(double)") || context.contains("(int)")
+                || context.contains("(long)") || context.contains("(short)") || context.contains("(byte)")
+                || context.contains("radius") || context.contains("spacing") || context.contains("elevation")
+                || context.contains("setsize") || context.contains("maxlength") || context.contains("counter")) {
+            return "0";
+        }
+
+        if (before.contains(".this") || after.contains(".this")) {
+            return isActivity ? activityName : "requireActivity()";
+        }
+
+        if (context.contains("color")) {
+            return "0";
+        }
+
+        if (before.matches("(?s).*\\b(if|while|for)\\s*\\([^)]*$")) {
+            return "false";
+        }
+
+        if (after.trim().startsWith(")") || after.trim().startsWith(",")) {
+            return "null";
+        }
+
+        return "";
+    }
+
+    private String sanitizeMalformedGeneratedCode(String formattedCode) {
+        if (formattedCode == null || formattedCode.isEmpty()) {
+            return formattedCode;
+        }
+
+        String sanitized = formattedCode;
+        sanitized = sanitized.replaceAll("\\(\\((?:int|long|short|byte)\\)\\)", "0");
+        sanitized = sanitized.replaceAll("\\(\\((?:float|double)\\)\\)", "0");
+        sanitized = sanitized.replaceAll("\\bif\\s*\\(\\s*\\)", "if (false)");
+        sanitized = sanitized.replaceAll("\\bwhile\\s*\\(\\s*\\)", "while (false)");
+        sanitized = sanitized.replaceAll("\\bswitch\\s*\\(\\s*\\(\\(int\\)\\)\\s*\\)", "switch(0)");
+        sanitized = sanitized.replaceAll("\\bcase\\s*\\(\\(int\\)\\)\\s*:", "case 0:");
+        sanitized = sanitized.replaceAll(
+                "(?s)(\\b[\\w$.]+\\.requestOverlayDisplayPermission\\s*\\()\\s*new\\s+View\\.OnClickListener\\s*\\(\\)\\s*\\{.*?\\}\\s*(\\))",
+                "$1" + (isActivity ? activityName + ".this" : "requireActivity()") + "$2"
+        );
+        return sanitized;
     }
 
     private int getBlockType(BlockBean blockBean, int parameterIndex) {

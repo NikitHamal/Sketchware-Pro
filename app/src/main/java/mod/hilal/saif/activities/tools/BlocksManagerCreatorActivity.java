@@ -51,6 +51,7 @@ import pro.sketchware.utility.SketchwareUtil;
 public class BlocksManagerCreatorActivity extends BaseAppCompatActivity {
 
     private static final Pattern PARAM_PATTERN = Pattern.compile("%m(?!\\.[\\w]+)");
+    private static final Pattern FORMAT_PLACEHOLDER_PATTERN = Pattern.compile("%(?:(\\d+)\\$)?s");
     private final ArrayList<String> id_detector = new ArrayList<>();
     private ActivityBlocksManagerCreatorBinding binding;
     private ArrayList<HashMap<String, Object>> blocksList = new ArrayList<>();
@@ -199,6 +200,13 @@ public class BlocksManagerCreatorActivity extends BaseAppCompatActivity {
                 SketchwareUtil.showMessage(getApplicationContext(), "Invalid block params");
                 return;
             }
+
+            String validationError = validateCustomBlockDefinition();
+            if (validationError != null) {
+                SketchwareUtil.showMessage(getApplicationContext(), validationError);
+                return;
+            }
+
             if (Helper.getText(binding.type).isEmpty()) {
                 binding.type.setText(" ");
             }
@@ -477,6 +485,108 @@ public class BlocksManagerCreatorActivity extends BaseAppCompatActivity {
             }
             binding.blockArea.addView(block);
         }
+    }
+
+
+    private String validateCustomBlockDefinition() {
+        String name = Helper.getText(binding.name).trim();
+        String spec = Helper.getText(binding.spec).trim();
+        String code = Helper.getText(binding.code);
+        String type = Helper.getText(binding.type).trim();
+
+        if (name.isEmpty()) {
+            return "Block name is required";
+        }
+        if (spec.isEmpty()) {
+            return "Block spec is required";
+        }
+        if (code.trim().isEmpty()) {
+            return "Block code is required";
+        }
+        if (Pattern.compile("%\d+s").matcher(code).find()) {
+            return "Use String.format placeholders like %1$s, not %1s";
+        }
+
+        int parameterCount = extractSpecParameterCount(spec);
+        int stackCount = switch (type) {
+            case "c" -> 1;
+            case "e" -> 2;
+            default -> 0;
+        };
+
+        int highestPlaceholderIndex = getHighestCodePlaceholderIndex(code);
+        int maxSupportedPlaceholder = parameterCount + stackCount;
+        if (highestPlaceholderIndex > maxSupportedPlaceholder) {
+            return "Code references placeholder %" + highestPlaceholderIndex + "$s but this block only provides "
+                    + maxSupportedPlaceholder + " value(s)";
+        }
+
+        if (stackCount > 0 && !referencesPlaceholderRange(code, parameterCount + 1, parameterCount + stackCount)) {
+            return "Control blocks must use their stack placeholder(s) in code";
+        }
+
+        if (type.equals("c") && parameterCount == 0
+                && code.contains("requestOverlayDisplayPermission(")
+                && code.contains("%1$s")) {
+            return "Overlay permission blocks must declare an activity/context parameter instead of using the stack placeholder as the first argument";
+        }
+
+        return null;
+    }
+
+    private int extractSpecParameterCount(String spec) {
+        Pattern pattern = Pattern.compile("%\\w+(?:\\.\\w+)?|%\\w");
+        Matcher matcher = pattern.matcher(spec);
+        int count = 0;
+        while (matcher.find()) {
+            count++;
+        }
+        return count;
+    }
+
+    private int getHighestCodePlaceholderIndex(String code) {
+        Matcher matcher = FORMAT_PLACEHOLDER_PATTERN.matcher(code);
+        int highestIndex = 0;
+        int nextSequentialIndex = 1;
+
+        while (matcher.find()) {
+            String explicitIndex = matcher.group(1);
+            int currentIndex;
+            if (explicitIndex != null) {
+                currentIndex = Integer.parseInt(explicitIndex);
+            } else {
+                currentIndex = nextSequentialIndex;
+                nextSequentialIndex++;
+            }
+            highestIndex = Math.max(highestIndex, currentIndex);
+        }
+
+        return highestIndex;
+    }
+
+    private boolean referencesPlaceholderRange(String code, int startIndex, int endIndex) {
+        if (startIndex > endIndex) {
+            return false;
+        }
+
+        Matcher matcher = FORMAT_PLACEHOLDER_PATTERN.matcher(code);
+        int nextSequentialIndex = 1;
+        while (matcher.find()) {
+            String explicitIndex = matcher.group(1);
+            int currentIndex;
+            if (explicitIndex != null) {
+                currentIndex = Integer.parseInt(explicitIndex);
+            } else {
+                currentIndex = nextSequentialIndex;
+                nextSequentialIndex++;
+            }
+
+            if (currentIndex >= startIndex && currentIndex <= endIndex) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void addBlock() {
