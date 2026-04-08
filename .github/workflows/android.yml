@@ -43,10 +43,9 @@ jobs:
           JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
         if: ${{ env.JSON_CONTENT != '' }}
         run: |
-          printf 'GOOGLE_SERVICES_JSON<<EOF
-%s
-EOF
-' "$JSON_CONTENT" >> "$GITHUB_ENV"
+          printf '%s\n' 'GOOGLE_SERVICES_JSON<<EOF' >> "$GITHUB_ENV"
+          printf '%s\n' "$JSON_CONTENT" >> "$GITHUB_ENV"
+          printf '%s\n' 'EOF' >> "$GITHUB_ENV"
 
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
