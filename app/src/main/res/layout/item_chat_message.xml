@@ -1,0 +1,112 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingVertical="4dp">
+
+    <!-- Role label -->
+    <TextView
+        android:id="@+id/msg_role"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="4dp"
+        android:layout_marginBottom="2dp"
+        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:textColor="?attr/colorPrimary"
+        tools:text="Assistant" />
+
+    <!-- Message bubble -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/msg_card"
+        style="?attr/materialCardViewFilledStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:maxWidth="320dp"
+        app:cardCornerRadius="16dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/msg_content"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textIsSelectable="true"
+                tools:text="Hello! How can I help you build your app?" />
+
+            <!-- Tool call indicator -->
+            <LinearLayout
+                android:id="@+id/tool_call_container"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <com.google.android.material.progressindicator.CircularProgressIndicator
+                    android:id="@+id/tool_progress"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:indeterminate="true"
+                    android:visibility="gone"
+                    app:indicatorSize="16dp"
+                    app:trackThickness="2dp" />
+
+                <ImageView
+                    android:id="@+id/tool_icon"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    app:srcCompat="@drawable/ic_model"
+                    app:tint="?attr/colorPrimary"
+                    tools:ignore="ContentDescription" />
+
+                <TextView
+                    android:id="@+id/tool_call_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:textAppearance="?attr/textAppearanceLabelSmall"
+                    android:textColor="?attr/colorPrimary"
+                    tools:text="Using: create_project" />
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Status indicator -->
+    <LinearLayout
+        android:id="@+id/status_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingTop="2dp"
+        android:visibility="gone"
+        tools:ignore="RtlSymmetry">
+
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/streaming_indicator"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:indeterminate="true"
+            app:indicatorSize="12dp"
+            app:trackThickness="2dp" />
+
+        <TextView
+            android:id="@+id/status_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:textAppearance="?attr/textAppearanceLabelSmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            tools:text="Thinking..." />
+    </LinearLayout>
+
+</LinearLayout>

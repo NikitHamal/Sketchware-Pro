@@ -1,0 +1,65 @@
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    style="?attr/materialCardViewFilledStyle"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="16dp"
+    android:layout_marginTop="8dp"
+    android:clickable="true"
+    android:focusable="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <ImageView
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:padding="6dp"
+            app:srcCompat="@drawable/ic_chat"
+            app:tint="?attr/colorPrimary"
+            tools:ignore="ContentDescription" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/conversation_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textAppearance="?attr/textAppearanceBodyLarge"
+                tools:text="Build my app" />
+
+            <TextView
+                android:id="@+id/conversation_info"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                tools:text="Gemini · gemini-2.0-flash · 2h ago" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/btn_conv_menu"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="6dp"
+            android:scaleType="centerInside"
+            app:srcCompat="@drawable/ic_mtrl_more_vert"
+            app:tint="?attr/colorOnSurfaceVariant"
+            tools:ignore="ContentDescription" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

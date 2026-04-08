@@ -1,0 +1,81 @@
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    style="?attr/materialCardViewFilledStyle"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="16dp"
+    android:layout_marginTop="8dp"
+    android:clickable="true"
+    android:focusable="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/ic_workspace_bg"
+                android:padding="8dp"
+                app:srcCompat="@drawable/ic_workspace"
+                app:tint="?attr/colorOnPrimary"
+                tools:ignore="ContentDescription" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/workspace_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textAppearance="?attr/textAppearanceTitleMedium"
+                    tools:text="My App Workspace" />
+
+                <TextView
+                    android:id="@+id/workspace_description"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    tools:text="3 projects · 5 conversations" />
+            </LinearLayout>
+
+            <ImageView
+                android:id="@+id/btn_workspace_menu"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="6dp"
+                android:scaleType="centerInside"
+                app:srcCompat="@drawable/ic_mtrl_more_vert"
+                app:tint="?attr/colorOnSurfaceVariant"
+                tools:ignore="ContentDescription" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/workspace_updated"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textAppearance="?attr/textAppearanceLabelSmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            tools:text="Updated 2 hours ago" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

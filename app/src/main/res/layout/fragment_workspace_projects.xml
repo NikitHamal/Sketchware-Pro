@@ -1,0 +1,66 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Empty State -->
+    <LinearLayout
+        android:id="@+id/empty_state"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:alpha="0.5"
+            app:srcCompat="@drawable/ic_workspace"
+            app:tint="?attr/colorOnSurfaceVariant"
+            tools:ignore="ContentDescription" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="No projects linked"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center"
+            android:text="Add existing projects or ask the agent to create new ones."
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_add_project"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Add Project"
+            app:icon="@drawable/ic_mtrl_add" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/project_list_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/projects_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="96dp"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+    </LinearLayout>
+
+</FrameLayout>
