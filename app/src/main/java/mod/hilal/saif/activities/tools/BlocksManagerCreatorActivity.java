@@ -503,7 +503,7 @@ public class BlocksManagerCreatorActivity extends BaseAppCompatActivity {
         if (code.trim().isEmpty()) {
             return "Block code is required";
         }
-        if (Pattern.compile("%\d+s").matcher(code).find()) {
+        if (Pattern.compile("%\\d+s").matcher(code).find()) {
             return "Use String.format placeholders like %1$s, not %1s";
         }
 
