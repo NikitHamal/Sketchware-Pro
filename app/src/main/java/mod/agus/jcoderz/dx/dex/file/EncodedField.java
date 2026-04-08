@@ -119,8 +119,7 @@ public final class EncodedField extends EncodedMember
     /** {@inheritDoc} */
     @Override
     public void debugPrint(PrintWriter out, boolean verbose) {
-        // TODO: Maybe put something better here?
-        out.println(toString());
+        out.println(field.toHuman() + " " + AccessFlags.fieldString(getAccessFlags()));
     }
 
     /**

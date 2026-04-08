@@ -168,7 +168,7 @@ tasks.register('createMockGoogleServices') {
         def mockReleaseFile = file("src/release/google-services.json")
         if (!mockReleaseFile.exists()) {
             mockReleaseFile.parentFile.mkdirs()
-            mockReleaseFile.text = mockFile.text
+            mockReleaseFile.text = googleServicesFile.text
         }
     }
 }
