@@ -539,21 +539,43 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
             return position;
         }
 
+        private class ViewHolder {
+            LinearLayout background;
+            TextView name;
+            TextView spec;
+            CardView upLayout;
+            CardView downLayout;
+            LinearLayout down;
+            LinearLayout up;
+        }
+
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
+            ViewHolder holder;
             if (convertView == null) {
                 convertView = getLayoutInflater().inflate(R.layout.block_customview, parent, false);
+                holder = new ViewHolder();
+                holder.background = convertView.findViewById(R.id.background);
+                holder.name = convertView.findViewById(R.id.name);
+                holder.spec = convertView.findViewById(R.id.spec);
+                holder.upLayout = convertView.findViewById(R.id.up_layout);
+                holder.downLayout = convertView.findViewById(R.id.down_layout);
+                holder.down = convertView.findViewById(R.id.down);
+                holder.up = convertView.findViewById(R.id.up);
+                convertView.setTag(holder);
+            } else {
+                holder = (ViewHolder) convertView.getTag();
             }
 
             HashMap<String, Object> block = blocks.get(position);
 
-            LinearLayout background = convertView.findViewById(R.id.background);
-            TextView name = convertView.findViewById(R.id.name);
-            TextView spec = convertView.findViewById(R.id.spec);
-            CardView upLayout = convertView.findViewById(R.id.up_layout);
-            CardView downLayout = convertView.findViewById(R.id.down_layout);
-            LinearLayout down = convertView.findViewById(R.id.down);
-            LinearLayout up = convertView.findViewById(R.id.up);
+            LinearLayout background = holder.background;
+            TextView name = holder.name;
+            TextView spec = holder.spec;
+            CardView upLayout = holder.upLayout;
+            CardView downLayout = holder.downLayout;
+            LinearLayout down = holder.down;
+            LinearLayout up = holder.up;
 
             if (mode.equals("normal")) {
                 downLayout.setVisibility(View.GONE);
