@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="20dp">
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Project name">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/project_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:singleLine="true" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:hint="App name">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/app_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:singleLine="true" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:hint="Package name">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/package_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:singleLine="true" />
+    </com.google.android.material.textfield.TextInputLayout>
+</LinearLayout>

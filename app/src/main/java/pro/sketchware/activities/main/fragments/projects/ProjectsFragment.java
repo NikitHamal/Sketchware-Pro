@@ -206,6 +206,7 @@ public class ProjectsFragment extends DA {
             requireActivity().removeMenuProvider(menuProvider);
         } else {
             requireActivity().addMenuProvider(menuProvider);
+            refreshProjectsList();
         }
     }
 

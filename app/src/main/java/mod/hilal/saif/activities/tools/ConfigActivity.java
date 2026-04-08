@@ -35,6 +35,7 @@ import java.util.Map;
 import mod.hey.studios.util.Helper;
 import mod.jbk.util.LogUtil;
 import pro.sketchware.R;
+import pro.sketchware.agent.ui.AgentSettingsActivity;
 import pro.sketchware.databinding.DialogCreateNewFileLayoutBinding;
 import pro.sketchware.databinding.PreferenceActivityBinding;
 import pro.sketchware.utility.FileUtil;
@@ -300,6 +301,14 @@ public class ConfigActivity extends BaseAppCompatActivity {
                 dialog.show();
                 return true;
             });
+
+            Preference agentSettings = findPreference("agent-settings");
+            if (agentSettings != null) {
+                agentSettings.setOnPreferenceClickListener(preference -> {
+                    startActivity(new android.content.Intent(requireContext(), AgentSettingsActivity.class));
+                    return true;
+                });
+            }
         }
 
         public DataStore getDataStore() {

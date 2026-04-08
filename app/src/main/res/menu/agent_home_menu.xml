@@ -1,0 +1,7 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/action_agent_settings"
+        android:icon="@drawable/ic_mtrl_settings"
+        android:title="Agent settings"
+        android:showAsAction="ifRoom" />
+</menu>

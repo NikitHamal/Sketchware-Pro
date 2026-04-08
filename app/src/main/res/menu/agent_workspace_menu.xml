@@ -1,0 +1,15 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/action_rename_workspace"
+        android:title="Rename workspace"
+        android:showAsAction="never" />
+    <item
+        android:id="@+id/action_delete_workspace"
+        android:title="Delete workspace"
+        android:showAsAction="never" />
+    <item
+        android:id="@+id/action_agent_settings"
+        android:icon="@drawable/ic_mtrl_settings"
+        android:title="Agent settings"
+        android:showAsAction="ifRoom" />
+</menu>

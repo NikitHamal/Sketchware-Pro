@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/top_app_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:navigationIcon="@drawable/abc_ic_ab_back_material" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="12dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.SketchwarePro.TextInputLayout.ExposedDropdownMenu"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Provider">
+
+                <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                    android:id="@+id/provider_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="none" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <Space
+                android:layout_width="12dp"
+                android:layout_height="1dp" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.SketchwarePro.TextInputLayout.ExposedDropdownMenu"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.4"
+                android:hint="Model">
+
+                <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                    android:id="@+id/model_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="none" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <ImageButton
+                android:id="@+id/refresh_models_button"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="center_vertical"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Refresh models"
+                android:src="@drawable/ic_mtrl_refresh"
+                app:tint="?attr/colorPrimary" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/model_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textAppearance="?attr/textAppearanceBodySmall" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/message_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:paddingHorizontal="16dp"
+            android:paddingBottom="12dp" />
+
+        <LinearLayout
+            android:id="@+id/empty_state"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="32dp">
+
+            <ImageView
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_stars"
+                app:tint="?attr/colorPrimary" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="Start the conversation"
+                android:textAppearance="?attr/textAppearanceTitleLarge" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:text="Ask the agent to create projects, inspect files, patch resources, read compile logs, or coordinate work across the projects attached to this workspace."
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        app:cardBackgroundColor="?attr/colorSurfaceContainer">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="bottom"
+            android:orientation="horizontal"
+            android:padding="12dp">
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Message the agent">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/prompt_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textMultiLine|textCapSentences"
+                    android:maxLines="6"
+                    android:minLines="2"
+                    android:gravity="top|start" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <FrameLayout
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="8dp">
+
+                <ImageButton
+                    android:id="@+id/send_button"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Send"
+                    android:enabled="false"
+                    android:src="@drawable/ic_mtrl_next"
+                    app:tint="?attr/colorPrimary" />
+
+                <com.google.android.material.progressindicator.CircularProgressIndicator
+                    android:id="@+id/send_progress"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+</LinearLayout>

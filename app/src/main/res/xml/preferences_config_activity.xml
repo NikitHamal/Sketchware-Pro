@@ -50,6 +50,12 @@
 
     <Preference
         app:iconSpaceReserved="false"
+        app:key="agent-settings"
+        app:summary="Configure provider API keys and cached models for the in-app autonomous agent."
+        app:title="Agent settings" />
+
+    <Preference
+        app:iconSpaceReserved="false"
         app:key="backup-filename"
         app:summary="Default is &quot;$projectName v$versionName ($pkgName, $versionCode) $time(yyyy-MM-dd'T'HHmmss)&quot;"
         app:title="Backup filename format" />
