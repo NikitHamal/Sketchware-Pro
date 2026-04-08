@@ -1002,7 +1002,16 @@ public class AndroidStudioProjectImporter {
             for (File file : files) {
                 String name = file.getName().toLowerCase(Locale.US);
                 if (name.endsWith(".jar")) {
-                    FileUtil.copyFile(file.getAbsolutePath(), classpathDir + File.separator + file.getName());
+                    try (java.nio.channels.FileChannel sourceChannel = new java.io.FileInputStream(file).getChannel();
+                         java.nio.channels.FileChannel destChannel = new java.io.FileOutputStream(classpathDir + File.separator + file.getName()).getChannel()) {
+                        long size = sourceChannel.size();
+                        long position = 0;
+                        while (position < size) {
+                            position += destChannel.transferFrom(sourceChannel, position, size - position);
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                 } else if (name.endsWith(".aar")) {
                     importAarAsLocalLibrary(scId, file);
                 }
