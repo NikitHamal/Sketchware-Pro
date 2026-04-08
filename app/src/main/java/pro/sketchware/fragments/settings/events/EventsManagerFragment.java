@@ -193,13 +193,14 @@ public class EventsManagerFragment extends qA {
         FilePickerCallback callback = new FilePickerCallback() {
             @Override
             public void onFileSelected(File file) {
-                if (FileUtil.readFile(file.getAbsolutePath()).isEmpty()) {
+                String fileContent = FileUtil.readFile(file.getAbsolutePath());
+                if (fileContent.isEmpty()) {
                     SketchwareUtil.toastError("The selected file is empty!");
-                } else if (FileUtil.readFile(file.getAbsolutePath()).equals("[]")) {
+                } else if (fileContent.equals("[]")) {
                     SketchwareUtil.toastError("The selected file is empty!");
                 } else {
                     try {
-                        String[] split = FileUtil.readFile(file.getAbsolutePath()).split("\n");
+                        String[] split = fileContent.split("\n");
                         importEvents(new Gson().fromJson(split[0], Helper.TYPE_MAP_LIST),
                                 new Gson().fromJson(split[1], Helper.TYPE_MAP_LIST));
                     } catch (Exception e) {
