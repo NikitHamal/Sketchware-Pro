@@ -173,7 +173,7 @@ public class FileUtil {
             int length;
 
             while ((length = fr.read(buff)) > 0) {
-                sb.append(new String(buff, 0, length));
+                sb.append(buff, 0, length);
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -189,7 +189,7 @@ public class FileUtil {
             int length;
 
             while ((length = fr.read(buff)) > 0) {
-                sb.append(new String(buff, 0, length));
+                sb.append(buff, 0, length);
             }
         } catch (IOException e) {
             e.printStackTrace();
