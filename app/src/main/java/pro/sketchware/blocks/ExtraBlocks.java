@@ -15,6 +15,8 @@ import mod.hilal.saif.activities.tools.ConfigActivity;
 
 public class ExtraBlocks {
 
+    private static final Pattern VARIABLE_PATTERN = Pattern.compile("^(\\w+)[\\s]+(\\w+)");
+
     private final String eventName;
     private final String javaName;
     private final LogicEditorActivity logicEditor;
@@ -135,7 +137,7 @@ public class ExtraBlocks {
 
         ArrayList<String> arrayList = new ArrayList<>();
         for (String variableName : projectDataManager.e(javaName, 5)) {
-            Matcher matcher = Pattern.compile("^(\\w+)[\\s]+(\\w+)").matcher(variableName);
+            Matcher matcher = VARIABLE_PATTERN.matcher(variableName);
             while (matcher.find()) {
                 arrayList.add(matcher.group(1));
             }
