@@ -666,8 +666,9 @@ public class ExtraMenuBean {
 
             case "CustomVar":
                 title = "Select a Custom Variable";
+                Pattern pattern = Pattern.compile("^(\\w+)[\\s]+(\\w+)");
                 for (String s : projectDataManager.e(javaName, 5)) {
-                    Matcher matcher = Pattern.compile("^(\\w+)[\\s]+(\\w+)").matcher(s);
+                    Matcher matcher = pattern.matcher(s);
                     while (matcher.find()) {
                         menus.add(matcher.group(2));
                     }
