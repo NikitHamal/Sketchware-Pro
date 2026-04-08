@@ -43,15 +43,32 @@ public class EventsManagerFragment extends qA {
     private FragmentEventsManagerBinding binding;
     private ArrayList<HashMap<String, Object>> listMap = new ArrayList<>();
 
+    private static ArrayList<HashMap<String, Object>> cachedEvents = null;
+    private static long cachedEventsLastModified = 0;
+
+    private static ArrayList<HashMap<String, Object>> getEventsCache() {
+        File file = EventsManagerConstants.EVENTS_FILE;
+        if (FileUtil.isExistFile(file.getAbsolutePath())) {
+            long lastModified = file.lastModified();
+            if (cachedEvents == null || cachedEventsLastModified != lastModified) {
+                cachedEvents = new Gson().fromJson(FileUtil.readFile(file.getAbsolutePath()), Helper.TYPE_MAP_LIST);
+                if (cachedEvents == null) {
+                    cachedEvents = new ArrayList<>();
+                }
+                cachedEventsLastModified = lastModified;
+            }
+        } else {
+            cachedEvents = new ArrayList<>();
+        }
+        return cachedEvents;
+    }
+
     public static String getNumOfEvents(String name) {
         int eventAmount = 0;
-        if (FileUtil.isExistFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath())) {
-            ArrayList<HashMap<String, Object>> events = new Gson()
-                    .fromJson(FileUtil.readFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath()), Helper.TYPE_MAP_LIST);
-            for (HashMap<String, Object> event : events) {
-                if (event.get("listener").toString().equals(name)) {
-                    eventAmount++;
-                }
+        ArrayList<HashMap<String, Object>> events = getEventsCache();
+        for (HashMap<String, Object> event : events) {
+            if (event.get("listener").toString().equals(name)) {
+                eventAmount++;
             }
         }
         return "Events: " + eventAmount;
@@ -215,10 +232,7 @@ public class EventsManagerFragment extends qA {
     }
 
     private void importEvents(ArrayList<HashMap<String, Object>> data, ArrayList<HashMap<String, Object>> data2) {
-        ArrayList<HashMap<String, Object>> events = new ArrayList<>();
-        if (FileUtil.isExistFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath())) {
-            events = new Gson().fromJson(FileUtil.readFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath()), Helper.TYPE_MAP_LIST);
-        }
+        ArrayList<HashMap<String, Object>> events = getEventsCache();
         events.addAll(data2);
         FileUtil.writeFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath(), new Gson().toJson(events));
         listMap.addAll(data);
@@ -232,13 +246,10 @@ public class EventsManagerFragment extends qA {
         ArrayList<HashMap<String, Object>> ex = new ArrayList<>();
         ex.add(listMap.get(p));
         ArrayList<HashMap<String, Object>> ex2 = new ArrayList<>();
-        if (FileUtil.isExistFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath())) {
-            ArrayList<HashMap<String, Object>> events = new Gson()
-                    .fromJson(FileUtil.readFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath()), Helper.TYPE_MAP_LIST);
-            for (int i = 0; i < events.size(); i++) {
-                if (events.get(i).get("listener").toString().equals(listMap.get(p).get("name"))) {
-                    ex2.add(events.get(i));
-                }
+        ArrayList<HashMap<String, Object>> events = getEventsCache();
+        for (int i = 0; i < events.size(); i++) {
+            if (events.get(i).get("listener").toString().equals(listMap.get(p).get("name"))) {
+                ex2.add(events.get(i));
             }
         }
         FileUtil.writeFile(concat + ex.get(0).get("name").toString() + ".txt", new Gson().toJson(ex) + "\n" + new Gson().toJson(ex2));
@@ -247,10 +258,7 @@ public class EventsManagerFragment extends qA {
     }
 
     private void exportAllEvents() {
-        ArrayList<HashMap<String, Object>> events = new ArrayList<>();
-        if (FileUtil.isExistFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath())) {
-            events = new Gson().fromJson(FileUtil.readFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath()), Helper.TYPE_MAP_LIST);
-        }
+        ArrayList<HashMap<String, Object>> events = getEventsCache();
         FileUtil.writeFile(new File(EventsManagerConstants.EVENT_EXPORT_LOCATION, "All_Events.txt").getAbsolutePath(),
                 new Gson().toJson(listMap) + "\n" + new Gson().toJson(events));
         SketchwareUtil.toast("Successfully exported events to:\n" +
@@ -269,14 +277,10 @@ public class EventsManagerFragment extends qA {
     }
 
     private void deleteRelatedEvents(String name) {
-        ArrayList<HashMap<String, Object>> events = new ArrayList<>();
-        if (FileUtil.isExistFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath())) {
-            events = new Gson()
-                    .fromJson(FileUtil.readFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath()), Helper.TYPE_MAP_LIST);
-            for (int i = events.size() - 1; i > -1; i--) {
-                if (events.get(i).get("listener").toString().equals(name)) {
-                    events.remove(i);
-                }
+        ArrayList<HashMap<String, Object>> events = getEventsCache();
+        for (int i = events.size() - 1; i > -1; i--) {
+            if (events.get(i).get("listener").toString().equals(name)) {
+                events.remove(i);
             }
         }
         FileUtil.writeFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath(), new Gson().toJson(events));
