@@ -101,6 +101,7 @@ public class AndroidStudioProjectImporter {
     private static final Pattern DATABINDING_INFLATE_PATTERN = Pattern.compile("DataBindingUtil\\s*\\.\\s*inflate\\s*\\([^,]+,\\s*R\\.layout\\.([A-Za-z0-9_]+)\\s*,");
     private static final Pattern VIEWBINDING_INFLATE_PATTERN = Pattern.compile("\\b([A-Za-z0-9_]+)Binding\\s*\\.\\s*inflate\\s*\\(");
     private static final Pattern ACTIVITY_THEME_PATTERN = Pattern.compile("Theme\\.(Material3|MaterialComponents|AppCompat)([^\\n]*)");
+    private static final Map<List<String>, Pattern> NUMERIC_PATTERN_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
     private static final long MAX_EXTRACTED_BYTES = 512L * 1024L * 1024L;
     private static final int MAX_EXTRACTED_FILES = 20000;
     private static final long DEPENDENCY_RESOLVE_TIMEOUT_MS = 120_000L;
@@ -2412,10 +2413,37 @@ public class AndroidStudioProjectImporter {
     }
 
     private String findFirstNumeric(String content, List<String> keys) {
-        for (String key : keys) {
-            Matcher matcher = Pattern.compile("(?m)^[\\t ]*" + Pattern.quote(key) + "[\\t ]*=?[\\t ]*([0-9]+)").matcher(content);
-            if (matcher.find()) {
-                return matcher.group(1).trim();
+        if (keys == null || keys.isEmpty()) return null;
+
+        Pattern pattern = NUMERIC_PATTERN_CACHE.computeIfAbsent(keys, k -> {
+            StringBuilder patternBuilder = new StringBuilder("(?m)^[\\t ]*(");
+            for (int i = 0; i < k.size(); i++) {
+                if (i > 0) patternBuilder.append("|");
+                patternBuilder.append(Pattern.quote(k.get(i)));
+            }
+            patternBuilder.append(")[\\t ]*=?[\\t ]*([0-9]+)");
+            return Pattern.compile(patternBuilder.toString());
+        });
+
+        Matcher matcher = pattern.matcher(content);
+
+        String[] results = new String[keys.size()];
+        int matches = 0;
+        while (matcher.find()) {
+            String matchKey = matcher.group(1);
+            int idx = keys.indexOf(matchKey);
+            if (idx != -1) {
+                if (results[idx] == null) {
+                    results[idx] = matcher.group(2).trim();
+                    matches++;
+                    if (idx == 0) return results[idx];
+                }
+            }
+        }
+
+        if (matches > 0) {
+            for (String res : results) {
+                if (res != null) return res;
             }
         }
         return null;
