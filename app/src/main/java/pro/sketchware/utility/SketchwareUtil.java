@@ -25,8 +25,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
+
+import android.os.SystemClock;
 
 import a.a.a.bB;
 import mod.hey.studios.util.Helper;
@@ -111,6 +115,24 @@ public class SketchwareUtil {
         return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, getContext().getResources().getDisplayMetrics());
     }
 
+    private static class CacheEntry {
+        final String value;
+        final long timestamp;
+        CacheEntry(String value, long timestamp) {
+            this.value = value;
+            this.timestamp = timestamp;
+        }
+    }
+
+    private static final long CACHE_TTL_MS = 5000; // 5 seconds
+
+    private static final Map<String, CacheEntry> sQueryCache = Collections.synchronizedMap(new LinkedHashMap<String, CacheEntry>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, CacheEntry> eldest) {
+            return size() > 100;
+        }
+    });
+
     /**
      * @return An optional display name of a document picked with Storage access framework.
      */
@@ -119,13 +141,26 @@ public class SketchwareUtil {
     }
 
     public static Optional<String> doSingleStringContentQuery(Uri uri, String columnName) {
+        String cacheKey = uri.toString() + "|" + columnName;
+        CacheEntry cachedEntry = sQueryCache.get(cacheKey);
+
+        if (cachedEntry != null) {
+            if (SystemClock.elapsedRealtime() - cachedEntry.timestamp < CACHE_TTL_MS) {
+                return Optional.of(cachedEntry.value);
+            } else {
+                sQueryCache.remove(cacheKey);
+            }
+        }
+
         try (Cursor cursor = getContext().getContentResolver().query(uri, new String[]{columnName}, null, null, null)) {
             if (cursor.moveToFirst() && !cursor.isNull(0)) {
-                return Optional.of(cursor.getString(0));
+                String result = cursor.getString(0);
+                sQueryCache.put(cacheKey, new CacheEntry(result, SystemClock.elapsedRealtime()));
+                return Optional.of(result);
             } else {
                 return Optional.empty();
             }
-        } catch (IllegalArgumentException | NullPointerException e) {
+        } catch (IllegalArgumentException | NullPointerException | SecurityException e) {
             LogUtil.e("SketchwareUtil", "Failed to do single string content query for Uri " + uri + " and column name " + columnName, e);
             return Optional.empty();
         }
