@@ -149,7 +149,14 @@ public final class BuildTools {
 
         if (context.isCancelled()) return;
         context.reportProgress("Compiling Kotlin…", 52);
-        KotlinCompilerBridge.compileKotlinCodeIfPossible((progress, step) -> context.reportProgress(progress, 52), builder);
+        try {
+            KotlinCompilerBridge.compileKotlinCodeIfPossible((progress, step) -> context.reportProgress(progress, 52), builder);
+        } catch (Throwable throwable) {
+            if (throwable instanceof Exception exception) {
+                throw exception;
+            }
+            throw new RuntimeException(throwable);
+        }
 
         if (context.isCancelled()) return;
         context.reportProgress("Compiling Java…", 62);

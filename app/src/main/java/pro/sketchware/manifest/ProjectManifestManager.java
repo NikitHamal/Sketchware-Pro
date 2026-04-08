@@ -1,6 +1,8 @@
 package pro.sketchware.manifest;
 
 import java.io.File;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import a.a.a.wq;
 import mod.hilal.saif.android_manifest.AndroidManifestInjector;
@@ -74,11 +76,50 @@ public final class ProjectManifestManager {
         } else {
             effective = AndroidManifestInjector.mHolder(generatedManifest, scId);
         }
-        effective = effective.replace("${applicationId}", applicationId);
+        effective = replaceApplicationIdPlaceholder(effective, applicationId);
         effective = CommandBlock.applyCommands("AndroidManifest.xml", effective);
+        effective = replaceApplicationIdPlaceholder(effective, applicationId);
+        effective = ensureManifestPackageAttribute(effective, applicationId);
         FileUtil.makeDir(getManifestDirectory(scId));
         FileUtil.writeFile(getEffectiveManifestPath(scId), effective);
         return effective;
+    }
+
+    public static String ensureManifestPackageAttribute(String manifestXml, String applicationId) {
+        if (manifestXml == null || manifestXml.trim().isEmpty() || applicationId == null || applicationId.trim().isEmpty()) {
+            return manifestXml;
+        }
+
+        Matcher manifestTagMatcher = Pattern.compile("<manifest\\b[^>]*>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL).matcher(manifestXml);
+        if (!manifestTagMatcher.find()) {
+            return manifestXml;
+        }
+
+        String manifestTag = manifestTagMatcher.group();
+        Matcher packageMatcher = Pattern.compile("\\bpackage\\s*=\\s*(['"])([^'"]*)\\1", Pattern.CASE_INSENSITIVE | Pattern.DOTALL).matcher(manifestTag);
+        String updatedManifestTag;
+        if (packageMatcher.find()) {
+            if (!packageMatcher.group(2).trim().isEmpty()) {
+                return manifestXml;
+            }
+            updatedManifestTag = manifestTag.substring(0, packageMatcher.start())
+                    + "package=\"" + applicationId + "\""
+                    + manifestTag.substring(packageMatcher.end());
+        } else {
+            updatedManifestTag = manifestTag.substring(0, manifestTag.length() - 1)
+                    + " package=\"" + applicationId + "\">";
+        }
+
+        return manifestXml.substring(0, manifestTagMatcher.start())
+                + updatedManifestTag
+                + manifestXml.substring(manifestTagMatcher.end());
+    }
+
+    private static String replaceApplicationIdPlaceholder(String value, String applicationId) {
+        if (value == null || applicationId == null) {
+            return value;
+        }
+        return value.replace("${applicationId}", applicationId);
     }
 
     private static String normalizeMode(String mode) {

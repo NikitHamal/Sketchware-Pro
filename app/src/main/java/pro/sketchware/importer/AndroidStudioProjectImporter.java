@@ -288,7 +288,8 @@ public class AndroidStudioProjectImporter {
         }
 
         if (manifest.rawXml != null) {
-            ProjectManifestManager.ensureRawManifestSeeded(scId, manifest.rawXml);
+            String normalizedRawManifest = ProjectManifestManager.ensureManifestPackageAttribute(manifest.rawXml, applicationId);
+            ProjectManifestManager.ensureRawManifestSeeded(scId, normalizedRawManifest);
             ProjectManifestManager.setMode(scId, ProjectManifestManager.MODE_RAW);
         }
 
