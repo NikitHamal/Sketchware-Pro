@@ -36,6 +36,7 @@ import pro.sketchware.utility.InvokeUtil;
 public class ViewBeanParser {
 
     private static final int[] viewsCount = new int[49];
+    private static final java.util.concurrent.ConcurrentHashMap<String, Integer> tagTypeCache = new java.util.concurrent.ConcurrentHashMap<>();
     private final XmlPullParser parser;
     private boolean skipRoot;
     private Pair<String, Map<String, String>> rootAttributes;
@@ -121,6 +122,12 @@ public class ViewBeanParser {
     }
 
     public static int getViewTypeByTag(String tag, int defaultType) {
+        String cacheKey = tag + "|" + defaultType;
+        Integer cached = tagTypeCache.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
         // Special case for other views that can be considered built-in views by type
         var type = ViewBeanFactory.getConsideredTypeViewByName(getNameFromTag(tag), defaultType);
         if (type == ViewBean.VIEW_TYPE_LAYOUT_LINEAR) {
@@ -138,6 +145,7 @@ public class ViewBeanParser {
                 }
             }
         }
+        tagTypeCache.put(cacheKey, type);
         return type;
     }
 
