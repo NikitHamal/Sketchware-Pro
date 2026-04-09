@@ -33,8 +33,6 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintWriter;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
 import java.security.GeneralSecurityException;
@@ -104,6 +102,9 @@ public class ProjectBuilder {
     private BuildProgressReceiver progressReceiver;
     private boolean buildAppBundle = false;
     private ArrayList<File> dexesToAddButNotMerge = new ArrayList<>();
+
+    private boolean forceFullJavaCompilation = false;
+    private boolean compiledClassesPreparedForJointRebuild = false;
 
     /**
      * Timestamp keeping track of when compiling the project's resources started, needed for stats of how long compiling took.
@@ -280,7 +281,77 @@ public class ProjectBuilder {
                 || content.contains("DataBinderMapper");
     }
 
+    public synchronized void prepareJointKotlinJavaFullRebuild(String reason) {
+        cleanCompiledClassesDirectory();
+        forceFullJavaCompilation = true;
+        compiledClassesPreparedForJointRebuild = true;
+        LogUtil.d(TAG, "Prepared compiled classes output for a joint Kotlin/Java full rebuild. Reason: " + reason);
+    }
+
+    private synchronized boolean consumeForceFullJavaCompilationFlag() {
+        boolean value = forceFullJavaCompilation;
+        forceFullJavaCompilation = false;
+        return value;
+    }
+
+    private synchronized boolean consumeCompiledClassesPreparedFlag() {
+        boolean value = compiledClassesPreparedForJointRebuild;
+        compiledClassesPreparedForJointRebuild = false;
+        return value;
+    }
+
+    public String buildJavaCompilationEnvironmentFingerprint() {
+        StringBuilder fingerprint = new StringBuilder();
+        fingerprint.append("javaVersion=")
+                .append(build_settings.getValue(BuildSettings.SETTING_JAVA_VERSION,
+                        BuildSettings.SETTING_JAVA_VERSION_1_8))
+                .append('\n');
+        fingerprint.append("warnings=")
+                .append(build_settings.getValue(BuildSettings.SETTING_NO_WARNINGS,
+                        BuildSettings.SETTING_GENERIC_VALUE_TRUE))
+                .append('\n');
+
+        String classpath = getClasspath();
+        if (!TextUtils.isEmpty(classpath)) {
+            for (String part : classpath.split(":")) {
+                if (TextUtils.isEmpty(part) || yq.compiledClassesPath.equals(part)) {
+                    continue;
+                }
+                appendPathFingerprint(fingerprint, part);
+            }
+        }
+
+        return fingerprint.toString();
+    }
+
+    private void appendPathFingerprint(StringBuilder fingerprint, String path) {
+        if (TextUtils.isEmpty(path)) {
+            return;
+        }
+        File file = new File(path);
+        fingerprint.append(path);
+        fingerprint.append('|');
+        if (file.exists()) {
+            fingerprint.append(file.length())
+                    .append('|')
+                    .append(file.lastModified());
+        } else {
+            fingerprint.append("missing");
+        }
+        fingerprint.append('\n');
+    }
+
+    public boolean isModernJavaEnabled() {
+        return !build_settings.getValue(
+                BuildSettings.SETTING_JAVA_VERSION,
+                BuildSettings.SETTING_JAVA_VERSION_1_8
+        ).equals(BuildSettings.SETTING_JAVA_VERSION_1_7);
+    }
+
     public boolean isD8Enabled() {
+        if (isModernJavaEnabled()) {
+            return true;
+        }
         return build_settings.getValue(
                 BuildSettings.SETTING_DEXER,
                 BuildSettings.SETTING_DEXER_DX
@@ -365,7 +436,7 @@ public class ProjectBuilder {
          * Since all versions above java 7 supports lambdas, this should work
          */
         if (!build_settings.getValue(BuildSettings.SETTING_JAVA_VERSION,
-                        BuildSettings.SETTING_JAVA_VERSION_1_7)
+                        BuildSettings.SETTING_JAVA_VERSION_1_8)
                 .equals(BuildSettings.SETTING_JAVA_VERSION_1_7)) {
             classpath.append(":").append(new File(BuiltInLibraries.EXTRACTED_COMPILE_ASSETS_PATH, "core-lambda-stubs.jar").getAbsolutePath());
         }
@@ -580,18 +651,6 @@ public class ProjectBuilder {
     public void compileJavaCode() throws zy, IOException {
         long savedTimeMillis = System.currentTimeMillis();
 
-        class EclipseOutOutputStream extends OutputStream {
-            private final StringBuffer mBuffer = new StringBuffer();
-            @Override public void write(int b) { mBuffer.append((char) b); }
-            public String getOut() { return mBuffer.toString(); }
-        }
-
-        class EclipseErrOutputStream extends OutputStream {
-            private final StringBuffer mBuffer = new StringBuffer();
-            @Override public void write(int b) { mBuffer.append((char) b); }
-            public String getOut() { return mBuffer.toString(); }
-        }
-
         String pathJava = fpu.getPathJava(yq.sc_id);
         String pathBroadcast = fpu.getPathBroadcast(yq.sc_id);
         String pathService = fpu.getPathService(yq.sc_id);
@@ -609,112 +668,224 @@ public class ProjectBuilder {
                 yq.javaFilesPath,
                 normalizedRoot + File.separator + "generated");
 
-        IncrementalCompileCache compileCache = new IncrementalCompileCache(yq.sc_id);
-        if (!compileCache.hasChanges(normalizedGeneratedPath, yq.rJavaDirectoryPath,
-                normalizedPathJava, normalizedPathBroadcast, normalizedPathService)
-                && new File(yq.compiledClassesPath).exists()) {
-            LogUtil.d(TAG, "Skipping Java compilation because no Java sources changed");
+        List<String> fullCompileSources = collectExistingSourceInputs(
+                normalizedGeneratedPath,
+                yq.rJavaDirectoryPath,
+                normalizedPathJava,
+                normalizedPathBroadcast,
+                normalizedPathService
+        );
+
+        IncrementalCompileCache compileCache = new IncrementalCompileCache(yq.sc_id, "java");
+        IncrementalCompileCache.ChangeSet changeSet = compileCache.getChangeSet(
+                buildJavaCompilationEnvironmentFingerprint(),
+                normalizedGeneratedPath,
+                yq.rJavaDirectoryPath,
+                normalizedPathJava,
+                normalizedPathBroadcast,
+                normalizedPathService
+        );
+        File compiledClassesDirectory = new File(yq.compiledClassesPath);
+        boolean hasCompiledClasses = compiledClassesDirectory.exists() && compiledClassesDirectory.isDirectory();
+        boolean fullJavaCompilationRequested = consumeForceFullJavaCompilationFlag();
+        boolean compiledClassesPrepared = consumeCompiledClassesPreparedFlag();
+
+        if (changeSet.isEnvironmentChanged()) {
+            LogUtil.d(TAG, "Forcing a full Java compilation because the compilation environment changed");
+        }
+        if (fullJavaCompilationRequested) {
+            LogUtil.d(TAG, "Forcing a full Java compilation because another compiler stage requested a joint rebuild");
+        }
+
+        if (!changeSet.hasChanges() && hasCompiledClasses && !fullJavaCompilationRequested) {
+            LogUtil.d(TAG, "Skipping Java compilation because no Java sources or compilation inputs changed");
             return;
         }
 
-        try (EclipseOutOutputStream outOutputStream = new EclipseOutOutputStream();
-             PrintWriter outWriter = new PrintWriter(outOutputStream);
-             EclipseErrOutputStream errOutputStream = new EclipseErrOutputStream();
-             PrintWriter errWriter = new PrintWriter(errOutputStream)) {
+        List<String> changedJavaSources = changeSet.getChangedOrAddedFilesWithExtension(".java");
+        boolean hasRemovedJavaSources = !changeSet.getRemovedFilesWithExtension(".java").isEmpty();
 
-            ArrayList<String> args = new ArrayList<>();
-            args.add("-" + build_settings.getValue(BuildSettings.SETTING_JAVA_VERSION,
-                    BuildSettings.SETTING_JAVA_VERSION_1_7));
-            args.add("-nowarn");
-            if (!build_settings.getValue(BuildSettings.SETTING_NO_WARNINGS,
-                    BuildSettings.SETTING_GENERIC_VALUE_TRUE).equals(BuildSettings.SETTING_GENERIC_VALUE_TRUE)) {
-                args.add("-deprecation");
+        if (changedJavaSources.isEmpty()
+                && !hasRemovedJavaSources
+                && hasCompiledClasses
+                && !changeSet.isEnvironmentChanged()
+                && !fullJavaCompilationRequested) {
+            LogUtil.d(TAG, "Skipping Java compilation because only non-Java sources changed");
+            compileCache.save(changeSet);
+            return;
+        }
+
+        boolean incrementalCompile = hasCompiledClasses
+                && !compiledClassesPrepared
+                && !fullJavaCompilationRequested
+                && !changeSet.isEnvironmentChanged()
+                && !hasRemovedJavaSources
+                && !changedJavaSources.isEmpty()
+                && changedJavaSources.size() < fullCompileSources.size();
+
+        File rJavaFileWithoutPackage = new File(yq.rJavaDirectoryPath, "R.java");
+        if (rJavaFileWithoutPackage.exists() && !rJavaFileWithoutPackage.delete()) {
+            LogUtil.w(TAG, "Failed to delete file " + rJavaFileWithoutPackage.getAbsolutePath());
+        }
+
+        EcjCompileResult result;
+        if (incrementalCompile) {
+            LogUtil.d(TAG, "Running incremental Java compilation for " + changedJavaSources.size()
+                    + " file(s): " + changedJavaSources);
+            result = runEcjCompile(buildEcjArguments(changedJavaSources));
+            if (!result.success) {
+                LogUtil.w(TAG, "Incremental Java compilation failed. Falling back to a clean full recompilation. Error: "
+                        + result.getBestErrorMessage());
             }
-            args.add("-d");
-            args.add(yq.compiledClassesPath);
-            args.add("-cp");
-            args.add(getClasspath());
-            args.add("-proc:none");
-            args.add(normalizedGeneratedPath);
-            args.add(yq.rJavaDirectoryPath);
-            if (normalizedPathJava != null) {
-                args.add(normalizedPathJava);
-            }
-            if (normalizedPathBroadcast != null) {
-                args.add(normalizedPathBroadcast);
-            }
-            if (normalizedPathService != null) {
-                args.add(normalizedPathService);
-            }
+        } else {
+            result = null;
+        }
 
-            File rJavaFileWithoutPackage = new File(yq.rJavaDirectoryPath, "R.java");
-            if (rJavaFileWithoutPackage.exists() && !rJavaFileWithoutPackage.delete()) {
-                LogUtil.w(TAG, "Failed to delete file " + rJavaFileWithoutPackage.getAbsolutePath());
-            }
-
-            LogUtil.d(TAG, "Running Eclipse compiler with these arguments: " + args);
-
-            AtomicBoolean completed = new AtomicBoolean(false);
-            AtomicBoolean success = new AtomicBoolean(false);
-            AtomicReference<String> compilerError = new AtomicReference<>("");
-            CountDownLatch latch = new CountDownLatch(1);
-
-            ECJCompilerClient.compile(context, args.toArray(new String[0]), new ECJCompilerClient.Listener() {
-                @Override
-                public void onProgress(String message) {
-                    LogUtil.d(TAG, message);
-                }
-
-                @Override
-                public void onSuccess(String output) {
-                    outWriter.write(output == null ? "" : output);
-                    success.set(true);
-                    completed.set(true);
-                    latch.countDown();
-                }
-
-                @Override
-                public void onError(String errors, String output) {
-                    errWriter.write(errors == null ? "" : errors);
-                    outWriter.write(output == null ? "" : output);
-                    compilerError.set(errors == null ? "" : errors);
-                    completed.set(true);
-                    latch.countDown();
-                }
-
-                @Override
-                public void onOOM() {
-                    compilerError.set("Java compilation ran out of memory in the isolated compiler process.");
-                    completed.set(true);
-                    latch.countDown();
-                }
-            });
-
-            try {
-                latch.await(180, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new zy("Java compilation interrupted");
-            }
-
-            if (!completed.get()) {
-                throw new zy("Timed out while waiting for isolated Java compilation");
-            }
-
-            LogUtil.d(TAG, "System.out of Eclipse compiler: " + outOutputStream.getOut());
-            if (success.get()) {
-                LogUtil.d(TAG, "System.err of Eclipse compiler: " + errOutputStream.getOut());
-                compileCache.save(normalizedGeneratedPath, yq.rJavaDirectoryPath,
-                        normalizedPathJava, normalizedPathBroadcast, normalizedPathService);
-                LogUtil.d(TAG, "Compiling Java files took " + (System.currentTimeMillis() - savedTimeMillis) + " ms");
+        if (result == null || !result.success) {
+            if (compiledClassesPrepared) {
+                LogUtil.d(TAG, "Reusing compiled classes directory that was already prepared by Kotlin compilation");
             } else {
-                LogUtil.e(TAG, "Failed to compile Java files");
-                String error = compilerError.get();
-                if (error == null || error.trim().isEmpty()) {
-                    error = errOutputStream.getOut();
-                }
-                throw new zy(error);
+                cleanCompiledClassesDirectory();
             }
+            LogUtil.d(TAG, "Running full Java compilation for " + fullCompileSources.size() + " source roots/files");
+            result = runEcjCompile(buildEcjArguments(fullCompileSources));
+        }
+
+        LogUtil.d(TAG, "System.out of Eclipse compiler: " + result.output);
+        if (result.success) {
+            LogUtil.d(TAG, "System.err of Eclipse compiler: " + result.errors);
+            compileCache.save(changeSet);
+            LogUtil.d(TAG, "Compiling Java files took " + (System.currentTimeMillis() - savedTimeMillis) + " ms");
+        } else {
+            LogUtil.e(TAG, "Failed to compile Java files");
+            throw new zy(result.getBestErrorMessage());
+        }
+    }
+
+    private ArrayList<String> buildEcjArguments(List<String> sourceInputs) {
+        ArrayList<String> args = new ArrayList<>();
+        args.add("-" + build_settings.getValue(BuildSettings.SETTING_JAVA_VERSION,
+                BuildSettings.SETTING_JAVA_VERSION_1_8));
+        args.add("-nowarn");
+        if (!build_settings.getValue(BuildSettings.SETTING_NO_WARNINGS,
+                BuildSettings.SETTING_GENERIC_VALUE_TRUE).equals(BuildSettings.SETTING_GENERIC_VALUE_TRUE)) {
+            args.add("-deprecation");
+        }
+        args.add("-d");
+        args.add(yq.compiledClassesPath);
+        args.add("-cp");
+        args.add(getClasspath());
+        args.add("-proc:none");
+        args.addAll(sourceInputs);
+        return args;
+    }
+
+    private List<String> collectExistingSourceInputs(String... paths) {
+        ArrayList<String> sourceInputs = new ArrayList<>();
+        if (paths == null) {
+            return sourceInputs;
+        }
+        for (String path : paths) {
+            if (path == null || path.isEmpty()) {
+                continue;
+            }
+            File file = new File(path);
+            if (file.exists()) {
+                sourceInputs.add(path);
+            }
+        }
+        return sourceInputs;
+    }
+
+    private void cleanCompiledClassesDirectory() {
+        FileUtil.deleteFile(yq.compiledClassesPath);
+        FileUtil.makeDir(yq.compiledClassesPath);
+    }
+
+    private EcjCompileResult runEcjCompile(ArrayList<String> args) throws zy {
+        LogUtil.d(TAG, "Running Eclipse compiler with these arguments: " + args);
+
+        AtomicBoolean completed = new AtomicBoolean(false);
+        AtomicBoolean success = new AtomicBoolean(false);
+        AtomicReference<String> compilerError = new AtomicReference<>("");
+        AtomicReference<String> compilerOutput = new AtomicReference<>("");
+        AtomicReference<String> compilerStderr = new AtomicReference<>("");
+        CountDownLatch latch = new CountDownLatch(1);
+
+        ECJCompilerClient.compile(context, args.toArray(new String[0]), new ECJCompilerClient.Listener() {
+            @Override
+            public void onProgress(String message) {
+                LogUtil.d(TAG, message);
+            }
+
+            @Override
+            public void onSuccess(String output) {
+                compilerOutput.set(output == null ? "" : output);
+                success.set(true);
+                completed.set(true);
+                latch.countDown();
+            }
+
+            @Override
+            public void onError(String errors, String output) {
+                compilerStderr.set(errors == null ? "" : errors);
+                compilerOutput.set(output == null ? "" : output);
+                compilerError.set(errors == null ? "" : errors);
+                completed.set(true);
+                latch.countDown();
+            }
+
+            @Override
+            public void onOOM() {
+                compilerError.set("Java compilation ran out of memory in the isolated compiler process.");
+                completed.set(true);
+                latch.countDown();
+            }
+        });
+
+        try {
+            latch.await(180, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new zy("Java compilation interrupted");
+        }
+
+        if (!completed.get()) {
+            throw new zy("Timed out while waiting for isolated Java compilation");
+        }
+
+        return new EcjCompileResult(
+                success.get(),
+                compilerOutput.get(),
+                compilerStderr.get(),
+                compilerError.get()
+        );
+    }
+
+    private static final class EcjCompileResult {
+        private final boolean success;
+        private final String output;
+        private final String errors;
+        private final String compilerError;
+
+        private EcjCompileResult(boolean success, String output, String errors, String compilerError) {
+            this.success = success;
+            this.output = output == null ? "" : output;
+            this.errors = errors == null ? "" : errors;
+            this.compilerError = compilerError == null ? "" : compilerError;
+        }
+
+        private String getBestErrorMessage() {
+            if (!compilerError.trim().isEmpty()) {
+                return compilerError;
+            }
+            if (!errors.trim().isEmpty()) {
+                return errors;
+            }
+            if (!output.trim().isEmpty()) {
+                return output;
+            }
+            return "Unknown Java compilation failure";
         }
     }
 
@@ -993,6 +1164,9 @@ public class ProjectBuilder {
 
     public void runR8() throws IOException {
         long savedTimeMillis = System.currentTimeMillis();
+        long inputJarSize = new File(yq.compiledClassesPath + ".jar").exists()
+                ? new File(yq.compiledClassesPath + ".jar").length()
+                : 0L;
 
         ArrayList<String> config = new ArrayList<>();
         config.add(ProguardHandler.ANDROID_PROGUARD_RULES_PATH);
@@ -1021,7 +1195,12 @@ public class ProjectBuilder {
         } catch (Exception e) {
             throw new IOException(e);
         }
+        long outputDexSize = 0L;
+        for (String dexPath : FileUtil.listFiles(yq.binDirectoryPath + File.separator + "dex", "dex")) {
+            outputDexSize += new File(dexPath).length();
+        }
         LogUtil.d(TAG, "R8 took " + (System.currentTimeMillis() - savedTimeMillis) + " ms");
+        LogUtil.d(TAG, "R8 output stats: input JAR=" + inputJarSize + " B, output DEX=" + outputDexSize + " B");
     }
 
     public void runProguard() throws IOException {

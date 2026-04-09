@@ -75,6 +75,10 @@ public class Lx {
                 .append("minifyEnabled false\r\n")
                 .append("proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'\r\n")
                 .append("}\r\n")
+                .append("}\r\n")
+                .append("compileOptions {\r\n")
+                .append("sourceCompatibility JavaVersion.VERSION_1_8\r\n")
+                .append("targetCompatibility JavaVersion.VERSION_1_8\r\n")
                 .append("}\r\n");
 
         if (isViewBindingEnabled) {

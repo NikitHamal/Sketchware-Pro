@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   build:
-    name: Build APK
+    name: Build APKs
     runs-on: ${{ vars.IS_USING_HOSTED_RUNNERS == 'true' && 'self-hosted' || 'ubuntu-latest' }}
 
     steps:
@@ -55,27 +55,59 @@ jobs:
         with:
           cache-disabled: true
 
-      - name: Build release APK
+      - name: Build release APKs (android26 + android33)
         run: ./gradlew assembleRelease --stacktrace --no-daemon
 
-      - name: Compute artifact name
+      - name: Rename and collect APKs
         id: artifact_meta
         shell: bash
         run: |
           short_sha="${GITHUB_SHA::7}"
-          apk_path="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)"
-          if [ -z "$apk_path" ]; then
-            echo "No release APK was produced." >&2
-            exit 1
-          fi
-          artifact_path="app/build/outputs/apk/release/Sketchware-Pro-${short_sha}.apk"
-          mv "$apk_path" "$artifact_path"
-          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
-          echo "artifact_path=$artifact_path" >> "$GITHUB_OUTPUT"
 
-      - name: Upload release APK
+          # Find android26 APK
+          apk26="$(find app/build/outputs/apk -path '*/android26/release/*.apk' | head -n 1)"
+          if [ -z "$apk26" ]; then
+            # Fallback: look for release directory with android26 in name
+            apk26="$(find app/build/outputs/apk -name '*android26*.apk' | head -n 1)"
+          fi
+          if [ -n "$apk26" ]; then
+            artifact26="app/build/outputs/apk/Sketchware-Pro-android26-${short_sha}.apk"
+            mv "$apk26" "$artifact26"
+            echo "apk26_path=$artifact26" >> "$GITHUB_OUTPUT"
+            echo "apk26_found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "apk26_found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Find android33 APK
+          apk33="$(find app/build/outputs/apk -path '*/android33/release/*.apk' | head -n 1)"
+          if [ -z "$apk33" ]; then
+            # Fallback: look for release directory with android33 in name
+            apk33="$(find app/build/outputs/apk -name '*android33*.apk' | head -n 1)"
+          fi
+          if [ -n "$apk33" ]; then
+            artifact33="app/build/outputs/apk/Sketchware-Pro-android33-${short_sha}.apk"
+            mv "$apk33" "$artifact33"
+            echo "apk33_path=$artifact33" >> "$GITHUB_OUTPUT"
+            echo "apk33_found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "apk33_found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Upload android26 APK
+        if: steps.artifact_meta.outputs.apk26_found == 'true'
         uses: actions/upload-artifact@v6
         with:
-          name: apk-release-${{ steps.artifact_meta.outputs.short_sha }}
-          path: ${{ steps.artifact_meta.outputs.artifact_path }}
+          name: apk-release-android26-${{ steps.artifact_meta.outputs.short_sha }}
+          path: ${{ steps.artifact_meta.outputs.apk26_path }}
+          if-no-files-found: error
+
+      - name: Upload android33 APK
+        if: steps.artifact_meta.outputs.apk33_found == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: apk-release-android33-${{ steps.artifact_meta.outputs.short_sha }}
+          path: ${{ steps.artifact_meta.outputs.apk33_path }}
           if-no-files-found: error

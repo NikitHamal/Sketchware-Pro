@@ -22,6 +22,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.LinkedHashMap
 import java.util.regex.Pattern
 import java.util.zip.ZipFile
 import kotlin.io.path.readText
@@ -43,6 +44,9 @@ class DependencyResolver(
           |    {"url": "https://jitpack.io", "name": "JitPack"}
           |]
         """.trimMargin()
+
+        private const val METADATA_FILE = "resolver-metadata.json"
+        private const val DEX_METADATA_FILE = "dex-input-fingerprint.txt"
     }
 
     private val downloadPath: String =
@@ -206,6 +210,14 @@ class DependencyResolver(
         val archivePath = artifactDirectory.resolve("classes.${artifact.extension}")
         Files.createDirectories(artifactDirectory)
 
+        val jar = artifactDirectory.resolve("classes.jar")
+        if (canReusePreparedArtifact(artifact, artifactDirectory, jar)) {
+            callback.artifactFound(artifact)
+            return jar
+        }
+
+        clearArtifactDirectory(artifactDirectory)
+        Files.createDirectories(artifactDirectory)
         artifact.downloadTo(archivePath.toFile())
 
         if (artifact.extension == "aar") {
@@ -216,8 +228,55 @@ class DependencyResolver(
             artifactDirectory.resolve("config").writeText(packageName)
         }
 
-        val jar = artifactDirectory.resolve("classes.jar")
-        return if (Files.exists(jar)) jar else null
+        if (Files.exists(jar)) {
+            writeArtifactMetadata(artifact, artifactDirectory)
+            return jar
+        }
+        return null
+    }
+
+    private fun canReusePreparedArtifact(artifact: Artifact, artifactDirectory: Path, jar: Path): Boolean {
+        if (!Files.exists(jar)) {
+            return false
+        }
+        val metadata = readStringMap(artifactDirectory.resolve(METADATA_FILE)) ?: return false
+        return metadata["groupId"] == artifact.groupId
+            && metadata["artifactId"] == artifact.artifactId
+            && metadata["version"] == artifact.version
+            && metadata["extension"] == artifact.extension
+    }
+
+    private fun writeArtifactMetadata(artifact: Artifact, artifactDirectory: Path) {
+        val metadata = linkedMapOf(
+            "groupId" to artifact.groupId,
+            "artifactId" to artifact.artifactId,
+            "version" to artifact.version,
+            "extension" to artifact.extension
+        )
+        artifactDirectory.resolve(METADATA_FILE).writeText(Gson().toJson(metadata))
+    }
+
+    private fun clearArtifactDirectory(artifactDirectory: Path) {
+        val dir = artifactDirectory.toFile()
+        dir.listFiles()?.forEach { file ->
+            if (file.isDirectory) {
+                file.deleteRecursively()
+            } else {
+                file.delete()
+            }
+        }
+    }
+
+    private fun readStringMap(path: Path): Map<String, String>? {
+        return try {
+            if (Files.notExists(path)) {
+                null
+            } else {
+                Gson().fromJson(path.readText(), Helper.TYPE_STRING_MAP)
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun findPackageName(path: String, defaultValue: String): String {
@@ -254,9 +313,23 @@ class DependencyResolver(
 
     private fun compileJar(jarFile: Path, jars: List<Path>, libraryJars: List<Path>) {
         Files.createDirectories(jarFile.parent)
+        val fingerprint = buildDexFingerprint(jarFile, jars, libraryJars)
+        val dexMetadata = jarFile.parent.resolve(DEX_METADATA_FILE)
+        val classesDex = jarFile.parent.resolve("classes.dex")
+
+        if (Files.exists(classesDex) && Files.exists(dexMetadata) && dexMetadata.readText() == fingerprint) {
+            return
+        }
+
+        jarFile.parent.toFile().listFiles()?.forEach { file ->
+            if (file.name.matches(Regex("""classes(\d+)?\.dex"""))) {
+                file.delete()
+            }
+        }
+
         D8.run(
             D8Command.builder()
-                                .setMode(CompilationMode.RELEASE)
+                .setMode(CompilationMode.RELEASE)
                 .setMinApiLevel(buildSettings.minSdkVersion)
                 .addProgramFiles(jarFile)
                 .addLibraryFiles(libraryJars)
@@ -264,5 +337,27 @@ class DependencyResolver(
                 .setOutput(jarFile.parent, OutputMode.DexIndexed)
                 .build()
         )
+
+        dexMetadata.writeText(fingerprint)
+    }
+
+    private fun buildDexFingerprint(jarFile: Path, jars: List<Path>, libraryJars: List<Path>): String {
+        val fingerprint = StringBuilder()
+        fingerprint.append("minSdk=").append(buildSettings.minSdkVersion).append('\n')
+        appendFingerprintEntry(fingerprint, jarFile)
+        jars.sortedBy { it.toAbsolutePath().toString() }.forEach { appendFingerprintEntry(fingerprint, it) }
+        libraryJars.sortedBy { it.toAbsolutePath().toString() }.forEach { appendFingerprintEntry(fingerprint, it) }
+        return fingerprint.toString()
+    }
+
+    private fun appendFingerprintEntry(builder: StringBuilder, path: Path) {
+        val file = path.toFile()
+        builder.append(path.toAbsolutePath()).append('|')
+        if (file.exists()) {
+            builder.append(file.length()).append('|').append(file.lastModified())
+        } else {
+            builder.append("missing")
+        }
+        builder.append('\n')
     }
 }
