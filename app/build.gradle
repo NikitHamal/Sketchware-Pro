@@ -124,68 +124,43 @@ dependencies {
     testImplementation libs.junit
 
     implementation libs.bundles.ui
-
     implementation libs.bundles.image
-
-    // Sora editor (BOM platform - direct coordinates to avoid version catalog naming issues)
-    def editorGroupId = "io.github.Rosemoe.sora-editor"
-    implementation platform("$editorGroupId:bom:0.23.5")
-    implementation "$editorGroupId:editor"
-    implementation "$editorGroupId:language-java"
-    implementation "$editorGroupId:language-textmate"
-
     implementation libs.bundles.coil
-
-    // Flavor-specific dependencies
-    android26Implementation libs.bundletool_26
-    android33Implementation libs.bundletool_33
-
-    android26Implementation libs.protobuf_java_26
-    android33Implementation libs.protobuf_java_33
-
-    android26Implementation(libs.sdklib_26) {
-        exclude group: "com.intellij", module: "annotations"
-    }
-    android33Implementation(libs.sdklib_33) {
-        exclude group: "com.intellij", module: "annotations"
-    }
-
-    android26Implementation libs.r8_26
-    android33Implementation libs.r8_33
-
-    implementation libs.zipalign_java
-
     implementation libs.gson
-    implementation libs.scpkix_jdk15on
-
     implementation libs.markwon
-
     implementation libs.bundles.networking
-
-    // Flavor-specific ECJ
-    android26Implementation libs.ecj_26
-    android33Implementation libs.ecj_33
-
-    implementation libs.stax_api
-
-    implementation libs.bundles.kotlin_compiler
-
-    testImplementation "junit:junit:4.13.2"
-    compileOnly libs.kotlin_compiler
-
     implementation libs.dependencyresolver
     implementation libs.filepicker
-
     implementation libs.libsu
     implementation libs.insetter
 
-    // Flavor-specific JavaParser
-    android26Implementation(libs.javaparser_symbol_solver_26) {
+    // Flavor-specific dependencies (direct coordinates to avoid version catalog naming issues)
+    android26Implementation "com.android.tools.build:bundletool:1.18.1"
+    android33Implementation "com.android.tools.build:bundletool:1.18.3"
+    android26Implementation "com.google.protobuf:protobuf-java:3.19.2"
+    android33Implementation "com.google.protobuf:protobuf-java:4.33.2"
+    android26Implementation("com.android.tools:sdklib:25.3.0") {
+        exclude group: "com.intellij", module: "annotations"
+    }
+    android33Implementation("com.android.tools:sdklib:26.4.3") {
+        exclude group: "com.intellij", module: "annotations"
+    }
+    android26Implementation "com.android.tools:r8:8.11.18"
+    android33Implementation "com.android.tools:r8:8.13.17"
+    android26Implementation "org.eclipse.jdt:ecj:3.26.0"
+    android33Implementation "org.eclipse.jdt:ecj:3.34.0"
+    android26Implementation("com.github.javaparser:javaparser-symbol-solver-core:3.25.3") {
         exclude group: "com.google.guava", module: "guava"
     }
-    android33Implementation(libs.javaparser_symbol_solver_33) {
+    android33Implementation("com.github.javaparser:javaparser-symbol-solver-core:3.27.1") {
         exclude group: "com.google.guava", module: "guava"
     }
+
+    implementation libs.zipalign_java
+    implementation libs.scpkix_jdk15on
+    implementation libs.stax_api
+    implementation libs.bundles.kotlin_compiler
+    implementation libs.bundles.shrinker
 
     // Analytics and Crashlytics
     if (analyticsEnabled) {
@@ -199,8 +174,8 @@ dependencies {
     coreLibraryDesugaring libs.desugar_jdk_libs_nio
 
     // New dependencies from Daydream
-    implementation libs.zip4j
-    implementation libs.jgit
+    implementation "net.lingala.zip4j:zip4j:2.11.5"
+    implementation "org.eclipse.jgit:org.eclipse.jgit:7.3.0.202506031305-r"
 
     testImplementation libs.junit
 }
