@@ -1,10 +1,24 @@
 package pro.sketchware.compiler;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import com.github.javaparser.ParseProblemException;
+import com.github.javaparser.StaticJavaParser;
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.Node;
+import com.github.javaparser.ast.expr.BooleanLiteralExpr;
+import com.github.javaparser.ast.expr.Expression;
+import com.github.javaparser.ast.expr.IntegerLiteralExpr;
+import com.github.javaparser.ast.expr.MethodCallExpr;
+import com.github.javaparser.ast.expr.StringLiteralExpr;
+import com.github.javaparser.ast.expr.ThisExpr;
+import com.github.javaparser.ast.nodeTypes.NodeWithArguments;
+import com.github.javaparser.ast.stmt.ExplicitConstructorInvocationStmt;
+import com.github.javaparser.ast.visitor.ModifierVisitor;
+import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinter;
+
+import java.util.Objects;
 
 /**
- * Normalizes generated Sketchware Java so legacy ECJ/Java 7 builds do not fail on
+ * Normalizes generated Activity/Fragment Java so legacy ECJ builds do not fail on
  * common empty-hole patterns and anonymous-listener context pitfalls.
  */
 public final class GeneratedCodeSanitizer {
@@ -17,59 +31,135 @@ public final class GeneratedCodeSanitizer {
             return code;
         }
 
-        String outerRef = isFragment ? "getActivity()" : outerClassName + ".this";
-        String applicationContextRef = isFragment
-                ? "getContext().getApplicationContext()"
-                : outerRef + ".getApplicationContext()";
-        String baseContextRef = isFragment
-                ? "getActivity().getBaseContext()"
-                : outerRef + ".getBaseContext()";
-        String systemServiceRef = isFragment
-                ? "getContext().getSystemService("
-                : outerRef + ".getSystemService(";
-        String findViewByIdRef = isFragment
-                ? "getActivity().findViewById("
-                : outerRef + ".findViewById(";
-        String runOnUiThreadRef = isFragment
-                ? "getActivity().runOnUiThread("
-                : outerRef + ".runOnUiThread(";
-        String startActivityRef = isFragment
-                ? "getActivity().startActivity("
-                : outerRef + ".startActivity(";
-        String finishRef = isFragment
-                ? "getActivity().finish()"
-                : outerRef + ".finish()";
-
-        code = code.replaceAll("if\\s*\\(\\s*\\)\\s*\\{", "if (true) {");
-        code = code.replaceAll("else\\s+if\\s*\\(\\s*\\)\\s*\\{", "else if (true) {");
-        code = code.replace("String.valueOf()", "String.valueOf(\"\")");
-        code = code.replaceAll("(\\.setChecked)\\s*\\(\\s*\\)\\s*;", "$1(false);");
-        code = code.replaceAll("(\\.setProgress)\\s*([0-9]+)\\s*;", "$1($2);");
-        code = code.replaceAll("([A-Za-z_][A-Za-z0-9_]*Boolean)\\s*=\\s*;", "$1 = false;");
-
-        code = code.replace("getApplicationContext()", applicationContextRef);
-        code = code.replace("getBaseContext()", baseContextRef);
-        code = code.replace("getSystemService(", systemServiceRef);
-        code = code.replace("findViewById(", findViewByIdRef);
-        code = code.replace("runOnUiThread(", runOnUiThreadRef);
-        code = code.replace("startActivity(", startActivityRef);
-        code = code.replace("finish();", finishRef + ";");
-
-        code = replaceBareThisArgument(code, outerRef);
-        code = code.replace("new Intent(this,", "new Intent(" + outerRef + ",");
-
-        return code;
+        String sanitized = applySyntaxFixes(code);
+        try {
+            CompilationUnit compilationUnit = StaticJavaParser.parse(sanitized);
+            LexicalPreservingPrinter.setup(compilationUnit);
+            compilationUnit.accept(new SanitizingVisitor(), SanitizerContext.create(outerClassName, isFragment));
+            return LexicalPreservingPrinter.print(compilationUnit);
+        } catch (ParseProblemException ignored) {
+            // Keep the safe syntax-only fixes if parsing fails instead of risking destructive rewrites.
+            return sanitized;
+        }
     }
 
-    private static String replaceBareThisArgument(String code, String replacement) {
-        Pattern pattern = Pattern.compile("([,(]\\s*)this(\\s*[,\\)])");
-        Matcher matcher = pattern.matcher(code);
-        StringBuffer buffer = new StringBuffer();
-        while (matcher.find()) {
-            matcher.appendReplacement(buffer,
-                    Matcher.quoteReplacement(matcher.group(1) + replacement + matcher.group(2)));
+    private static String applySyntaxFixes(String code) {
+        String sanitized = code;
+        sanitized = sanitized.replaceAll("if\\s*\\(\\s*\\)\\s*\\{", "if (true) {");
+        sanitized = sanitized.replaceAll("else\\s+if\\s*\\(\\s*\\)\\s*\\{", "else if (true) {");
+        sanitized = sanitized.replaceAll("(\\.setProgress)\\s*\\(?\\s*([0-9]+)\\s*\\)?\\s*;", "$1($2);");
+        sanitized = sanitized.replaceAll("([A-Za-z_][A-Za-z0-9_]*Boolean)\\s*=\\s*;", "$1 = false;");
+        return sanitized;
+    }
+
+    private static final class SanitizingVisitor extends ModifierVisitor<SanitizerContext> {
+
+        @Override
+        public Expression visit(MethodCallExpr methodCall, SanitizerContext context) {
+            super.visit(methodCall, context);
+
+            if (methodCall.getScope().isEmpty()) {
+                Expression scope = context.getScopeFor(methodCall.getNameAsString());
+                if (scope != null) {
+                    methodCall.setScope(scope);
+                }
+            }
+
+            if (isUnscopedStringValueOf(methodCall)) {
+                methodCall.addArgument(new StringLiteralExpr(""));
+            }
+
+            if (methodCall.getNameAsString().equals("setChecked") && methodCall.getArguments().isEmpty()) {
+                methodCall.addArgument(new BooleanLiteralExpr(false));
+            }
+
+            if (methodCall.getNameAsString().equals("setProgress") && methodCall.getArguments().isEmpty()) {
+                methodCall.addArgument(new IntegerLiteralExpr("0"));
+            }
+
+            return methodCall;
         }
-        matcher.appendTail(buffer);
-        return buffer.toString();
+
+        @Override
+        public Expression visit(ThisExpr thisExpr, SanitizerContext context) {
+            super.visit(thisExpr, context);
+            if (thisExpr.getTypeName().isPresent() || !isBareThisArgument(thisExpr)) {
+                return thisExpr;
+            }
+            return context.bareThisReplacement().clone();
+        }
+
+        private boolean isUnscopedStringValueOf(MethodCallExpr methodCall) {
+            if (!methodCall.getNameAsString().equals("valueOf") || !methodCall.getArguments().isEmpty()) {
+                return false;
+            }
+
+            return methodCall.getScope()
+                    .filter(Expression::isNameExpr)
+                    .map(Expression::asNameExpr)
+                    .map(nameExpr -> nameExpr.getNameAsString().equals("String"))
+                    .orElse(false);
+        }
+
+        private boolean isBareThisArgument(ThisExpr thisExpr) {
+            Node parent = thisExpr.getParentNode().orElse(null);
+            if (parent instanceof NodeWithArguments<?> withArguments) {
+                return withArguments.getArguments().stream().anyMatch(argument -> argument == thisExpr);
+            }
+            if (parent instanceof ExplicitConstructorInvocationStmt invocationStmt) {
+                return invocationStmt.getArguments().stream().anyMatch(argument -> argument == thisExpr);
+            }
+            return false;
+        }
+    }
+
+    private record SanitizerContext(
+            Expression bareThisReplacement,
+            Expression applicationContextScope,
+            Expression baseContextScope,
+            Expression systemServiceScope,
+            Expression findViewByIdScope,
+            Expression runOnUiThreadScope,
+            Expression startActivityScope,
+            Expression finishScope) {
+
+        static SanitizerContext create(String outerClassName, boolean isFragment) {
+            String trimmedOuterClassName = Objects.requireNonNullElse(outerClassName, "").trim();
+            String activityScope;
+            if (isFragment) {
+                activityScope = "getActivity()";
+            } else {
+                activityScope = trimmedOuterClassName.isEmpty() ? "this" : trimmedOuterClassName + ".this";
+            }
+            String contextScope = isFragment ? "getContext()" : activityScope;
+
+            return new SanitizerContext(
+                    parseExpression(activityScope),
+                    parseExpression(contextScope),
+                    parseExpression(activityScope),
+                    parseExpression(contextScope),
+                    parseExpression(activityScope),
+                    parseExpression(activityScope),
+                    parseExpression(activityScope),
+                    parseExpression(activityScope)
+            );
+        }
+
+        Expression getScopeFor(String methodName) {
+            return switch (methodName) {
+                case "getApplicationContext" -> applicationContextScope.clone();
+                case "getBaseContext" -> baseContextScope.clone();
+                case "getSystemService" -> systemServiceScope.clone();
+                case "findViewById" -> findViewByIdScope.clone();
+                case "runOnUiThread" -> runOnUiThreadScope.clone();
+                case "startActivity" -> startActivityScope.clone();
+                case "finish" -> finishScope.clone();
+                default -> null;
+            };
+        }
+
+        private static Expression parseExpression(String expression) {
+            return StaticJavaParser.parseExpression(expression);
+        }
     }
 }

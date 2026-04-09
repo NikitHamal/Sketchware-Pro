@@ -35,25 +35,15 @@ public final class LegacyJavaSourceNormalizer {
         collectJavaFiles(root, files);
         for (File file : files) {
             String code = FileUtil.readFileIfExist(file.getAbsolutePath());
-            String normalized = normalizeJavaFile(file, code);
+            String normalized = normalizeJavaFile(code);
             if (!code.equals(normalized)) {
                 FileUtil.writeFile(file.getAbsolutePath(), normalized);
             }
         }
     }
 
-    public static String normalizeJavaFile(File file, String code) {
-        String normalized = normalizeJava(code);
-        if (file == null) {
-            return normalized;
-        }
-        String fileName = file.getName();
-        if (!fileName.endsWith(".java")) {
-            return normalized;
-        }
-        String outerClassName = fileName.substring(0, fileName.length() - 5);
-        boolean isFragment = outerClassName.endsWith("Fragment") || outerClassName.contains("Fragment");
-        return GeneratedCodeSanitizer.sanitize(normalized, outerClassName, isFragment);
+    public static String normalizeJavaFile(String code) {
+        return normalizeJava(code);
     }
 
     public static String normalizeJava(String code) {
