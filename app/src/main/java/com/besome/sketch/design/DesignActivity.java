@@ -537,10 +537,6 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             toViewCodeEditor();
             return true;
         });
-        bottomMenu.add(Menu.NONE, 8, Menu.NONE, "Java/Kotlin manager").setOnMenuItemClickListener(item -> {
-            toJavaManager();
-            return true;
-        });
         bottomMenu.add(Menu.NONE, 9, Menu.NONE, "Build signed APK").setOnMenuItemClickListener(item -> {
             showSignedApkBuildDialog();
             return true;
