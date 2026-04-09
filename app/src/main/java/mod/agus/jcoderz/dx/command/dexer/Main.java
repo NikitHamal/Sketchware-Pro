@@ -1702,7 +1702,7 @@ public class Main {
             }
 
             dexOptions = new DexOptions(context.err);
-            dexOptions.minSdkVersion = minSdkVersion;
+            dexOptions.targetApiLevel = minSdkVersion;
             dexOptions.forceJumbo = forceJumbo;
             dexOptions.allowAllInterfaceMethodInvokes = allowAllInterfaceMethodInvokes;
         }

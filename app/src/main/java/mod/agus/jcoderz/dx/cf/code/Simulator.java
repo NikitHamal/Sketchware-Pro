@@ -840,7 +840,7 @@ public class Simulator {
             fail(String.format("invalid constant type %s requires --min-sdk-version >= %d " +
                                "(currently %d)",
                                cst.typeName(), DexFormat.API_CONST_METHOD_HANDLE,
-                               dexOptions.minSdkVersion));
+                               dexOptions.targetApiLevel));
         }
     }
 
@@ -848,7 +848,7 @@ public class Simulator {
         if (!dexOptions.apiIsSupported(DexFormat.API_METHOD_HANDLES)) {
             fail(String.format("invalid opcode %02x - invokedynamic requires " +
                                "--min-sdk-version >= %d (currently %d)",
-                               opcode, DexFormat.API_METHOD_HANDLES, dexOptions.minSdkVersion));
+                               opcode, DexFormat.API_METHOD_HANDLES, dexOptions.targetApiLevel));
         }
     }
 
@@ -906,7 +906,7 @@ public class Simulator {
                         "invoking a %s interface method %s.%s strictly requires " +
                         "--min-sdk-version >= %d (experimental at current API level %d)",
                         invokeKind, callee.getDefiningClass().toHuman(), callee.getNat().toHuman(),
-                        DexFormat.API_INVOKE_INTERFACE_METHODS, dexOptions.minSdkVersion);
+                        DexFormat.API_INVOKE_INTERFACE_METHODS, dexOptions.targetApiLevel);
             warn(reason);
         } else {
             String reason =
@@ -914,7 +914,7 @@ public class Simulator {
                         "invoking a %s interface method %s.%s strictly requires " +
                         "--min-sdk-version >= %d (blocked at current API level %d)",
                     invokeKind, callee.getDefiningClass().toHuman(), callee.getNat().toHuman(),
-                    DexFormat.API_INVOKE_INTERFACE_METHODS, dexOptions.minSdkVersion);
+                    DexFormat.API_INVOKE_INTERFACE_METHODS, dexOptions.targetApiLevel);
             fail(reason);
         }
     }
@@ -926,7 +926,7 @@ public class Simulator {
                     "defining a %s interface method requires --min-sdk-version >= %d (currently %d)"
                     + " for interface methods: %s.%s",
                     declaredMethod.isStaticMethod() ? "static" : "default",
-                    DexFormat.API_DEFINE_INTERFACE_METHODS, dexOptions.minSdkVersion,
+                    DexFormat.API_DEFINE_INTERFACE_METHODS, dexOptions.targetApiLevel,
                     declaredMethod.getDefiningClass().toHuman(), declaredMethod.getNat().toHuman());
             warn(reason);
         }
@@ -936,7 +936,7 @@ public class Simulator {
         if (!dexOptions.apiIsSupported(DexFormat.API_METHOD_HANDLES)) {
             fail(String.format(
                 "invoking a signature-polymorphic requires --min-sdk-version >= %d (currently %d)",
-                DexFormat.API_METHOD_HANDLES, dexOptions.minSdkVersion));
+                DexFormat.API_METHOD_HANDLES, dexOptions.targetApiLevel));
         } else if (opcode != ByteOps.INVOKEVIRTUAL) {
             fail("Unsupported signature polymorphic invocation (" + ByteOps.opName(opcode) + ")");
         }
