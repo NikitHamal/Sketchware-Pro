@@ -32,7 +32,7 @@ import pro.sketchware.SketchApplication;
 import pro.sketchware.manifest.ProjectManifestManager;
 import pro.sketchware.util.library.BuiltInLibraryManager;
 import pro.sketchware.utility.FileUtil;
-import pro.sketchware.build.GradleInjectionManager;
+import pro.sketchware.gradle.GradleInjectionManager;
 import pro.sketchware.xml.XmlBuilder;
 import pro.sketchware.xml.XmlBuilderHelper;
 

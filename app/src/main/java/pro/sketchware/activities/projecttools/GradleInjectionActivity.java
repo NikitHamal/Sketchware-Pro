@@ -13,7 +13,7 @@ import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 
-import pro.sketchware.build.GradleInjectionManager;
+import pro.sketchware.gradle.GradleInjectionManager;
 import pro.sketchware.utility.SketchwareUtil;
 
 public class GradleInjectionActivity extends BaseAppCompatActivity {
@@ -32,7 +32,7 @@ public class GradleInjectionActivity extends BaseAppCompatActivity {
     private TextInputEditText propertiesInput;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    public void onCreate(Bundle savedInstanceState) {
         enableEdgeToEdgeNoContrast();
         super.onCreate(savedInstanceState);
         scId = getIntent().getStringExtra(EXTRA_SC_ID);

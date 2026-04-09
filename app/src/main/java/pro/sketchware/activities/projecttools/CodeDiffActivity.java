@@ -25,7 +25,7 @@ public class CodeDiffActivity extends BaseAppCompatActivity {
     private android.widget.TextView diffView;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    public void onCreate(Bundle savedInstanceState) {
         enableEdgeToEdgeNoContrast();
         super.onCreate(savedInstanceState);
 

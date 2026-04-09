@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 
 import mod.hey.studios.code.SrcCodeEditor;
+import pro.sketchware.R;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
 
@@ -47,7 +48,7 @@ public class ProjectFileManagerActivity extends BaseAppCompatActivity {
     private String filterQuery = "";
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    public void onCreate(Bundle savedInstanceState) {
         enableEdgeToEdgeNoContrast();
         super.onCreate(savedInstanceState);
         scId = getIntent().getStringExtra("sc_id");

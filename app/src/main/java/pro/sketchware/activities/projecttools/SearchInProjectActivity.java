@@ -38,7 +38,7 @@ public class SearchInProjectActivity extends BaseAppCompatActivity {
     private SearchAdapter adapter;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    public void onCreate(Bundle savedInstanceState) {
         enableEdgeToEdgeNoContrast();
         super.onCreate(savedInstanceState);
 

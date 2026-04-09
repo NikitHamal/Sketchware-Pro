@@ -25,7 +25,7 @@ public class ReadOnlyCodeViewerActivity extends BaseAppCompatActivity {
     private String filePath;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    public void onCreate(Bundle savedInstanceState) {
         enableEdgeToEdgeNoContrast();
         super.onCreate(savedInstanceState);
 

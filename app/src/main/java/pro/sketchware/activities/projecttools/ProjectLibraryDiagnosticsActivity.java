@@ -25,7 +25,7 @@ public class ProjectLibraryDiagnosticsActivity extends BaseAppCompatActivity {
     private TextView diagnosticsView;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    public void onCreate(Bundle savedInstanceState) {
         enableEdgeToEdgeNoContrast();
         super.onCreate(savedInstanceState);
         scId = getIntent().getStringExtra("sc_id");
