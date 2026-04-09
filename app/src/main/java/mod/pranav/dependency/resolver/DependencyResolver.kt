@@ -16,6 +16,7 @@ import org.cosmic.ide.dependency.resolver.api.Repository
 import org.cosmic.ide.dependency.resolver.eventReciever
 import org.cosmic.ide.dependency.resolver.getArtifact
 import org.cosmic.ide.dependency.resolver.repositories
+import pro.sketchware.importer.BuiltInDependencyRegistry
 import pro.sketchware.utility.FileUtil
 import java.io.File
 import java.nio.file.Files
@@ -147,6 +148,16 @@ class DependencyResolver(
                 if (dep.version.isEmpty()) {
                     callback.onVersionNotFound(dep)
                     return@forEach
+                }
+
+                val bundledMatch = BuiltInDependencyRegistry.findSatisfiedBuiltIn(dep.groupId, dep.artifactId, dep.version)
+                if (bundledMatch != null) {
+                    val bundledJar = BuiltInLibraries.getLibraryClassesJarPath(bundledMatch.bundledLibraryName).toPath()
+                    if (Files.exists(bundledJar)) {
+                        downloadedArtifactJars.add(bundledJar)
+                        callback.onSkippingResolution(dep)
+                        return@forEach
+                    }
                 }
 
                 val jar = prepareArtifact(dep, callback)

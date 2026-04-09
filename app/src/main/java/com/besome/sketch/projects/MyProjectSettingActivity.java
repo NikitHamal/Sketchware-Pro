@@ -49,6 +49,10 @@ import mod.hey.studios.util.ProjectFile;
 import mod.hilal.saif.activities.tools.ConfigActivity;
 import pro.sketchware.R;
 import pro.sketchware.activities.iconcreator.IconCreatorActivity;
+import pro.sketchware.activities.projecttools.GradleInjectionActivity;
+import pro.sketchware.activities.projecttools.ProjectFileManagerActivity;
+import pro.sketchware.activities.projecttools.ProjectLibraryDiagnosticsActivity;
+import pro.sketchware.activities.projecttools.SearchInProjectActivity;
 import pro.sketchware.control.VersionDialog;
 import pro.sketchware.databinding.MyprojectSettingBinding;
 import pro.sketchware.lib.validator.AppNameValidator;
@@ -596,4 +600,36 @@ public class MyProjectSettingActivity extends BaseAppCompatActivity implements V
         }
 
     }
+
+    @Override
+    public boolean onCreateOptionsMenu(android.view.Menu menu) {
+        menu.add(android.view.Menu.NONE, 1001, android.view.Menu.NONE, "File manager");
+        menu.add(android.view.Menu.NONE, 1002, android.view.Menu.NONE, "Search in project");
+        menu.add(android.view.Menu.NONE, 1003, android.view.Menu.NONE, "Gradle injection");
+        menu.add(android.view.Menu.NONE, 1004, android.view.Menu.NONE, "Library diagnostics");
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(android.view.MenuItem item) {
+        int itemId = item.getItemId();
+        if (itemId == 1001) {
+            startActivity(new Intent(this, ProjectFileManagerActivity.class).putExtra("sc_id", sc_id));
+            return true;
+        }
+        if (itemId == 1002) {
+            startActivity(new Intent(this, SearchInProjectActivity.class).putExtra("sc_id", sc_id));
+            return true;
+        }
+        if (itemId == 1003) {
+            startActivity(new Intent(this, GradleInjectionActivity.class).putExtra("sc_id", sc_id));
+            return true;
+        }
+        if (itemId == 1004) {
+            startActivity(new Intent(this, ProjectLibraryDiagnosticsActivity.class).putExtra("sc_id", sc_id));
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
 }

@@ -30,6 +30,7 @@ import mod.hilal.saif.blocks.CommandBlock;
 import mod.pranav.viewbinding.ViewBindingBuilder;
 import pro.sketchware.SketchApplication;
 import pro.sketchware.manifest.ProjectManifestManager;
+import pro.sketchware.util.GradleInjectionManager;
 import pro.sketchware.util.library.BuiltInLibraryManager;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.xml.XmlBuilder;
@@ -295,16 +296,23 @@ public class yq {
      * Generates top-level build.gradle, build.gradle for module ':app' and settings.gradle files.
      */
     public void generateGradleFiles() {
-        fileUtil.b(projectMyscPath + File.separator + "app" + File.separator + "build.gradle",
-                Lx.getBuildGradleString(VAR_DEFAULT_TARGET_SDK_VERSION, VAR_DEFAULT_MIN_SDK_VERSION, projectSettings.getValue(ProjectSettings.SETTING_TARGET_SDK_VERSION, String.valueOf(VAR_DEFAULT_TARGET_SDK_VERSION)), N, projectSettings.getValue(ProjectSettings.SETTING_ENABLE_VIEWBINDING, ProjectSettings.SETTING_GENERIC_VALUE_FALSE).equals(ProjectSettings.SETTING_GENERIC_VALUE_TRUE)));
-        fileUtil.b(projectMyscPath + File.separator + "settings.gradle", Lx.a());
-        fileUtil.b(projectMyscPath + File.separator + "build.gradle", Lx.c("8.12.0", "4.4.3"));
-
-        fileUtil.b(projectMyscPath + File.separator + "gradle.properties", """
+        String appBuildGradle = Lx.getBuildGradleString(VAR_DEFAULT_TARGET_SDK_VERSION, VAR_DEFAULT_MIN_SDK_VERSION, projectSettings.getValue(ProjectSettings.SETTING_TARGET_SDK_VERSION, String.valueOf(VAR_DEFAULT_TARGET_SDK_VERSION)), N, projectSettings.getValue(ProjectSettings.SETTING_ENABLE_VIEWBINDING, ProjectSettings.SETTING_GENERIC_VALUE_FALSE).equals(ProjectSettings.SETTING_GENERIC_VALUE_TRUE));
+        String settingsGradle = Lx.a();
+        String projectBuildGradle = Lx.c("8.12.0", "4.4.3");
+        String gradleProperties = """
                 android.enableR8.fullMode=false
                 android.enableJetifier=true
                 android.useAndroidX=true
-                """.trim());
+                """.trim();
+
+        appBuildGradle = GradleInjectionManager.appendIfPresent(appBuildGradle, GradleInjectionManager.readAppGradleInject(sc_id));
+        projectBuildGradle = GradleInjectionManager.appendIfPresent(projectBuildGradle, GradleInjectionManager.readProjectGradleInject(sc_id));
+        gradleProperties = GradleInjectionManager.appendIfPresent(gradleProperties, GradleInjectionManager.readPropertiesInject(sc_id));
+
+        fileUtil.b(projectMyscPath + File.separator + "app" + File.separator + "build.gradle", appBuildGradle);
+        fileUtil.b(projectMyscPath + File.separator + "settings.gradle", settingsGradle);
+        fileUtil.b(projectMyscPath + File.separator + "build.gradle", projectBuildGradle);
+        fileUtil.b(projectMyscPath + File.separator + "gradle.properties", gradleProperties.trim());
     }
 
     /**

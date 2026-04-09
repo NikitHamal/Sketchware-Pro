@@ -42,6 +42,11 @@
                 android:resource="@xml/provider_paths" />
         </provider>
 
+        <service
+            android:name="pro.sketchware.compiler.ECJCompilerService"
+            android:exported="false"
+            android:process=":compiler" />
+
         <activity
             android:name="com.besome.sketch.common.SrcViewerActivity"
             android:configChanges="orientation|screenSize" />
@@ -81,6 +86,24 @@
             android:configChanges="orientation|screenSize" />
         <activity
             android:name="pro.sketchware.activities.importproject.ImportAndroidStudioProjectActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.ProjectFileManagerActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.SearchInProjectActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.ReadOnlyCodeViewerActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.CodeDiffActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.GradleInjectionActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.ProjectLibraryDiagnosticsActivity"
             android:configChanges="orientation|screenSize" />
         <activity
             android:name="com.besome.sketch.design.DesignActivity"
@@ -281,12 +304,23 @@
             android:name="mod.khaled.logcat.LogReaderActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
 
-        <activity
-            android:name="pro.sketchware.activities.main.fragments.projects_store.ProjectPreviewActivity"
-            android:configChanges="orientation|screenSize"
-            android:theme="@style/Theme.SketchwarePro.ProjectPreview" />
-
         <activity android:name="pro.sketchware.activities.settings.SettingsActivity" />
+
+        <activity
+            android:name="pro.sketchware.ai.activities.WorkspaceActivity"
+            android:configChanges="orientation|screenSize"
+            android:theme="@style/Theme.SketchwarePro" />
+
+        <activity
+            android:name="pro.sketchware.ai.activities.ChatActivity"
+            android:configChanges="orientation|screenSize"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.SketchwarePro" />
+
+        <activity
+            android:name="pro.sketchware.ai.activities.AiSettingsActivity"
+            android:configChanges="orientation|screenSize"
+            android:theme="@style/Theme.SketchwarePro" />
 
         <activity android:name="pro.sketchware.activities.resourceseditor.ResourcesEditorActivity" />
 

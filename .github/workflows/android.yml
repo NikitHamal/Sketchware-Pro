@@ -56,8 +56,6 @@ jobs:
           cache-disabled: true
 
       - name: Build release APK
-        env:
-          SKETCHUB_API_KEY: ${{ secrets.SKETCHUB_API_KEY }}
         run: ./gradlew assembleRelease --stacktrace --no-daemon
 
       - name: Compute artifact name
