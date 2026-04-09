@@ -91,6 +91,8 @@
 -dontwarn org.bouncycastle.**
 
 # ── R8 / ProGuard itself (used as a library) ─────────────────────
+-keep class com.android.tools.r8.** { *; }
+-dontwarn com.android.tools.r8.**
 -keep class com.guardsquare.proguard.** { *; }
 -dontwarn com.guardsquare.**
 
