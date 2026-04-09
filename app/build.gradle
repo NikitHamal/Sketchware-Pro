@@ -128,6 +128,13 @@ dependencies {
     implementation libs.bundles.coil
     implementation libs.bundles.networking
 
+    // Sora editor (with BOM for consistent versions)
+    def editorGroupId = "io.github.Rosemoe.sora-editor"
+    implementation platform("$editorGroupId:bom:0.23.5")
+    implementation "$editorGroupId:editor"
+    implementation "$editorGroupId:language-java"
+    implementation "$editorGroupId:language-textmate"
+
     implementation "com.google.code.gson:gson:2.13.2"
     implementation "io.noties.markwon:core:4.6.2"
     implementation "com.github.Cosmic-Ide:DependencyResolver:05ec26af0b"
