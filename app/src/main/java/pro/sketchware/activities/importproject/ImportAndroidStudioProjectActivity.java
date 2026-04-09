@@ -26,6 +26,7 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
     private Uri selectedZipUri;
     private TextView selectedZipText;
     private TextView statusText;
+    private TextInputEditText folderPathInput;
     private TextInputEditText githubUrlInput;
     private TextInputEditText branchInput;
     private TextInputEditText tokenInput;
@@ -46,11 +47,13 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
 
         selectedZipText = findViewById(R.id.tv_selected_zip);
         statusText = findViewById(R.id.tv_import_status);
+        folderPathInput = findViewById(R.id.et_folder_path);
         githubUrlInput = findViewById(R.id.et_github_url);
         branchInput = findViewById(R.id.et_branch);
         tokenInput = findViewById(R.id.et_token);
         Button pickZipButton = findViewById(R.id.btn_pick_zip);
         Button importZipButton = findViewById(R.id.btn_import_zip);
+        Button importFolderButton = findViewById(R.id.btn_import_folder);
         Button importGithubButton = findViewById(R.id.btn_import_github);
 
         pickZipButton.setOnClickListener(v -> pickZip());
@@ -60,6 +63,13 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
                 return;
             }
             new ImportTask(ImportTask.MODE_ZIP).execute();
+        });
+        importFolderButton.setOnClickListener(v -> {
+            if (TextUtils.isEmpty(Helper.getText(folderPathInput).trim())) {
+                folderPathInput.setError("Enter a project folder path");
+                return;
+            }
+            new ImportTask(ImportTask.MODE_FOLDER).execute();
         });
         importGithubButton.setOnClickListener(v -> {
             if (TextUtils.isEmpty(Helper.getText(githubUrlInput).trim())) {
@@ -103,7 +113,8 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
 
     private class ImportTask extends MA {
         private static final int MODE_ZIP = 1;
-        private static final int MODE_GITHUB = 2;
+        private static final int MODE_FOLDER = 2;
+        private static final int MODE_GITHUB = 3;
 
         private final int mode;
         private AndroidStudioProjectImporter.ImportResult result;
@@ -113,7 +124,13 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
             this.mode = mode;
             addTask(this);
             k();
-            statusText.setText(mode == MODE_ZIP ? "Importing Android Studio ZIP..." : "Downloading and importing GitHub repo...");
+            if (mode == MODE_ZIP) {
+                statusText.setText("Importing Android Studio ZIP...");
+            } else if (mode == MODE_FOLDER) {
+                statusText.setText("Importing Android Studio project folder...");
+            } else {
+                statusText.setText("Downloading and importing GitHub repo...");
+            }
         }
 
         @Override
@@ -145,6 +162,12 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
                         .setProgressListener(stage -> publishProgress(stage));
                 if (mode == MODE_ZIP) {
                     result = importer.importFromZipUri(selectedZipUri);
+                } else if (mode == MODE_FOLDER) {
+                    result = importer.importFromFolder(
+                            new java.io.File(Helper.getText(folderPathInput).trim()),
+                            "folder",
+                            null
+                    );
                 } else {
                     result = importer.importFromGitHub(
                             Helper.getText(githubUrlInput).trim(),

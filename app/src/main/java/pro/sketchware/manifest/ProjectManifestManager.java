@@ -96,7 +96,7 @@ public final class ProjectManifestManager {
         }
 
         String manifestTag = manifestTagMatcher.group();
-        Matcher packageMatcher = Pattern.compile("\\bpackage\\s*=\\s*(['\"])([^'\"]*)\\1", Pattern.CASE_INSENSITIVE | Pattern.DOTALL).matcher(manifestTag);
+        Matcher packageMatcher = Pattern.compile("\\bpackage\\s*=\\s*(['"])([^'"]*)\\1", Pattern.CASE_INSENSITIVE | Pattern.DOTALL).matcher(manifestTag);
         String updatedManifestTag;
         if (packageMatcher.find()) {
             if (!packageMatcher.group(2).trim().isEmpty()) {

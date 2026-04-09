@@ -42,6 +42,11 @@
                 android:resource="@xml/provider_paths" />
         </provider>
 
+        <service
+            android:name="pro.sketchware.compiler.ECJCompilerService"
+            android:exported="false"
+            android:process=":compiler" />
+
         <activity
             android:name="com.besome.sketch.common.SrcViewerActivity"
             android:configChanges="orientation|screenSize" />
@@ -81,6 +86,24 @@
             android:configChanges="orientation|screenSize" />
         <activity
             android:name="pro.sketchware.activities.importproject.ImportAndroidStudioProjectActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.ProjectFileManagerActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.SearchInProjectActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.ReadOnlyCodeViewerActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.CodeDiffActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.GradleInjectionActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.ProjectLibraryDiagnosticsActivity"
             android:configChanges="orientation|screenSize" />
         <activity
             android:name="com.besome.sketch.design.DesignActivity"

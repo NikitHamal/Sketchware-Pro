@@ -186,6 +186,10 @@ public final class ProjectTools {
     }
 
     private static void addProjectToWorkspace(ToolContext context, String scId) {
+        if (scId == null || scId.isEmpty()) {
+            return;
+        }
+        context.addAllowedProjectId(scId);
         if (context.getWorkspaceId() == null || context.getWorkspaceId().isEmpty()) {
             return;
         }
@@ -198,6 +202,10 @@ public final class ProjectTools {
     }
 
     private static void removeProjectFromWorkspace(ToolContext context, String scId) {
+        if (scId == null || scId.isEmpty()) {
+            return;
+        }
+        context.removeAllowedProjectId(scId);
         if (context.getWorkspaceId() == null || context.getWorkspaceId().isEmpty()) {
             return;
         }

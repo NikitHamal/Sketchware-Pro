@@ -23,6 +23,7 @@ import dev.aldi.sayuti.editor.manage.LocalLibrary;
 import mod.hey.studios.build.BuildSettings;
 import mod.pranav.dependency.resolver.DependencyResolver;
 import pro.sketchware.ai.models.ToolResult;
+import pro.sketchware.util.library.BuiltInLibraryCompatibilityMatrix;
 
 public class LibraryTools {
 
@@ -528,4 +529,58 @@ public class LibraryTools {
             }
         }
     }
+
+    public static class ValidateLibrariesTool implements AgentTool {
+        @Override
+        public String getName() {
+            return "validate_libraries";
+        }
+
+        @Override
+        public String getDescription() {
+            return "Validates the project's built-in and local library configuration and returns dependency health details.";
+        }
+
+        @Override
+        public JsonObject getParametersSchema() {
+            JsonObject schema = new JsonObject();
+            schema.addProperty("type", "object");
+            JsonObject props = new JsonObject();
+            JsonObject scId = new JsonObject();
+            scId.addProperty("type", "string");
+            scId.addProperty("description", "The project SC ID");
+            props.add("sc_id", scId);
+            schema.add("properties", props);
+            JsonArray required = new JsonArray();
+            required.add("sc_id");
+            schema.add("required", required);
+            return schema;
+        }
+
+        @Override
+        public ToolResult execute(JsonObject arguments, ToolContext context) {
+            String scId = arguments.has("sc_id") ? arguments.get("sc_id").getAsString() : null;
+            ToolResult validation = validateProject(scId, context);
+            if (validation != null) return validation;
+
+            BuiltInLibraryCompatibilityMatrix.ValidationResult validationResult =
+                    BuiltInLibraryCompatibilityMatrix.validate(scId);
+            JsonObject result = new JsonObject();
+            result.addProperty("sc_id", scId);
+            result.addProperty("valid", validationResult.isValid());
+            JsonArray errors = new JsonArray();
+            for (String error : validationResult.getErrors()) {
+                errors.add(error);
+            }
+            result.add("errors", errors);
+            JsonArray requiredLibraries = new JsonArray();
+            for (String library : validationResult.getRequiredLibraries()) {
+                requiredLibraries.add(library);
+            }
+            result.add("required_libraries", requiredLibraries);
+            result.addProperty("attached_local_library_count", getAttachedLocalLibraries(scId).size());
+            return success(result.toString());
+        }
+    }
+
 }

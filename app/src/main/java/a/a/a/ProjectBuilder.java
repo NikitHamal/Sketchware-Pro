@@ -46,6 +46,13 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
+import pro.sketchware.compiler.LegacyJavaSourceNormalizer;
+import pro.sketchware.compiler.IncrementalCompileCache;
+import pro.sketchware.compiler.ECJCompilerClient;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CountDownLatch;
 
 import mod.agus.jcoderz.dex.Dex;
 import mod.agus.jcoderz.dex.FieldId;
@@ -574,31 +581,40 @@ public class ProjectBuilder {
         long savedTimeMillis = System.currentTimeMillis();
 
         class EclipseOutOutputStream extends OutputStream {
-
             private final StringBuffer mBuffer = new StringBuffer();
-
-            @Override
-            public void write(int b) {
-                mBuffer.append((char) b);
-            }
-
-            public String getOut() {
-                return mBuffer.toString();
-            }
+            @Override public void write(int b) { mBuffer.append((char) b); }
+            public String getOut() { return mBuffer.toString(); }
         }
 
         class EclipseErrOutputStream extends OutputStream {
-
             private final StringBuffer mBuffer = new StringBuffer();
+            @Override public void write(int b) { mBuffer.append((char) b); }
+            public String getOut() { return mBuffer.toString(); }
+        }
 
-            @Override
-            public void write(int b) {
-                mBuffer.append((char) b);
-            }
+        String pathJava = fpu.getPathJava(yq.sc_id);
+        String pathBroadcast = fpu.getPathBroadcast(yq.sc_id);
+        String pathService = fpu.getPathService(yq.sc_id);
+        String normalizedRoot = yq.binDirectoryPath + File.separator + "normalized_sources";
+        String normalizedPathJava = FileUtil.isExistFile(pathJava)
+                ? LegacyJavaSourceNormalizer.normalizeDirectoryToTemp(pathJava, normalizedRoot + File.separator + "java")
+                : null;
+        String normalizedPathBroadcast = FileUtil.isExistFile(pathBroadcast)
+                ? LegacyJavaSourceNormalizer.normalizeDirectoryToTemp(pathBroadcast, normalizedRoot + File.separator + "broadcast")
+                : null;
+        String normalizedPathService = FileUtil.isExistFile(pathService)
+                ? LegacyJavaSourceNormalizer.normalizeDirectoryToTemp(pathService, normalizedRoot + File.separator + "service")
+                : null;
+        String normalizedGeneratedPath = LegacyJavaSourceNormalizer.normalizeDirectoryToTemp(
+                yq.javaFilesPath,
+                normalizedRoot + File.separator + "generated");
 
-            public String getOut() {
-                return mBuffer.toString();
-            }
+        IncrementalCompileCache compileCache = new IncrementalCompileCache(yq.sc_id);
+        if (!compileCache.hasChanges(normalizedGeneratedPath, yq.rJavaDirectoryPath,
+                normalizedPathJava, normalizedPathBroadcast, normalizedPathService)
+                && new File(yq.compiledClassesPath).exists()) {
+            LogUtil.d(TAG, "Skipping Java compilation because no Java sources changed");
+            return;
         }
 
         try (EclipseOutOutputStream outOutputStream = new EclipseOutOutputStream();
@@ -619,39 +635,85 @@ public class ProjectBuilder {
             args.add("-cp");
             args.add(getClasspath());
             args.add("-proc:none");
-            args.add(yq.javaFilesPath);
+            args.add(normalizedGeneratedPath);
             args.add(yq.rJavaDirectoryPath);
-            String pathJava = fpu.getPathJava(yq.sc_id);
-            if (FileUtil.isExistFile(pathJava)) {
-                args.add(pathJava);
+            if (normalizedPathJava != null) {
+                args.add(normalizedPathJava);
             }
-            String pathBroadcast = fpu.getPathBroadcast(yq.sc_id);
-            if (FileUtil.isExistFile(pathBroadcast)) {
-                args.add(pathBroadcast);
+            if (normalizedPathBroadcast != null) {
+                args.add(normalizedPathBroadcast);
             }
-            String pathService = fpu.getPathService(yq.sc_id);
-            if (FileUtil.isExistFile(pathService)) {
-                args.add(pathService);
+            if (normalizedPathService != null) {
+                args.add(normalizedPathService);
             }
 
-            /* Avoid "package ;" line in that file causing issues while compiling */
             File rJavaFileWithoutPackage = new File(yq.rJavaDirectoryPath, "R.java");
             if (rJavaFileWithoutPackage.exists() && !rJavaFileWithoutPackage.delete()) {
                 LogUtil.w(TAG, "Failed to delete file " + rJavaFileWithoutPackage.getAbsolutePath());
             }
 
-            /* Start compiling */
-            org.eclipse.jdt.internal.compiler.batch.Main main = new org.eclipse.jdt.internal.compiler.batch.Main(outWriter, errWriter, false, null, null);
             LogUtil.d(TAG, "Running Eclipse compiler with these arguments: " + args);
-            main.compile(args.toArray(new String[0]));
+
+            AtomicBoolean completed = new AtomicBoolean(false);
+            AtomicBoolean success = new AtomicBoolean(false);
+            AtomicReference<String> compilerError = new AtomicReference<>("");
+            CountDownLatch latch = new CountDownLatch(1);
+
+            ECJCompilerClient.compile(context, args.toArray(new String[0]), new ECJCompilerClient.Listener() {
+                @Override
+                public void onProgress(String message) {
+                    LogUtil.d(TAG, message);
+                }
+
+                @Override
+                public void onSuccess(String output) {
+                    outWriter.write(output == null ? "" : output);
+                    success.set(true);
+                    completed.set(true);
+                    latch.countDown();
+                }
+
+                @Override
+                public void onError(String errors, String output) {
+                    errWriter.write(errors == null ? "" : errors);
+                    outWriter.write(output == null ? "" : output);
+                    compilerError.set(errors == null ? "" : errors);
+                    completed.set(true);
+                    latch.countDown();
+                }
+
+                @Override
+                public void onOOM() {
+                    compilerError.set("Java compilation ran out of memory in the isolated compiler process.");
+                    completed.set(true);
+                    latch.countDown();
+                }
+            });
+
+            try {
+                latch.await(180, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new zy("Java compilation interrupted");
+            }
+
+            if (!completed.get()) {
+                throw new zy("Timed out while waiting for isolated Java compilation");
+            }
 
             LogUtil.d(TAG, "System.out of Eclipse compiler: " + outOutputStream.getOut());
-            if (main.globalErrorsCount <= 0) {
+            if (success.get()) {
                 LogUtil.d(TAG, "System.err of Eclipse compiler: " + errOutputStream.getOut());
+                compileCache.save(normalizedGeneratedPath, yq.rJavaDirectoryPath,
+                        normalizedPathJava, normalizedPathBroadcast, normalizedPathService);
                 LogUtil.d(TAG, "Compiling Java files took " + (System.currentTimeMillis() - savedTimeMillis) + " ms");
             } else {
                 LogUtil.e(TAG, "Failed to compile Java files");
-                throw new zy(errOutputStream.getOut());
+                String error = compilerError.get();
+                if (error == null || error.trim().isEmpty()) {
+                    error = errOutputStream.getOut();
+                }
+                throw new zy(error);
             }
         }
     }

@@ -123,6 +123,7 @@ public class ToolRegistry {
 
         // Library and dependency tools
         registry.register(new LibraryTools.ListLibrariesTool());
+        registry.register(new LibraryTools.ValidateLibrariesTool());
         registry.register(new LibraryTools.AddLibraryTool());
         registry.register(new LibraryTools.RemoveLibraryTool());
         registry.register(new LibraryTools.AttachLocalLibraryTool());

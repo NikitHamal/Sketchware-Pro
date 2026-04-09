@@ -189,6 +189,24 @@ public class AndroidStudioProjectImporter {
         }
     }
 
+    public ImportResult importFromFolder(File projectDir, String sourceType, String preferredProjectName) throws Exception {
+        if (projectDir == null || !projectDir.isDirectory()) {
+            throw new IOException("Selected folder does not exist or is not a directory");
+        }
+        notifyProgress("Analyzing project folder...");
+        DetectedProject detectedProject = detectProject(projectDir);
+        if (detectedProject != null) {
+            detectedProject.archiveLabel = projectDir.getName();
+        }
+        if (detectedProject == null) {
+            throw new IOException("No supported Android application module was found in the selected folder");
+        }
+        if (detectedProject.roundTripMetadataJson != null && detectedProject.roundTripMetadataJson.isFile()) {
+            return restoreRoundTripProject(detectedProject, sourceType, preferredProjectName);
+        }
+        return importGenericAndroidProject(detectedProject, sourceType, preferredProjectName);
+    }
+
     private void deleteQuietly(File file) {
         if (file == null || !file.exists()) {
             return;

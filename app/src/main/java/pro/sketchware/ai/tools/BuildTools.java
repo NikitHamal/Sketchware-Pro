@@ -25,6 +25,7 @@ import mod.hey.studios.project.stringfog.StringfogHandler;
 import mod.jbk.build.BuiltInLibraries;
 import pro.sketchware.ai.models.ToolResult;
 import pro.sketchware.utility.FileUtil;
+import pro.sketchware.util.library.BuiltInLibraryCompatibilityMatrix;
 
 public final class BuildTools {
 
@@ -72,6 +73,10 @@ public final class BuildTools {
 
     private static BuildArtifacts prepareBuild(ToolContext context, String scId) throws Exception {
         Context appContext = context.getAppContext();
+        BuiltInLibraryCompatibilityMatrix.ValidationResult validationResult = BuiltInLibraryCompatibilityMatrix.validate(scId);
+        if (!validationResult.isValid()) {
+            throw new IllegalStateException(validationResult.formatErrors());
+        }
         HashMap<String, Object> metadata = lC.b(scId);
         if (metadata == null) {
             throw new IllegalStateException("Project metadata not found for " + scId);

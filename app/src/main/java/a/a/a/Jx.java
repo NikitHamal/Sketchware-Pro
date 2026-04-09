@@ -28,6 +28,7 @@ import mod.hilal.saif.blocks.CommandBlock;
 import mod.hilal.saif.events.LogicHandler;
 import mod.pranav.viewbinding.ViewBindingBuilder;
 import pro.sketchware.control.logic.PermissionManager;
+import pro.sketchware.compiler.GeneratedCodeSanitizer;
 
 public class Jx {
 
@@ -586,6 +587,7 @@ public class Jx {
             code = code.replaceAll("getFragmentManager", "getSupportFragmentManager");
         }
 
+        code = GeneratedCodeSanitizer.sanitize(code, projectFileBean.getActivityName(), isFragment);
         return CommandBlock.CB(Lx.j(code, false));
     }
 

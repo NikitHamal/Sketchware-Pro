@@ -53,11 +53,42 @@ public class ToolContext {
         return workspaceId;
     }
 
-    public boolean isProjectAllowed(String scId) {
+    public synchronized boolean isProjectAllowed(String scId) {
         if (scId == null || scId.isEmpty()) {
             return false;
         }
-        return allowedProjectIds.contains(scId);
+        if (allowedProjectIds.contains(scId)) {
+            return true;
+        }
+        if (workspaceId != null && !workspaceId.isEmpty()) {
+            try {
+                pro.sketchware.ai.storage.WorkspaceManager manager =
+                        new pro.sketchware.ai.storage.WorkspaceManager(appContext);
+                pro.sketchware.ai.models.Workspace workspace = manager.getWorkspace(workspaceId);
+                if (workspace != null && workspace.hasProject(scId)) {
+                    allowedProjectIds.add(scId);
+                    return true;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return false;
+    }
+
+    public synchronized void addAllowedProjectId(String scId) {
+        if (scId == null || scId.isEmpty()) {
+            return;
+        }
+        if (!allowedProjectIds.contains(scId)) {
+            allowedProjectIds.add(scId);
+        }
+    }
+
+    public synchronized void removeAllowedProjectId(String scId) {
+        if (scId == null || scId.isEmpty()) {
+            return;
+        }
+        allowedProjectIds.remove(scId);
     }
 
     public void setToolProgressListener(ToolProgressListener progressListener) {

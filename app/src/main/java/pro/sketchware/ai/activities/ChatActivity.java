@@ -416,6 +416,14 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
     @Override
     public void onToolCallCompleted(ToolCall toolCall, ToolResult result) {
         chatAdapter.updateToolCallResult(toolCall.getId(), result);
+        if (toolCall != null) {
+            String name = toolCall.getName();
+            if ("create_project".equals(name)
+                    || "duplicate_project".equals(name)
+                    || "delete_project".equals(name)) {
+                workspace = workspaceManager.getWorkspace(workspaceId);
+            }
+        }
         scrollToBottom();
     }
 
