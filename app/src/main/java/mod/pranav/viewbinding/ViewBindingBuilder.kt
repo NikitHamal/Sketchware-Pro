@@ -60,11 +60,11 @@ ${
             if (views.isNotEmpty()) {
                 """${
                     views.filterNot { it.isInclude }
-                        .joinToString("\n") { "        ${it.type} ${it.name} = findChildViewById(view, R.id.${it.id});" }
+                        .joinToString("\n") { "        ${it.type} ${it.name} = (${it.type}) view.findViewById(R.id.${it.id});" }
                 }
 ${
                     views.filter { it.isInclude }
-                        .joinToString("\n") { "        ${it.type} ${it.name} = ${it.fullType}.bind(findChildViewById(view, R.id.${it.id}));" }
+                        .joinToString("\n") { "        ${it.type} ${it.name} = ${it.fullType}.bind(view.findViewById(R.id.${it.id}));" }
                 }
         if (${views.joinToString(" || ") { "${it.name} == null" }}) {
              throw new IllegalStateException("Required views are missing");
@@ -73,17 +73,6 @@ ${
         }
 
         return new $name(${rootView.name}${if (views.isNotEmpty()) ", " + views.joinToString { it.name } else ""});
-    }
-
-    private static <T extends View> T findChildViewById(View rootView, int id) {
-         if (rootView instanceof ViewGroup) {
-              ViewGroup rootViewGroup = (ViewGroup) rootView;
-              for (int i = 0; i < rootViewGroup.getChildCount(); i++) {
-                   T view = rootViewGroup.getChildAt(i).findViewById(id);
-                   if (view != null) return view;
-              }
-         }
-         return null;
     }
 }
         """.trimIndent()
