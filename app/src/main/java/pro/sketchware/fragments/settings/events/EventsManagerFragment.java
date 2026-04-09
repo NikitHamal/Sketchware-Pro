@@ -42,18 +42,10 @@ public class EventsManagerFragment extends qA {
 
     private FragmentEventsManagerBinding binding;
     private ArrayList<HashMap<String, Object>> listMap = new ArrayList<>();
+    private HashMap<String, Integer> eventCounts = new HashMap<>();
 
-    public static String getNumOfEvents(String name) {
-        int eventAmount = 0;
-        if (FileUtil.isExistFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath())) {
-            ArrayList<HashMap<String, Object>> events = new Gson()
-                    .fromJson(FileUtil.readFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath()), Helper.TYPE_MAP_LIST);
-            for (HashMap<String, Object> event : events) {
-                if (event.get("listener").toString().equals(name)) {
-                    eventAmount++;
-                }
-            }
-        }
+    private String getNumOfEvents(String name) {
+        int eventAmount = eventCounts.getOrDefault(name, 0);
         return "Events: " + eventAmount;
     }
 
@@ -176,6 +168,19 @@ public class EventsManagerFragment extends qA {
     }
 
     public void refreshList() {
+        eventCounts.clear();
+        if (FileUtil.isExistFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath())) {
+            ArrayList<HashMap<String, Object>> events = new Gson()
+                    .fromJson(FileUtil.readFile(EventsManagerConstants.EVENTS_FILE.getAbsolutePath()), Helper.TYPE_MAP_LIST);
+            for (HashMap<String, Object> event : events) {
+                Object listenerObj = event.get("listener");
+                if (listenerObj != null) {
+                    String listener = listenerObj.toString();
+                    eventCounts.put(listener, eventCounts.getOrDefault(listener, 0) + 1);
+                }
+            }
+        }
+
         listMap.clear();
         if (FileUtil.isExistFile(EventsManagerConstants.LISTENERS_FILE.getAbsolutePath())) {
             listMap = new Gson().fromJson(FileUtil.readFile(EventsManagerConstants.LISTENERS_FILE.getAbsolutePath()), Helper.TYPE_MAP_LIST);
