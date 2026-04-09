@@ -23,6 +23,8 @@ import pro.sketchware.utility.FileUtil;
 
 public class DefaultExtraMenuBean {
 
+    private static final Pattern VARIABLE_PATTERN = Pattern.compile("^(\\w+)[\\s]+(\\w+)");
+
     private final LogicEditorActivity logicEditor;
     private final eC projectDataManager;
     private final String sc_id;
@@ -65,7 +67,7 @@ public class DefaultExtraMenuBean {
         title = menuPair.first;
         menus = new ArrayList<>(Arrays.asList(menuPair.second));
         for (String s : projectDataManager.e(javaName, 5)) {
-            Matcher matcher2 = Pattern.compile("^(\\w+)[\\s]+(\\w+)").matcher(s);
+            Matcher matcher2 = VARIABLE_PATTERN.matcher(s);
             while (matcher2.find()) {
                 if (menuName.equals(matcher2.group(1))) {
                     title = "Select a " + matcher2.group(1) + " Variable";
