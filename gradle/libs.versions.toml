@@ -42,6 +42,7 @@ woodstoxCore = "7.1.1"
 zipalignJava = "1.2.2"
 
 [libraries]
+junit = { group = "junit", name = "junit", version = "4.13.2" }
 androidx-activity = { module = "androidx.activity:activity", version.ref = "activity" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-cardview = { module = "androidx.cardview:cardview", version.ref = "cardview" }
