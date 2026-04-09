@@ -1,10 +1,6 @@
 package pro.sketchware.ai.tools;
 
 import android.content.Context;
-import android.content.Intent;
-import android.net.Uri;
-
-import androidx.core.content.FileProvider;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -187,18 +183,6 @@ public final class BuildTools {
         builder.signDebugApk();
     }
 
-    private static void requestInstall(Context context, String apkPath) {
-        File apkFile = new File(apkPath);
-        Uri apkUri = FileProvider.getUriForFile(context, context.getPackageName() + ".provider", apkFile);
-        Intent intent = new Intent(Intent.ACTION_VIEW);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-        intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-        intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-        context.startActivity(intent);
-    }
-
     public static class BuildProjectTool implements AgentTool {
         @Override
         public String getName() {
@@ -258,64 +242,4 @@ public final class BuildTools {
         }
     }
 
-    public static class RunProjectTool implements AgentTool {
-        @Override
-        public String getName() {
-            return "run_project";
-        }
-
-        @Override
-        public String getDescription() {
-            return "Builds a workspace project into a signed debug APK and immediately opens the Android package installer.";
-        }
-
-        @Override
-        public JsonObject getParametersSchema() {
-            JsonObject schema = new JsonObject();
-            schema.addProperty("type", "object");
-            JsonObject properties = new JsonObject();
-            properties.add("sc_id", scIdProperty());
-            schema.add("properties", properties);
-            JsonArray required = new JsonArray();
-            required.add("sc_id");
-            schema.add("required", required);
-            return schema;
-        }
-
-        @Override
-        public ToolResult execute(JsonObject arguments, ToolContext context) {
-            ToolResult validation = requireProject(arguments, context);
-            if (validation != null) {
-                return validation;
-            }
-            String scId = arguments.get("sc_id").getAsString();
-
-            try {
-                executeDebugBuild(context, scId);
-                if (context.isCancelled()) {
-                    return error("Run cancelled");
-                }
-
-                yq project = new yq(context.getAppContext(), wq.d(scId), lC.b(scId));
-                requestInstall(context.getAppContext(), project.finalToInstallApkPath);
-
-                JsonObject result = new JsonObject();
-                result.addProperty("sc_id", scId);
-                result.addProperty("status", "install_prompt_opened");
-                result.addProperty("artifact_type", "debug_apk");
-                result.addProperty("artifact_path", project.finalToInstallApkPath);
-                result.addProperty("compile_log_path", context.getProjectCompileLogFile(scId).getAbsolutePath());
-                result.addProperty("installable", true);
-                result.addProperty("message", "Build completed and install prompt opened");
-                return success(result);
-            } catch (Exception e) {
-                JsonObject result = new JsonObject();
-                result.addProperty("sc_id", scId);
-                result.addProperty("status", "failed");
-                result.addProperty("compile_log_path", context.getProjectCompileLogFile(scId).getAbsolutePath());
-                result.addProperty("message", e.getMessage() != null ? e.getMessage() : "Run failed");
-                return ToolResult.failure(null, result.toString());
-            }
-        }
-    }
 }

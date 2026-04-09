@@ -3,7 +3,10 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@drawable/rounded_container_background"
+    android:background="@drawable/bg_tool_call"
+    android:clickable="true"
+    android:focusable="true"
+    android:minHeight="68dp"
     android:orientation="vertical"
     android:padding="12dp">
 
@@ -13,72 +16,86 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <ImageView
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            app:srcCompat="@drawable/ic_tool_call"
-            app:tint="?attr/colorOnSurfaceVariant" />
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            app:cardBackgroundColor="?attr/colorPrimaryContainer"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="0dp">
+
+            <ImageView
+                android:id="@+id/tool_icon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                app:srcCompat="@drawable/ic_tool_call"
+                app:tint="?attr/colorOnPrimaryContainer" />
+        </com.google.android.material.card.MaterialCardView>
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
             android:layout_weight="1"
-            android:layout_marginStart="8dp"
             android:orientation="vertical">
 
             <TextView
                 android:id="@+id/tool_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:ellipsize="middle"
+                android:ellipsize="end"
                 android:maxLines="1"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
+                android:textAppearance="@style/TextAppearance.SketchwarePro.TitleSmall"
                 android:textColor="?attr/colorOnSurface" />
 
             <TextView
-                android:id="@+id/tool_status"
-                android:layout_width="wrap_content"
+                android:id="@+id/tool_preview"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="1dp"
-                android:text="Running"
-                android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+                android:layout_marginTop="3dp"
+                android:maxLines="1"
+                android:textAppearance="@style/TextAppearance.SketchwarePro.BodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:visibility="gone" />
         </LinearLayout>
 
         <ImageView
             android:id="@+id/tool_status_icon"
-            android:layout_width="16dp"
-            android:layout_height="16dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_marginStart="8dp"
             app:srcCompat="@drawable/ic_mtrl_check"
             app:tint="?attr/colorPrimary" />
+
+        <ImageView
+            android:id="@+id/expand_icon"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_marginStart="10dp"
+            app:srcCompat="@drawable/ic_mtrl_arrow_down"
+            app:tint="?attr/colorOnSurfaceVariant" />
     </LinearLayout>
 
     <com.google.android.material.progressindicator.LinearProgressIndicator
         android:id="@+id/tool_progress"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="10dp"
         android:indeterminate="true"
-        app:trackCornerRadius="4dp" />
+        app:trackColor="?attr/colorSurfaceContainerHighest"
+        app:trackCornerRadius="6dp" />
 
     <TextView
-        android:id="@+id/tool_arguments"
+        android:id="@+id/tool_details"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="12dp"
         android:fontFamily="monospace"
-        android:maxLines="6"
-        android:textAppearance="?attr/textAppearanceLabelSmall"
-        android:textColor="?attr/colorOnSurfaceVariant" />
-
-    <TextView
-        android:id="@+id/tool_result"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:lineSpacingExtra="1dp"
-        android:textAppearance="?attr/textAppearanceBodySmall"
-        android:textColor="?attr/colorOnSurface"
+        android:lineSpacingExtra="2dp"
+        android:textAppearance="@style/TextAppearance.SketchwarePro.BodySmall"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:textIsSelectable="true"
         android:visibility="gone" />
 
     <com.google.android.material.button.MaterialButton
@@ -86,7 +103,7 @@
         style="?attr/materialButtonOutlinedStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="12dp"
         android:text="Install APK"
         android:visibility="gone"
         app:icon="@drawable/ic_mtrl_apk_install"

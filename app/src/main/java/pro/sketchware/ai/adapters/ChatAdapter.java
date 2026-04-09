@@ -1,10 +1,12 @@
 package pro.sketchware.ai.adapters;
 
 import android.text.TextUtils;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.RecyclerView;
@@ -20,9 +22,11 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import io.noties.markwon.Markwon;
 import pro.sketchware.R;
@@ -45,12 +49,37 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private static final int MAX_TOOL_PREVIEW_LENGTH = 220;
     private static final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("h:mm a", Locale.getDefault());
 
+    private enum ToolPhase {
+        RUNNING,
+        SUCCESS,
+        FAILED
+    }
+
+    private static class ToolVisualSpec {
+        @NonNull final String title;
+        @DrawableRes final int toolIconRes;
+        @DrawableRes final int statusIconRes;
+        @Nullable final String collapsedDetail;
+        @Nullable final String details;
+
+        ToolVisualSpec(@NonNull String title, @DrawableRes int toolIconRes,
+                       @DrawableRes int statusIconRes, @Nullable String collapsedDetail,
+                       @Nullable String details) {
+            this.title = title;
+            this.toolIconRes = toolIconRes;
+            this.statusIconRes = statusIconRes;
+            this.collapsedDetail = collapsedDetail;
+            this.details = details;
+        }
+    }
+
     private static class ToolUiState {
         @NonNull final ToolCall toolCall;
         @Nullable ToolResult toolResult;
         @Nullable String status;
         int progress = -1;
         boolean indeterminate = true;
+        boolean expanded = false;
 
         ToolUiState(@NonNull ToolCall toolCall) {
             this.toolCall = toolCall;
@@ -131,19 +160,21 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     public void addAssistantMessage(@NonNull ChatMessage msg) {
-        if (!shouldRenderAssistantMessage(ChatItem.assistantMessage(msg))) {
+        ChatItem item = ChatItem.assistantMessage(msg);
+        if (!shouldRenderAssistantMessage(item)) {
             return;
         }
-        items.add(ChatItem.assistantMessage(msg));
+        items.add(item);
         notifyItemInserted(items.size() - 1);
     }
 
     public void updateLastAssistantMessage(@NonNull String chunk) {
-        ChatItem item = findLastAssistantItem();
-        if (item != null && item.message != null && item.message.isStreaming()) {
-            item.message.appendContent(chunk);
-            notifyItemChanged(items.indexOf(item));
+        ChatItem item = ensureStreamingAssistantItem();
+        if (item.message == null) {
+            return;
         }
+        item.message.appendContent(chunk);
+        notifyItemChanged(items.indexOf(item));
     }
 
     public void replaceStreamingAssistantMessage(@NonNull ChatMessage finalMessage) {
@@ -154,28 +185,30 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             mergeToolStates(existing, finalItem);
             if (shouldRenderAssistantMessage(finalItem)) {
                 items.set(streamingIndex, finalItem);
-                notifyItemChanged(streamingIndex);
+                dedupeToolStates(finalItem);
+                int updatedIndex = items.indexOf(finalItem);
+                if (updatedIndex >= 0) {
+                    notifyItemChanged(updatedIndex);
+                }
             } else {
                 items.remove(streamingIndex);
                 notifyItemRemoved(streamingIndex);
             }
         } else if (shouldRenderAssistantMessage(finalItem)) {
             items.add(finalItem);
-            notifyItemInserted(items.size() - 1);
+            dedupeToolStates(finalItem);
+            int insertedIndex = items.indexOf(finalItem);
+            if (insertedIndex >= 0) {
+                notifyItemInserted(insertedIndex);
+            }
         }
     }
 
     public void addToolCall(@NonNull ToolCall tc) {
-        ChatItem item = findLastAssistantItem();
-        if (item == null) {
-            ChatMessage placeholder = ChatMessage.assistantMessage("", null);
-            placeholder.setStreaming(true);
-            item = ChatItem.assistantMessage(placeholder);
-            items.add(item);
-            notifyItemInserted(items.size() - 1);
-        }
+        ChatItem item = ensureStreamingAssistantItem();
         if (findToolState(item, tc.getId()) == null) {
             item.toolStates.add(new ToolUiState(tc));
+            dedupeToolStates(item);
             notifyItemChanged(items.indexOf(item));
         }
     }
@@ -183,9 +216,13 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     public void updateToolCallProgress(@NonNull String toolCallId, @Nullable String status,
                                        int progress, boolean indeterminate) {
         int index = findAssistantIndexForTool(toolCallId);
-        if (index < 0) return;
+        if (index < 0) {
+            return;
+        }
         ToolUiState state = findToolState(items.get(index), toolCallId);
-        if (state == null) return;
+        if (state == null) {
+            return;
+        }
         state.status = status;
         state.progress = progress;
         state.indeterminate = indeterminate;
@@ -194,11 +231,14 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     public void updateToolCallResult(@NonNull String toolCallId, @NonNull ToolResult result) {
         int index = findAssistantIndexForTool(toolCallId);
-        if (index < 0) return;
+        if (index < 0) {
+            return;
+        }
         ToolUiState state = findToolState(items.get(index), toolCallId);
-        if (state == null) return;
+        if (state == null) {
+            return;
+        }
         state.toolResult = result;
-        state.status = result.isSuccess() ? "Completed" : "Failed";
         state.progress = result.isSuccess() ? 100 : -1;
         state.indeterminate = false;
         notifyItemChanged(index);
@@ -206,12 +246,15 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     public void setMessages(@NonNull List<ChatMessage> messages) {
         items.clear();
-        for (ChatMessage msg : messages) {
+        Map<String, Integer> latestAssistantIndexByToolId = collectLatestAssistantIndexByToolId(messages);
+        for (int i = 0; i < messages.size(); i++) {
+            ChatMessage msg = messages.get(i);
             String role = msg.getRole();
             if ("user".equals(role)) {
                 items.add(ChatItem.userMessage(msg));
             } else if ("assistant".equals(role)) {
                 ChatItem assistantItem = ChatItem.assistantMessage(msg);
+                pruneStaleToolStates(assistantItem, latestAssistantIndexByToolId, i);
                 if (shouldRenderAssistantMessage(assistantItem)) {
                     items.add(assistantItem);
                 }
@@ -224,9 +267,13 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     private void applyPersistedToolResult(@NonNull ChatMessage msg) {
         String toolCallId = msg.getToolCallId();
-        if (toolCallId == null) return;
+        if (toolCallId == null) {
+            return;
+        }
         int assistantIndex = findAssistantIndexForTool(toolCallId);
-        if (assistantIndex < 0) return;
+        if (assistantIndex < 0) {
+            return;
+        }
 
         String content = msg.getContent() != null ? msg.getContent() : "";
         ToolResult result = content.startsWith("Error:")
@@ -235,7 +282,6 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         ToolUiState state = findToolState(items.get(assistantIndex), toolCallId);
         if (state != null) {
             state.toolResult = result;
-            state.status = result.isSuccess() ? "Completed" : "Failed";
             state.progress = result.isSuccess() ? 100 : -1;
             state.indeterminate = false;
         }
@@ -252,14 +298,14 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             return;
         }
 
-        for (int i = 0; i < replacement.toolStates.size(); i++) {
-            ToolUiState replacementState = replacement.toolStates.get(i);
+        for (ToolUiState replacementState : replacement.toolStates) {
             ToolUiState previousState = previousById.get(replacementState.toolCall.getId());
             if (previousState != null) {
                 replacementState.toolResult = previousState.toolResult;
                 replacementState.status = previousState.status;
                 replacementState.progress = previousState.progress;
                 replacementState.indeterminate = previousState.indeterminate;
+                replacementState.expanded = previousState.expanded;
             }
         }
     }
@@ -273,14 +319,71 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 || !item.toolStates.isEmpty();
     }
 
-    @Nullable
-    private ChatItem findLastAssistantItem() {
+    @NonNull
+    private ChatItem ensureStreamingAssistantItem() {
+        int streamingIndex = findStreamingAssistantIndex();
+        if (streamingIndex >= 0) {
+            return items.get(streamingIndex);
+        }
+        ChatMessage placeholder = ChatMessage.assistantMessage("", null);
+        placeholder.setStreaming(true);
+        ChatItem item = ChatItem.assistantMessage(placeholder);
+        items.add(item);
+        notifyItemInserted(items.size() - 1);
+        return item;
+    }
+
+    private void dedupeToolStates(@NonNull ChatItem owner) {
+        Set<String> toolCallIds = new LinkedHashSet<>();
+        for (ToolUiState state : owner.toolStates) {
+            toolCallIds.add(state.toolCall.getId());
+        }
+        if (toolCallIds.isEmpty()) {
+            return;
+        }
+
         for (int i = items.size() - 1; i >= 0; i--) {
-            if (items.get(i).type == TYPE_ASSISTANT) {
-                return items.get(i);
+            ChatItem item = items.get(i);
+            if (item == owner || item.type != TYPE_ASSISTANT) {
+                continue;
+            }
+            boolean changed = item.toolStates.removeIf(state -> toolCallIds.contains(state.toolCall.getId()));
+            if (!changed) {
+                continue;
+            }
+            if (!shouldRenderAssistantMessage(item)) {
+                items.remove(i);
+                notifyItemRemoved(i);
+            } else {
+                notifyItemChanged(i);
             }
         }
-        return null;
+    }
+
+    private Map<String, Integer> collectLatestAssistantIndexByToolId(@NonNull List<ChatMessage> messages) {
+        Map<String, Integer> latestIndexByToolId = new LinkedHashMap<>();
+        for (int i = 0; i < messages.size(); i++) {
+            ChatMessage message = messages.get(i);
+            if (!"assistant".equals(message.getRole()) || message.getToolCalls() == null) {
+                continue;
+            }
+            for (ToolCall toolCall : message.getToolCalls()) {
+                if (toolCall != null && !TextUtils.isEmpty(toolCall.getId())) {
+                    latestIndexByToolId.put(toolCall.getId(), i);
+                }
+            }
+        }
+        return latestIndexByToolId;
+    }
+
+    private void pruneStaleToolStates(@NonNull ChatItem assistantItem,
+                                      @NonNull Map<String, Integer> latestAssistantIndexByToolId,
+                                      int assistantMessageIndex) {
+        assistantItem.toolStates.removeIf(state -> {
+            String toolCallId = state.toolCall.getId();
+            Integer latestIndex = latestAssistantIndexByToolId.get(toolCallId);
+            return latestIndex != null && latestIndex != assistantMessageIndex;
+        });
     }
 
     private int findStreamingAssistantIndex() {
@@ -344,7 +447,7 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
         String normalized = payload.trim().replace("\n", " ").replaceAll("\\s+", " ");
         if (normalized.length() > MAX_TOOL_PREVIEW_LENGTH) {
-            normalized = normalized.substring(0, MAX_TOOL_PREVIEW_LENGTH) + "…";
+            normalized = normalized.substring(0, MAX_TOOL_PREVIEW_LENGTH) + "...";
         }
         return normalized;
     }
@@ -367,14 +470,16 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         if (object.has("content") && object.get("content").isJsonPrimitive()) {
             String preview = object.get("content").getAsString().trim().replaceAll("\\s+", " ");
             if (preview.length() > MAX_TOOL_PREVIEW_LENGTH) {
-                preview = preview.substring(0, MAX_TOOL_PREVIEW_LENGTH) + "…";
+                preview = preview.substring(0, MAX_TOOL_PREVIEW_LENGTH) + "...";
             }
             lines.add("preview: " + preview);
         }
 
         if (lines.isEmpty()) {
             for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
-                if (lines.size() >= (compact ? 4 : 6)) break;
+                if (lines.size() >= (compact ? 4 : 6)) {
+                    break;
+                }
                 if (entry.getValue().isJsonPrimitive()) {
                     lines.add(entry.getKey() + ": " + entry.getValue().getAsString());
                 }
@@ -421,7 +526,9 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             boolean installable = object.has("installable")
                     && object.get("installable").isJsonPrimitive()
                     && object.get("installable").getAsBoolean();
-            if (!installable) return null;
+            if (!installable) {
+                return null;
+            }
             if (!object.has("artifact_path") || !object.get("artifact_path").isJsonPrimitive()) {
                 return null;
             }
@@ -430,6 +537,349 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    @Nullable
+    private static JsonObject parseJsonObject(@Nullable String payload) {
+        if (TextUtils.isEmpty(payload)) {
+            return null;
+        }
+        try {
+            JsonElement element = JsonParser.parseString(payload.trim());
+            return element.isJsonObject() ? element.getAsJsonObject() : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static ToolPhase resolveToolPhase(@NonNull ToolUiState state) {
+        if (state.toolResult == null) {
+            return ToolPhase.RUNNING;
+        }
+        return state.toolResult.isSuccess() ? ToolPhase.SUCCESS : ToolPhase.FAILED;
+    }
+
+    @NonNull
+    private static ToolVisualSpec buildToolVisualSpec(@NonNull ToolUiState state) {
+        ToolCall toolCall = state.toolCall;
+        String toolName = toolCall.getName() != null ? toolCall.getName() : "tool";
+        ToolPhase phase = resolveToolPhase(state);
+        JsonObject arguments = parseJsonObject(toolCall.getArguments());
+        JsonObject successPayload = state.toolResult != null && state.toolResult.isSuccess()
+                ? parseJsonObject(state.toolResult.getOutput()) : null;
+        JsonObject failurePayload = state.toolResult != null && !state.toolResult.isSuccess()
+                ? parseJsonObject(state.toolResult.getError()) : null;
+        String subject = resolveToolSubject(toolName, arguments, successPayload, failurePayload);
+        String title = buildToolTitle(toolName, phase, subject);
+        String details = buildToolDetails(state);
+        String collapsedDetail = phase == ToolPhase.RUNNING ? trimToNull(state.status) : null;
+        return new ToolVisualSpec(title, resolveToolIcon(toolName), resolveStatusIcon(phase), collapsedDetail, details);
+    }
+
+    @NonNull
+    private static String buildToolDetails(@NonNull ToolUiState state) {
+        List<String> sections = new ArrayList<>();
+        String runningDetail = trimToNull(state.status);
+        if (resolveToolPhase(state) == ToolPhase.RUNNING && runningDetail != null && !"Starting...".equals(runningDetail)) {
+            sections.add("Current step\n" + runningDetail);
+        }
+        String argumentsSummary = trimToNull(summarizeToolArguments(state.toolCall.getArguments()));
+        if (argumentsSummary != null && !"No details".equals(argumentsSummary)) {
+            sections.add("Request\n" + argumentsSummary);
+        }
+        String resultSummary = trimToNull(summarizeToolResult(state.toolResult));
+        if (resultSummary != null) {
+            sections.add((state.toolResult != null && state.toolResult.isSuccess() ? "Result" : "Issue") + "\n" + resultSummary);
+        }
+        return sections.isEmpty() ? "No extra details yet." : TextUtils.join("\n\n", sections);
+    }
+
+    @NonNull
+    private static String buildToolTitle(@NonNull String toolName, @NonNull ToolPhase phase,
+                                         @Nullable String subject) {
+        String title;
+        switch (toolName) {
+            case "create_project":
+                title = phase == ToolPhase.SUCCESS ? "Created Project" : phase == ToolPhase.FAILED ? "Creating Project Failed" : "Creating Project";
+                break;
+            case "delete_project":
+                title = phase == ToolPhase.SUCCESS ? "Deleted Project" : phase == ToolPhase.FAILED ? "Deleting Project Failed" : "Deleting Project";
+                break;
+            case "duplicate_project":
+                title = phase == ToolPhase.SUCCESS ? "Duplicated Project" : phase == ToolPhase.FAILED ? "Duplicating Project Failed" : "Duplicating Project";
+                break;
+            case "get_project_info":
+                title = phase == ToolPhase.SUCCESS ? "Loaded Project Info" : phase == ToolPhase.FAILED ? "Loading Project Info Failed" : "Loading Project Info";
+                break;
+            case "list_projects":
+                title = phase == ToolPhase.SUCCESS ? "Listed Projects" : phase == ToolPhase.FAILED ? "Listing Projects Failed" : "Listing Projects";
+                break;
+            case "read_file":
+                title = phase == ToolPhase.SUCCESS ? "Read File" : phase == ToolPhase.FAILED ? "Reading File Failed" : "Reading File";
+                break;
+            case "write_file":
+                title = phase == ToolPhase.SUCCESS ? "Wrote File" : phase == ToolPhase.FAILED ? "Writing File Failed" : "Writing File";
+                break;
+            case "delete_file":
+                title = phase == ToolPhase.SUCCESS ? "Deleted File" : phase == ToolPhase.FAILED ? "Deleting File Failed" : "Deleting File";
+                break;
+            case "list_files":
+                title = phase == ToolPhase.SUCCESS ? "Listed Files" : phase == ToolPhase.FAILED ? "Listing Files Failed" : "Listing Files";
+                break;
+            case "copy_file":
+                title = phase == ToolPhase.SUCCESS ? "Copied File" : phase == ToolPhase.FAILED ? "Copying File Failed" : "Copying File";
+                break;
+            case "move_file":
+                title = phase == ToolPhase.SUCCESS ? "Moved File" : phase == ToolPhase.FAILED ? "Moving File Failed" : "Moving File";
+                break;
+            case "list_activities":
+                title = phase == ToolPhase.SUCCESS ? "Listed Activities" : phase == ToolPhase.FAILED ? "Listing Activities Failed" : "Listing Activities";
+                break;
+            case "create_activity":
+                title = phase == ToolPhase.SUCCESS ? "Created Activity" : phase == ToolPhase.FAILED ? "Creating Activity Failed" : "Creating Activity";
+                break;
+            case "delete_activity":
+                title = phase == ToolPhase.SUCCESS ? "Deleted Activity" : phase == ToolPhase.FAILED ? "Deleting Activity Failed" : "Deleting Activity";
+                break;
+            case "get_layout":
+                title = phase == ToolPhase.SUCCESS ? "Loaded Layout" : phase == ToolPhase.FAILED ? "Loading Layout Failed" : "Loading Layout";
+                break;
+            case "edit_layout":
+                title = phase == ToolPhase.SUCCESS ? "Updated Layout" : phase == ToolPhase.FAILED ? "Updating Layout Failed" : "Updating Layout";
+                break;
+            case "add_string_resource":
+                title = phase == ToolPhase.SUCCESS ? "Added String Resource" : phase == ToolPhase.FAILED ? "Adding String Resource Failed" : "Adding String Resource";
+                break;
+            case "add_color_resource":
+                title = phase == ToolPhase.SUCCESS ? "Added Color Resource" : phase == ToolPhase.FAILED ? "Adding Color Resource Failed" : "Adding Color Resource";
+                break;
+            case "list_resources":
+                title = phase == ToolPhase.SUCCESS ? "Listed Resources" : phase == ToolPhase.FAILED ? "Listing Resources Failed" : "Listing Resources";
+                break;
+            case "get_compile_logs":
+                title = phase == ToolPhase.SUCCESS ? "Loaded Compile Logs" : phase == ToolPhase.FAILED ? "Loading Compile Logs Failed" : "Loading Compile Logs";
+                break;
+            case "get_project_structure":
+                title = phase == ToolPhase.SUCCESS ? "Loaded Project Structure" : phase == ToolPhase.FAILED ? "Loading Project Structure Failed" : "Loading Project Structure";
+                break;
+            case "build_project":
+                title = phase == ToolPhase.SUCCESS ? "Built Project" : phase == ToolPhase.FAILED ? "Building Project Failed" : "Building Project";
+                break;
+            case "list_libraries":
+                title = phase == ToolPhase.SUCCESS ? "Listed Libraries" : phase == ToolPhase.FAILED ? "Listing Libraries Failed" : "Listing Libraries";
+                break;
+            case "validate_libraries":
+                title = phase == ToolPhase.SUCCESS ? "Validated Libraries" : phase == ToolPhase.FAILED ? "Validating Libraries Failed" : "Validating Libraries";
+                break;
+            case "add_library":
+                title = phase == ToolPhase.SUCCESS ? "Added Library" : phase == ToolPhase.FAILED ? "Adding Library Failed" : "Adding Library";
+                break;
+            case "remove_library":
+                title = phase == ToolPhase.SUCCESS ? "Removed Library" : phase == ToolPhase.FAILED ? "Removing Library Failed" : "Removing Library";
+                break;
+            case "attach_local_library":
+                title = phase == ToolPhase.SUCCESS ? "Attached Library" : phase == ToolPhase.FAILED ? "Attaching Library Failed" : "Attaching Library";
+                break;
+            case "detach_local_library":
+                title = phase == ToolPhase.SUCCESS ? "Detached Library" : phase == ToolPhase.FAILED ? "Detaching Library Failed" : "Detaching Library";
+                break;
+            case "download_dependency":
+                title = phase == ToolPhase.SUCCESS ? "Downloaded Dependency" : phase == ToolPhase.FAILED ? "Downloading Dependency Failed" : "Downloading Dependency";
+                break;
+            default:
+                String fallback = humanizeSnakeCase(toolName);
+                title = phase == ToolPhase.SUCCESS ? fallback : phase == ToolPhase.FAILED ? fallback + " Failed" : fallback;
+                break;
+        }
+        return subject == null ? title : title + " \"" + subject + "\"";
+    }
+
+    @Nullable
+    private static String resolveToolSubject(@NonNull String toolName, @Nullable JsonObject arguments,
+                                             @Nullable JsonObject successPayload,
+                                             @Nullable JsonObject failurePayload) {
+        switch (toolName) {
+            case "create_project":
+                return firstNonBlank(jsonString(successPayload, "app_name"), jsonString(successPayload, "workspace_name"),
+                        jsonString(arguments, "app_name"), jsonString(arguments, "project_name"));
+            case "duplicate_project":
+                return firstNonBlank(jsonString(successPayload, "app_name"), jsonString(arguments, "new_app_name"),
+                        prefixedScId(jsonString(successPayload, "sc_id")));
+            case "delete_project":
+            case "build_project":
+            case "get_project_info":
+            case "get_project_structure":
+            case "get_compile_logs":
+            case "validate_libraries":
+            case "list_libraries":
+            case "list_resources":
+            case "list_files":
+            case "list_activities":
+            case "list_projects":
+                return null;
+            case "create_activity":
+            case "delete_activity":
+            case "get_layout":
+            case "edit_layout":
+                return firstNonBlank(jsonString(successPayload, "activity_name"), jsonString(arguments, "activity_name"));
+            case "read_file":
+            case "write_file":
+            case "delete_file":
+                return leafName(firstNonBlank(jsonString(successPayload, "file_path"), jsonString(arguments, "file_path")));
+            case "copy_file":
+            case "move_file":
+                return leafName(firstNonBlank(jsonString(successPayload, "target"), jsonString(arguments, "target_path")));
+            case "add_string_resource":
+            case "add_color_resource":
+                return firstNonBlank(jsonString(successPayload, "key"), jsonString(arguments, "key"));
+            case "add_library":
+            case "remove_library":
+            case "attach_local_library":
+            case "detach_local_library":
+                return firstNonBlank(jsonString(successPayload, "library_name"), jsonString(arguments, "library_name"));
+            case "download_dependency":
+                return firstNonBlank(jsonString(successPayload, "dependency"), jsonString(arguments, "dependency"));
+            default:
+                return firstNonBlank(jsonString(successPayload, "name"), jsonString(failurePayload, "name"));
+        }
+    }
+
+    @DrawableRes
+    private static int resolveToolIcon(@NonNull String toolName) {
+        switch (toolName) {
+            case "create_project":
+            case "delete_project":
+            case "duplicate_project":
+            case "list_projects":
+            case "get_project_info":
+                return R.drawable.ic_mtrl_folder;
+            case "read_file":
+            case "list_files":
+                return R.drawable.ic_mtrl_file;
+            case "write_file":
+                return R.drawable.ic_mtrl_save;
+            case "delete_file":
+                return R.drawable.ic_mtrl_delete;
+            case "copy_file":
+            case "move_file":
+                return R.drawable.ic_mtrl_database_moved;
+            case "list_activities":
+            case "create_activity":
+            case "delete_activity":
+                return R.drawable.ic_mtrl_screen;
+            case "get_layout":
+            case "edit_layout":
+                return R.drawable.ic_mtrl_design;
+            case "add_string_resource":
+                return R.drawable.ic_mtrl_text_change;
+            case "add_color_resource":
+                return R.drawable.ic_mtrl_pick_color;
+            case "list_resources":
+                return R.drawable.ic_mtrl_palette;
+            case "get_compile_logs":
+                return R.drawable.ic_mtrl_bug_report;
+            case "get_project_structure":
+                return R.drawable.ic_mtrl_folder_code;
+            case "build_project":
+                return R.drawable.ic_mtrl_deployed_code;
+            case "list_libraries":
+            case "add_library":
+            case "remove_library":
+            case "attach_local_library":
+            case "detach_local_library":
+                return R.drawable.ic_mtrl_package;
+            case "download_dependency":
+                return R.drawable.ic_mtrl_download;
+            case "validate_libraries":
+                return R.drawable.ic_mtrl_verified_user;
+            default:
+                return R.drawable.ic_tool_call;
+        }
+    }
+
+    @DrawableRes
+    private static int resolveStatusIcon(@NonNull ToolPhase phase) {
+        switch (phase) {
+            case SUCCESS:
+                return R.drawable.ic_mtrl_check;
+            case FAILED:
+                return R.drawable.ic_mtrl_warning;
+            case RUNNING:
+            default:
+                return R.drawable.ic_mtrl_sync;
+        }
+    }
+
+    @NonNull
+    private static String humanizeSnakeCase(@Nullable String value) {
+        if (TextUtils.isEmpty(value)) {
+            return "Tool";
+        }
+        String[] parts = value.split("_");
+        StringBuilder builder = new StringBuilder();
+        for (String part : parts) {
+            if (part.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(Character.toUpperCase(part.charAt(0)));
+            if (part.length() > 1) {
+                builder.append(part.substring(1));
+            }
+        }
+        return builder.length() == 0 ? "Tool" : builder.toString();
+    }
+
+    @Nullable
+    private static String jsonString(@Nullable JsonObject object, @NonNull String key) {
+        if (object == null || !object.has(key) || !object.get(key).isJsonPrimitive()) {
+            return null;
+        }
+        String value = object.get(key).getAsString();
+        return trimToNull(value);
+    }
+
+    @Nullable
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            String trimmed = trimToNull(value);
+            if (trimmed != null) {
+                return trimmed;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private static String prefixedScId(@Nullable String scId) {
+        String value = trimToNull(scId);
+        return value == null ? null : "#" + value;
+    }
+
+    @Nullable
+    private static String leafName(@Nullable String path) {
+        String value = trimToNull(path);
+        if (value == null) {
+            return null;
+        }
+        int slashIndex = value.lastIndexOf('/');
+        int colonIndex = value.lastIndexOf(':');
+        int separatorIndex = Math.max(slashIndex, colonIndex);
+        return separatorIndex >= 0 ? value.substring(separatorIndex + 1) : value;
+    }
+
+    @Nullable
+    private static String trimToNull(@Nullable String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     static class UserViewHolder extends RecyclerView.ViewHolder {
@@ -470,7 +920,7 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 binding.reasoningDetail.setText(thoughtSummary);
             }
 
-            boolean hasMessageContent = !TextUtils.isEmpty(content);
+            boolean hasMessageContent = !TextUtils.isEmpty(content) && item.toolStates.isEmpty();
             binding.messageContent.setVisibility(hasMessageContent ? View.VISIBLE : View.GONE);
             if (hasMessageContent) {
                 markwon.setMarkdown(binding.messageContent, content);
@@ -478,14 +928,25 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
             binding.toolsContainer.removeAllViews();
             LayoutInflater inflater = LayoutInflater.from(binding.getRoot().getContext());
-            for (ToolUiState state : item.toolStates) {
+            int cardSpacing = (int) TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP,
+                    10,
+                    binding.getRoot().getResources().getDisplayMetrics());
+            for (int i = 0; i < item.toolStates.size(); i++) {
+                ToolUiState state = item.toolStates.get(i);
                 ItemChatToolCallBinding toolBinding = ItemChatToolCallBinding.inflate(inflater, binding.toolsContainer, false);
+                View toolView = toolBinding.getRoot();
+                ViewGroup.LayoutParams layoutParams = toolView.getLayoutParams();
+                if (layoutParams instanceof ViewGroup.MarginLayoutParams) {
+                    ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) layoutParams;
+                    margins.topMargin = i == 0 ? 0 : cardSpacing;
+                    toolView.setLayoutParams(margins);
+                }
                 bindToolCard(toolBinding, state, artifactActionListener);
-                binding.toolsContainer.addView(toolBinding.getRoot());
+                binding.toolsContainer.addView(toolView);
             }
             binding.toolsContainer.setVisibility(item.toolStates.isEmpty() ? View.GONE : View.VISIBLE);
         }
-
 
         @Nullable
         private String extractThoughtSummary(@NonNull ChatItem item) {
@@ -508,28 +969,17 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         private void bindToolCard(@NonNull ItemChatToolCallBinding binding,
                                   @NonNull ToolUiState state,
                                   @Nullable OnArtifactActionListener artifactActionListener) {
-            ToolCall toolCall = state.toolCall;
-            binding.toolName.setText(toolCall.getName() != null ? toolCall.getName() : "Tool");
-            binding.toolArguments.setText(summarizeToolArguments(toolCall.getArguments()));
+            ToolVisualSpec visualSpec = buildToolVisualSpec(state);
+            binding.toolName.setText(visualSpec.title);
+            binding.toolIcon.setImageResource(visualSpec.toolIconRes);
+            binding.toolStatusIcon.setImageResource(visualSpec.statusIconRes);
+            binding.toolPreview.setText("");
+            binding.toolPreview.setVisibility(View.GONE);
+            binding.toolDetails.setText(visualSpec.details);
+            binding.toolDetails.setVisibility(state.expanded ? View.VISIBLE : View.GONE);
+            binding.expandIcon.setRotation(state.expanded ? 180f : 0f);
 
             ToolResult result = state.toolResult;
-            if (result == null) {
-                binding.toolStatusIcon.setImageResource(R.drawable.ic_mtrl_sync);
-                binding.toolStatus.setText(!TextUtils.isEmpty(state.status) ? state.status : "Running");
-                binding.toolResult.setVisibility(View.GONE);
-            } else if (result.isSuccess()) {
-                binding.toolStatusIcon.setImageResource(R.drawable.ic_mtrl_check);
-                binding.toolStatus.setText(!TextUtils.isEmpty(state.status) ? state.status : "Completed");
-                String summary = summarizeToolResult(result);
-                binding.toolResult.setVisibility(TextUtils.isEmpty(summary) ? View.GONE : View.VISIBLE);
-                binding.toolResult.setText(summary);
-            } else {
-                binding.toolStatusIcon.setImageResource(R.drawable.ic_mtrl_warning);
-                binding.toolStatus.setText(!TextUtils.isEmpty(state.status) ? state.status : "Failed");
-                binding.toolResult.setVisibility(View.VISIBLE);
-                binding.toolResult.setText(summarizeToolResult(result));
-            }
-
             LinearProgressIndicator progress = binding.toolProgress;
             if (result == null || state.indeterminate || (state.progress >= 0 && state.progress < 100)) {
                 progress.setVisibility(View.VISIBLE);
@@ -543,13 +993,18 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
             MaterialButton installButton = binding.btnInstallArtifact;
             String artifactPath = extractInstallableArtifactPath(result);
-            if (!TextUtils.isEmpty(artifactPath) && artifactActionListener != null) {
+            if (!TextUtils.isEmpty(artifactPath) && artifactActionListener != null && state.expanded) {
                 installButton.setVisibility(View.VISIBLE);
                 installButton.setOnClickListener(v -> artifactActionListener.onInstallArtifact(artifactPath));
             } else {
                 installButton.setVisibility(View.GONE);
                 installButton.setOnClickListener(null);
             }
+
+            binding.getRoot().setOnClickListener(v -> {
+                state.expanded = !state.expanded;
+                bindToolCard(binding, state, artifactActionListener);
+            });
         }
     }
 }

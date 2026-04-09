@@ -57,7 +57,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Thinking..."
-                android:textAppearance="?attr/textAppearanceLabelMedium"
+                android:textAppearance="@style/TextAppearance.SketchwarePro.LabelMedium"
                 android:textColor="?attr/colorOnSurfaceVariant" />
 
             <TextView
@@ -79,7 +79,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
         android:lineSpacingExtra="3dp"
-        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textAppearance="@style/TextAppearance.SketchwarePro.BodyMedium"
         android:textColor="?attr/colorOnSurface"
         android:textIsSelectable="true"
         android:visibility="gone" />
@@ -89,8 +89,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:dividerPadding="6dp"
         android:orientation="vertical"
-        android:showDividers="middle"
         android:visibility="gone" />
 </LinearLayout>

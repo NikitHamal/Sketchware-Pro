@@ -119,7 +119,6 @@ public class ToolRegistry {
         registry.register(new CompileTools.GetCompileLogsTool());
         registry.register(new CompileTools.GetProjectStructureTool());
         registry.register(new BuildTools.BuildProjectTool());
-        registry.register(new BuildTools.RunProjectTool());
 
         // Library and dependency tools
         registry.register(new LibraryTools.ListLibrariesTool());
