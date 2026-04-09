@@ -18,12 +18,10 @@ import mod.hey.studios.editor.manage.block.ExtraBlockInfo;
 import mod.hey.studios.editor.manage.block.v2.BlockLoader;
 import mod.hey.studios.moreblock.ReturnMoreblockManager;
 import mod.pranav.viewbinding.ViewBindingBuilder;
+import pro.sketchware.compiler.CustomBlockFormatHelper;
 import pro.sketchware.compiler.GeneratedCodeSyntaxFixer;
 
 public class Fx {
-
-    private static final Pattern PARAM_PATTERN = Pattern.compile("%m(?!\\.[\\w]+)");
-    private static final Pattern FORMAT_SPECIFIER_PATTERN = Pattern.compile("%(?:(\\d+)\\$)?s");
     public final boolean isViewBindingEnabled;
     private final ArrayList<String> viewParamsTypes = new ArrayList<>(List.of(
             "%m.view", "%m.layout", "%m.textview", "%m.button", "%m.edittext", "%m.imageview", "%m.recyclerview",
@@ -85,28 +83,14 @@ public class Fx {
     }
 
     private boolean hasEmptySelectorParam(ArrayList<String> params, String spec) {
-        var matcher = PARAM_PATTERN.matcher(spec);
-        if (!matcher.find()) {
-            var paramMatcher = Pattern.compile("%[bdsm]").matcher(spec);
-            int count = 0;
-            ArrayList<Integer> selectorParamPositions = new ArrayList<>();
-            while (paramMatcher.find()) {
-                String param = paramMatcher.group();
-                if ("%m".equals(param)) {
-                    selectorParamPositions.add(count);
-                }
-                count++;
+        ArrayList<String> paramTypes = extractParamsTypes(spec);
+        for (int position = 0; position < paramTypes.size() && position < params.size(); position++) {
+            if (!paramTypes.get(position).startsWith("%m")) {
+                continue;
             }
-            if (!selectorParamPositions.isEmpty()) {
-                for (int position : selectorParamPositions) {
-                    if (position >= params.size()) {
-                        continue;
-                    }
-                    var param = params.get(position);
-                    if (param == null || param.isEmpty()) {
-                        return true;
-                    }
-                }
+            String param = params.get(position);
+            if (param == null || param.isEmpty()) {
+                return true;
             }
         }
         return false;
@@ -1422,7 +1406,6 @@ public class Fx {
     }
 
     private String getCodeExtraBlock(BlockBean blockBean, String var2) {
-        ArrayList<String> parameters = new ArrayList<>();
         ArrayList<String> paramsTypes = extractParamsTypes(blockBean.spec);
 
         ExtraBlockInfo blockInfo = BlockLoader.getBlockInfo(blockBean.opCode);
@@ -1431,11 +1414,40 @@ public class Fx {
         }
 
         String codeTemplate = blockInfo.getCode();
+        int stackCount = getSupportedStackCount(blockBean.type);
+        CustomBlockFormatHelper.ValidationResult validation =
+                CustomBlockFormatHelper.validateDefinition(codeTemplate, paramsTypes.size(), stackCount);
+        if (!validation.isValid()) {
+            return "/* Invalid Custom Block definition (" + blockBean.opCode + "): "
+                    + validation.errorMessage() + " */";
+        }
 
-        for (int i = 0; i < blockBean.parameters.size(); i++) {
-            String parameterSpec = i < paramsTypes.size() ? paramsTypes.get(i) : "";
-            String parameterValue = getParamValue(blockBean.parameters.get(i), parameterSpec);
-            int parameterType = getBlockType(blockBean, i);
+        ArrayList<String> parameters = buildCustomBlockFormatArguments(blockBean, paramsTypes, stackCount, var2);
+
+        String formattedCode;
+        if (!parameters.isEmpty() || validation.analysis().highestPlaceholderIndex() > 0) {
+            try {
+                formattedCode = String.format(codeTemplate, parameters.toArray(new Object[0]));
+            } catch (Exception e) {
+                formattedCode = "/* Failed to resolve Custom Block code (" + blockBean.opCode + "): "
+                        + e.getMessage() + " */";
+            }
+        } else {
+            formattedCode = codeTemplate;
+        }
+
+        return sanitizeMalformedGeneratedCode(formattedCode);
+    }
+
+    private ArrayList<String> buildCustomBlockFormatArguments(BlockBean blockBean, ArrayList<String> paramsTypes,
+                                                              int stackCount, String emptyStackFallback) {
+        ArrayList<String> parameters = new ArrayList<>(paramsTypes.size() + stackCount);
+
+        for (int i = 0; i < paramsTypes.size(); i++) {
+            String parameterSpec = paramsTypes.get(i);
+            String rawParameterValue = i < blockBean.parameters.size() ? blockBean.parameters.get(i) : "";
+            String parameterValue = getParamValue(rawParameterValue, parameterSpec);
+            int parameterType = resolveParameterType(blockBean, i, parameterSpec);
 
             if (parameterValue == null || parameterValue.trim().isEmpty()) {
                 parameters.add(getExtraBlockDefaultValue(parameterType, parameterSpec));
@@ -1444,23 +1456,14 @@ public class Fx {
             }
         }
 
-        parameters.add(blockBean.subStack1 >= 0 ? a(String.valueOf(blockBean.subStack1), var2) : "");
-        parameters.add(blockBean.subStack2 >= 0 ? a(String.valueOf(blockBean.subStack2), var2) : "");
-
-        ensureFormatArgumentsHaveSafeDefaults(codeTemplate, parameters);
-
-        String formattedCode;
-        if (!parameters.isEmpty()) {
-            try {
-                formattedCode = String.format(codeTemplate, parameters.toArray(new Object[0]));
-            } catch (Exception e) {
-                formattedCode = "/* Failed to resolve Custom Block's code: " + e + " */";
-            }
-        } else {
-            formattedCode = codeTemplate;
+        if (stackCount >= 1) {
+            parameters.add(blockBean.subStack1 >= 0 ? a(String.valueOf(blockBean.subStack1), emptyStackFallback) : "");
+        }
+        if (stackCount >= 2) {
+            parameters.add(blockBean.subStack2 >= 0 ? a(String.valueOf(blockBean.subStack2), emptyStackFallback) : "");
         }
 
-        return sanitizeMalformedGeneratedCode(formattedCode);
+        return parameters;
     }
 
     private String getExtraBlockDefaultValue(int parameterType, String parameterSpec) {
@@ -1485,80 +1488,15 @@ public class Fx {
                         || normalizedSpec.contains("double")) {
                     yield "0";
                 }
-                yield "";
+                if (normalizedSpec.equals("%a")) {
+                    yield "new java.util.HashMap<>()";
+                }
+                if (normalizedSpec.equals("%l")) {
+                    yield "new java.util.ArrayList<>()";
+                }
+                yield "null";
             }
         };
-    }
-
-    private void ensureFormatArgumentsHaveSafeDefaults(String codeTemplate, ArrayList<String> parameters) {
-        Matcher matcher = FORMAT_SPECIFIER_PATTERN.matcher(codeTemplate);
-        int nextSequentialArgument = 0;
-
-        while (matcher.find()) {
-            int argumentIndex;
-            String explicitIndex = matcher.group(1);
-            if (explicitIndex != null) {
-                argumentIndex = Integer.parseInt(explicitIndex) - 1;
-            } else {
-                argumentIndex = nextSequentialArgument;
-                nextSequentialArgument++;
-            }
-
-            while (argumentIndex >= parameters.size()) {
-                parameters.add("");
-            }
-
-            String currentValue = parameters.get(argumentIndex);
-            if (currentValue == null || currentValue.trim().isEmpty()) {
-                parameters.set(argumentIndex, inferDefaultValueFromCodeContext(codeTemplate, matcher.start(), matcher.end()));
-            }
-        }
-    }
-
-    private String inferDefaultValueFromCodeContext(String codeTemplate, int placeholderStart, int placeholderEnd) {
-        String before = codeTemplate.substring(Math.max(0, placeholderStart - 64), placeholderStart).toLowerCase();
-        String after = codeTemplate.substring(placeholderEnd, Math.min(codeTemplate.length(), placeholderEnd + 64)).toLowerCase();
-        String context = before + after;
-
-        if (before.matches("(?s).*\\b(if|while)\\s*\\(\\s*$")) {
-            return "false";
-        }
-
-        if (before.matches("(?s).*\\bswitch\\s*\\(\\s*\\(\\s*int\\s*\\)\\s*$")
-                || before.matches("(?s).*\\bcase\\s*\\(\\(\\s*int\\s*\\)\\s*$")
-                || context.contains("math.max(0, ((int)")
-                || context.contains("math.max(0, (int)")) {
-            return "0";
-        }
-
-        if (before.contains("requestoverlaydisplaypermission(")) {
-            return isActivity ? activityName + ".this" : "requireActivity()";
-        }
-
-        if (context.contains("(float)") || context.contains("(double)") || context.contains("(int)")
-                || context.contains("(long)") || context.contains("(short)") || context.contains("(byte)")
-                || context.contains("radius") || context.contains("spacing") || context.contains("elevation")
-                || context.contains("setsize") || context.contains("maxlength") || context.contains("counter")) {
-            return "0";
-        }
-
-        if (before.contains(".this") || after.contains(".this")) {
-            return isActivity ? activityName : "requireActivity()";
-        }
-
-        if (context.contains("color")) {
-            return "0";
-        }
-
-        if (before.matches("(?s).*\\b(if|while|for)\\s*\\([^)]*$")) {
-            return "false";
-        }
-
-        if (after.trim().startsWith(")") || after.trim().startsWith(",")) {
-            return "null";
-        }
-
-        return "";
     }
 
     private String sanitizeMalformedGeneratedCode(String formattedCode) {
@@ -1574,21 +1512,43 @@ public class Fx {
         return sanitized;
     }
 
-    private int getBlockType(BlockBean blockBean, int parameterIndex) {
-        int blockType;
-
-        Gx paramClassInfo = blockBean.getParamClassInfo().get(parameterIndex);
-
-        if (paramClassInfo.b("boolean")) {
-            blockType = 0;
-        } else if (paramClassInfo.b("double")) {
-            blockType = 1;
-        } else if (paramClassInfo.b("String")) {
-            blockType = 2;
-        } else {
-            blockType = 3;
+    private int resolveParameterType(BlockBean blockBean, int parameterIndex, String parameterSpec) {
+        ArrayList<Gx> paramClassInfos = blockBean.getParamClassInfo();
+        if (parameterIndex < paramClassInfos.size()) {
+            Gx paramClassInfo = paramClassInfos.get(parameterIndex);
+            if (paramClassInfo.b("boolean")) {
+                return 0;
+            }
+            if (paramClassInfo.b("double")) {
+                return 1;
+            }
+            if (paramClassInfo.b("String")) {
+                return 2;
+            }
         }
 
-        return blockType;
+        String normalizedSpec = parameterSpec == null ? "" : parameterSpec.toLowerCase();
+        if (normalizedSpec.equals("%b")) {
+            return 0;
+        }
+        if (normalizedSpec.equals("%d") || normalizedSpec.equals("%n") || normalizedSpec.equals("%m.color")) {
+            return 1;
+        }
+        if (normalizedSpec.equals("%s")) {
+            return 2;
+        }
+        return 3;
+    }
+
+    private int getBlockType(BlockBean blockBean, int parameterIndex) {
+        return resolveParameterType(blockBean, parameterIndex, "");
+    }
+
+    private int getSupportedStackCount(String blockType) {
+        return switch (blockType) {
+            case "c" -> 1;
+            case "e" -> 2;
+            default -> 0;
+        };
     }
 }

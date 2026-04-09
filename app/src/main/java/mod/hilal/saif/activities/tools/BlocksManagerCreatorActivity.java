@@ -44,6 +44,7 @@ import pro.sketchware.R;
 import pro.sketchware.databinding.ActivityBlocksManagerCreatorBinding;
 import pro.sketchware.lib.base.BaseTextWatcher;
 import pro.sketchware.lib.highlighter.SimpleHighlighter;
+import pro.sketchware.compiler.CustomBlockFormatHelper;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.PropertiesUtil;
 import pro.sketchware.utility.SketchwareUtil;
@@ -51,7 +52,6 @@ import pro.sketchware.utility.SketchwareUtil;
 public class BlocksManagerCreatorActivity extends BaseAppCompatActivity {
 
     private static final Pattern PARAM_PATTERN = Pattern.compile("%m(?!\\.[\\w]+)");
-    private static final Pattern FORMAT_PLACEHOLDER_PATTERN = Pattern.compile("%(?:(\\d+)\\$)?s");
     private final ArrayList<String> id_detector = new ArrayList<>();
     private ActivityBlocksManagerCreatorBinding binding;
     private ArrayList<HashMap<String, Object>> blocksList = new ArrayList<>();
@@ -514,14 +514,13 @@ public class BlocksManagerCreatorActivity extends BaseAppCompatActivity {
             default -> 0;
         };
 
-        int highestPlaceholderIndex = getHighestCodePlaceholderIndex(code);
-        int maxSupportedPlaceholder = parameterCount + stackCount;
-        if (highestPlaceholderIndex > maxSupportedPlaceholder) {
-            return "Code references placeholder %" + highestPlaceholderIndex + "$s but this block only provides "
-                    + maxSupportedPlaceholder + " value(s)";
+        CustomBlockFormatHelper.ValidationResult validation =
+                CustomBlockFormatHelper.validateDefinition(code, parameterCount, stackCount);
+        if (!validation.isValid()) {
+            return validation.errorMessage();
         }
 
-        if (stackCount > 0 && !referencesPlaceholderRange(code, parameterCount + 1, parameterCount + stackCount)) {
+        if (stackCount > 0 && !validation.analysis().referencesRange(parameterCount + 1, parameterCount + stackCount)) {
             return "Control blocks must use their stack placeholder(s) in code";
         }
 
@@ -542,51 +541,6 @@ public class BlocksManagerCreatorActivity extends BaseAppCompatActivity {
             count++;
         }
         return count;
-    }
-
-    private int getHighestCodePlaceholderIndex(String code) {
-        Matcher matcher = FORMAT_PLACEHOLDER_PATTERN.matcher(code);
-        int highestIndex = 0;
-        int nextSequentialIndex = 1;
-
-        while (matcher.find()) {
-            String explicitIndex = matcher.group(1);
-            int currentIndex;
-            if (explicitIndex != null) {
-                currentIndex = Integer.parseInt(explicitIndex);
-            } else {
-                currentIndex = nextSequentialIndex;
-                nextSequentialIndex++;
-            }
-            highestIndex = Math.max(highestIndex, currentIndex);
-        }
-
-        return highestIndex;
-    }
-
-    private boolean referencesPlaceholderRange(String code, int startIndex, int endIndex) {
-        if (startIndex > endIndex) {
-            return false;
-        }
-
-        Matcher matcher = FORMAT_PLACEHOLDER_PATTERN.matcher(code);
-        int nextSequentialIndex = 1;
-        while (matcher.find()) {
-            String explicitIndex = matcher.group(1);
-            int currentIndex;
-            if (explicitIndex != null) {
-                currentIndex = Integer.parseInt(explicitIndex);
-            } else {
-                currentIndex = nextSequentialIndex;
-                nextSequentialIndex++;
-            }
-
-            if (currentIndex >= startIndex && currentIndex <= endIndex) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private void addBlock() {
