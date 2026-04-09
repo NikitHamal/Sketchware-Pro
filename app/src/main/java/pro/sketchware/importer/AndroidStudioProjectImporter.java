@@ -1010,7 +1010,7 @@ public class AndroidStudioProjectImporter {
                             position += destChannel.transferFrom(sourceChannel, position, size - position);
                         }
                     } catch (IOException e) {
-                        e.printStackTrace();
+                        Log.e(TAG, "Failed to copy local jar: " + file.getAbsolutePath(), e);
                     }
                 } else if (name.endsWith(".aar")) {
                     importAarAsLocalLibrary(scId, file);
