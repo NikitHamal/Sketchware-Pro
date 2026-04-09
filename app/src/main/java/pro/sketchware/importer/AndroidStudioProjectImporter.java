@@ -128,8 +128,19 @@ public class AndroidStudioProjectImporter {
     }
 
     private void notifyProgress(String stage) {
-        if (progressListener != null && !TextUtils.isEmpty(stage)) {
-            progressListener.onProgress(stage);
+        if (TextUtils.isEmpty(stage)) {
+            return;
+        }
+        notifyProgress(new ImportProgress("Importing project", stage, 0, 0, true, null));
+    }
+
+    private void notifyProgress(String title, String detail, int currentStep, int totalSteps, boolean indeterminate, String statusLine) {
+        notifyProgress(new ImportProgress(title, detail, currentStep, totalSteps, indeterminate, statusLine));
+    }
+
+    private void notifyProgress(ImportProgress progress) {
+        if (progressListener != null && progress != null) {
+            progressListener.onProgress(progress);
         }
     }
 
@@ -291,15 +302,22 @@ public class AndroidStudioProjectImporter {
 
         ensureProjectDirectories(scId);
 
-        notifyProgress("Copying source sets, resources, assets, and native libraries...");
+        int dependencyWorkItems = Math.max(1, gradle.dependencies.size());
+        int totalProgressSteps = dependencyWorkItems + 4;
+        int normalizeStep = dependencyWorkItems + 2;
+        int registerStep = dependencyWorkItems + 3;
+        int finalizeStep = dependencyWorkItems + 4;
+
+        notifyProgress("Copying project contents",
+                "Copying source sets, resources, assets, native libraries, and checked-in artifacts into the Sketchware workspace.",
+                1, totalProgressSteps, false, "Preparing imported project structure");
         copySourceTree(detectedProject.sourceRoots, new File(filePathUtil.getPathJava(scId)));
         copyResources(detectedProject.resDirectories, new File(filePathUtil.getPathResource(scId)));
         copyDirectories(detectedProject.assetsDirectories, new File(filePathUtil.getPathAssets(scId)));
         copyDirectories(detectedProject.jniLibsDirectories, new File(filePathUtil.getPathNativelibs(scId)));
         importLocalJarsAndAars(detectedProject.libsDirectories, scId);
 
-        notifyProgress("Resolving Maven dependencies and local libraries...");
-        List<String> dependencyWarnings = resolveAndRegisterDependencies(scId, gradle.dependencies);
+        DependencyResolutionReport dependencyReport = resolveAndRegisterDependencies(scId, gradle.dependencies, totalProgressSteps, 2);
 
         if (!manifest.permissions.isEmpty()) {
             FileUtil.writeFile(filePathUtil.getPathPermission(scId), gson.toJson(manifest.permissions));
@@ -317,14 +335,25 @@ public class AndroidStudioProjectImporter {
         result.sourceType = sourceType;
         result.sourceLabel = sourceType.equals("android_studio_zip") ? detectedProject.archiveLabel : detectedProject.rootDirectory.getName();
         result.importedDependencies.addAll(gradle.dependencies);
+        result.satisfiedByBundledDependencies.addAll(dependencyReport.satisfiedByBundled);
+        result.reusedLocalDependencies.addAll(dependencyReport.reusedLocal);
+        result.downloadedDependencies.addAll(dependencyReport.downloaded);
+        result.manualDependencyActions.addAll(dependencyReport.unresolved);
         result.unsupportedFeatures.addAll(gradle.warnings);
-        result.warnings.addAll(dependencyWarnings);
+        result.warnings.addAll(dependencyReport.warnings);
 
-        notifyProgress("Normalizing imported resources and launcher icons...");
+        notifyProgress("Normalizing imported resources",
+                "Reconciling launcher icons, resource qualifiers, and raw manifest preservation for the imported project.",
+                normalizeStep, totalProgressSteps, false, "Optimizing imported resources");
         normalizeImportedProjectResources(scId, manifest, new File(filePathUtil.getPathJava(scId)),
                 new File(filePathUtil.getPathResource(scId)), result);
-        notifyProgress("Registering screens, custom views, and manifest-backed source files...");
+        notifyProgress("Registering screens and custom views",
+                "Linking imported activities, layouts, and custom views into Sketchware's project model.",
+                registerStep, totalProgressSteps, false, "Registering visual surfaces");
         materializeActivitiesAndCustomViews(scId, manifest, detectedProject, result);
+        notifyProgress("Finalizing imported project",
+                "Applying detected library settings, writing import reports, and preparing the project for editing.",
+                finalizeStep, totalProgressSteps, false, "Saving import report and library state");
         applyDetectedThemeAndLibraryState(scId, gradle, manifest, detectedProject, result);
         writeImportedComponentIndexes(scId, manifest);
         writeImportMetadata(scId, sourceType, false);
@@ -906,11 +935,13 @@ public class AndroidStudioProjectImporter {
         return filename.substring(0, extensionIndex);
     }
 
-    private List<String> resolveAndRegisterDependencies(String scId, List<String> dependencies) {
-        ArrayList<String> warnings = new ArrayList<>();
+    private DependencyResolutionReport resolveAndRegisterDependencies(String scId, List<String> dependencies,
+                                                                     int totalProgressSteps, int dependencyStepStart) {
+        DependencyResolutionReport report = new DependencyResolutionReport();
         ArrayList<HashMap<String, Object>> localLibraries = LocalLibrariesUtil.getLocalLibraries(scId);
         Set<String> existingDependencies = new LinkedHashSet<>();
         Set<String> existingLibraryNames = new LinkedHashSet<>();
+        Set<String> availableGlobalLibraryNames = collectGlobalLocalLibraryNames();
         for (HashMap<String, Object> localLibrary : localLibraries) {
             Object dependency = localLibrary.get("dependency");
             if (dependency != null) {
@@ -921,39 +952,87 @@ public class AndroidStudioProjectImporter {
                 existingLibraryNames.add(String.valueOf(name));
             }
         }
+
         if (dependencies.isEmpty()) {
-            return warnings;
+            notifyProgress("Checking dependencies",
+                    "No direct Maven dependencies were declared. Sketchware will rely on built-in libraries only when the imported project configuration requires them.",
+                    dependencyStepStart, totalProgressSteps, false, "No external dependency downloads required");
+            return report;
         }
 
         BuiltInLibraries.maybeExtractAndroidJar();
         BuiltInLibraries.maybeExtractCoreLambdaStubsJar();
 
+        int dependencyIndex = 0;
         for (String dependency : dependencies) {
+            dependencyIndex++;
+            int progressStep = dependencyStepStart + dependencyIndex - 1;
+            String stepLabel = "Dependency " + dependencyIndex + " of " + dependencies.size();
+
             if (existingDependencies.contains(dependency)) {
-                continue;
-            }
-            String[] parts = dependency.split(":", 3);
-            if (parts.length != 3) {
+                notifyProgress("Skipping duplicate dependency", dependency, progressStep, totalProgressSteps, false, stepLabel + " • already attached to project");
                 continue;
             }
 
-            notifyProgress("Resolving dependency " + dependency + "...");
+            String[] parts = dependency.split(":", 3);
+            if (parts.length != 3) {
+                String warning = "Dependency declaration '" + dependency + "' could not be parsed automatically. Review this dependency manually in the imported project.";
+                report.warnings.add(warning);
+                report.unresolved.add(dependency);
+                notifyProgress("Dependency needs manual review", warning, progressStep, totalProgressSteps, false, stepLabel + " • unsupported declaration");
+                continue;
+            }
+
+            BuiltInDependencyRegistry.Match bundledMatch = BuiltInDependencyRegistry.findBundled(parts[0], parts[1], parts[2]);
+            if (bundledMatch != null && bundledMatch.isSatisfiedByBundled()) {
+                existingDependencies.add(dependency);
+                report.satisfiedByBundled.add(bundledMatch.toDisplayLine());
+                notifyProgress("Using bundled library", bundledMatch.toDisplayLine(), progressStep, totalProgressSteps, false, stepLabel + " • satisfied by Sketchware");
+                continue;
+            }
+
+            if (bundledMatch != null) {
+                String warning = "Dependency '" + dependency + "' requests a newer version than Sketchware's bundled "
+                        + bundledMatch.bundledLibraryName + ". The importer will resolve the external artifact instead of forcing the older bundled copy.";
+                report.warnings.add(warning);
+            }
+
+            String rootLibraryName = sanitizeLibraryName(parts[1] + "-v" + parts[2]);
+            if (availableGlobalLibraryNames.contains(rootLibraryName)) {
+                if (!existingLibraryNames.contains(rootLibraryName)) {
+                    localLibraries.add(LocalLibrariesUtil.createLibraryMap(rootLibraryName, dependency));
+                    existingLibraryNames.add(rootLibraryName);
+                }
+                existingDependencies.add(dependency);
+                report.reusedLocal.add(dependency + " -> existing local library " + rootLibraryName);
+                notifyProgress("Reusing downloaded local library", dependency + " -> " + rootLibraryName, progressStep, totalProgressSteps, false, stepLabel + " • cached artifact reused");
+                continue;
+            }
+
+            notifyProgress("Resolving external dependency", dependency, progressStep, totalProgressSteps, false, stepLabel + " • download and dex required");
             List<String> resolvedArtifacts;
             try {
                 resolvedArtifacts = resolveDependencyArtifactsWithTimeout(scId, parts[0], parts[1], parts[2]);
             } catch (Exception exception) {
                 Log.e(TAG, "Dependency resolution failed for " + dependency, exception);
-                warnings.add("Dependency '" + dependency + "' could not be resolved automatically: " + exception.getMessage());
+                String warning = "Dependency '" + dependency + "' could not be resolved automatically: " + exception.getMessage();
+                report.warnings.add(warning);
+                report.unresolved.add(dependency);
                 continue;
             }
 
             if (resolvedArtifacts.isEmpty()) {
-                String fallbackLibraryName = sanitizeLibraryName(parts[1] + "-v" + parts[2]);
-                warnings.add("Dependency '" + dependency + "' did not report any downloaded artifacts. Sketchware registered '" + fallbackLibraryName + "', but you may need to download it manually.");
-                resolvedArtifacts = Collections.singletonList(fallbackLibraryName);
+                availableGlobalLibraryNames = collectGlobalLocalLibraryNames();
+                if (availableGlobalLibraryNames.contains(rootLibraryName)) {
+                    resolvedArtifacts = Collections.singletonList(rootLibraryName);
+                } else {
+                    String warning = "Dependency '" + dependency + "' finished without a usable local library output. Review this dependency manually from Local Libraries if the imported project fails to build.";
+                    report.warnings.add(warning);
+                    report.unresolved.add(dependency);
+                    continue;
+                }
             }
 
-            String rootLibraryName = sanitizeLibraryName(parts[1] + "-v" + parts[2]);
             for (String artifactName : resolvedArtifacts) {
                 String safeArtifactName = sanitizeLibraryName(artifactName);
                 if (existingLibraryNames.contains(safeArtifactName)) {
@@ -964,9 +1043,22 @@ public class AndroidStudioProjectImporter {
                 existingLibraryNames.add(safeArtifactName);
             }
             existingDependencies.add(dependency);
+            availableGlobalLibraryNames = collectGlobalLocalLibraryNames();
+            report.downloaded.add(dependency);
         }
+
         LocalLibrariesUtil.rewriteLocalLibFile(scId, gson.toJson(localLibraries));
-        return warnings;
+        return report;
+    }
+
+    private Set<String> collectGlobalLocalLibraryNames() {
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        for (dev.aldi.sayuti.editor.manage.LocalLibrary library : LocalLibrariesUtil.getAllLocalLibraries()) {
+            if (library != null && library.getName() != null) {
+                names.add(library.getName());
+            }
+        }
+        return names;
     }
 
     private List<String> resolveDependencyArtifactsWithTimeout(String scId, String groupId, String artifactId, String version) throws Exception {
@@ -1214,8 +1306,10 @@ public class AndroidStudioProjectImporter {
 
     private String buildSummary(ImportResult result, ManifestSummary manifest) {
         return "Imported " + result.visualScreens.size() + " screen(s), "
-                + result.visualCustomViews.size() + " custom view(s), "
-                + result.importedDependencies.size() + " dependency declaration(s), and "
+                + result.visualCustomViews.size() + " custom view(s), satisfied "
+                + result.satisfiedByBundledDependencies.size() + " dependency declaration(s) with bundled libraries, reused "
+                + result.reusedLocalDependencies.size() + " cached local librar" + (result.reusedLocalDependencies.size() == 1 ? "y" : "ies") + ", downloaded "
+                + result.downloadedDependencies.size() + " external dependenc" + (result.downloadedDependencies.size() == 1 ? "y" : "ies") + ", and preserved "
                 + manifest.permissions.size() + " manifest permission(s).";
     }
 
@@ -1239,7 +1333,11 @@ public class AndroidStudioProjectImporter {
         appendSection(sb, "Visual / registered screens", result.visualScreens);
         appendSection(sb, "Visual / registered custom views", result.visualCustomViews);
         appendSection(sb, "Code-only notes", result.codeOnlyFiles);
-        appendSection(sb, "Dependencies", result.importedDependencies);
+        appendSection(sb, "Dependency declarations", result.importedDependencies);
+        appendSection(sb, "Satisfied by bundled libraries", result.satisfiedByBundledDependencies);
+        appendSection(sb, "Reused cached local libraries", result.reusedLocalDependencies);
+        appendSection(sb, "Downloaded external dependencies", result.downloadedDependencies);
+        appendSection(sb, "Dependencies requiring manual review", result.manualDependencyActions);
         appendSection(sb, "Warnings", result.warnings);
         appendSection(sb, "Unsupported / degraded features", result.unsupportedFeatures);
         FileUtil.writeFile(wq.b(result.scId) + File.separator + "import_report.txt", sb.toString());
@@ -2615,7 +2713,12 @@ public class AndroidStudioProjectImporter {
         if (responseCode < 200 || responseCode >= 300) {
             throw new IOException("GitHub archive download failed with HTTP " + responseCode);
         }
-        copyStreamToFile(connection.getInputStream(), targetZip);
+        try (InputStream inputStream = connection.getInputStream()) {
+            copyStreamToFileWithProgress(inputStream, targetZip, connection.getContentLengthLong(),
+                    "Downloading GitHub archive", spec.owner + "/" + spec.repo + "#" + spec.branch);
+        } finally {
+            connection.disconnect();
+        }
     }
 
     private void safeExtract(File zipFile, File outputDirectory) throws IOException {
@@ -2678,6 +2781,45 @@ public class AndroidStudioProjectImporter {
         return normalized;
     }
 
+    private void copyStreamToFileWithProgress(InputStream inputStream, File file, long expectedBytes, String title, String label) throws IOException {
+        file.getParentFile().mkdirs();
+        long totalRead = 0L;
+        long lastPublishedBytes = 0L;
+        long lastPublishTime = 0L;
+        try (FileOutputStream outputStream = new FileOutputStream(file, false)) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, read);
+                totalRead += read;
+                long now = System.currentTimeMillis();
+                if (expectedBytes > 0 && (totalRead - lastPublishedBytes >= (256L * 1024L) || now - lastPublishTime >= 200L)) {
+                    int percent = (int) Math.min(100L, (totalRead * 100L) / expectedBytes);
+                    notifyProgress(title,
+                            label + "\n" + humanReadableBytes(totalRead) + " / " + humanReadableBytes(expectedBytes),
+                            0, 0, true, percent + "% downloaded");
+                    lastPublishedBytes = totalRead;
+                    lastPublishTime = now;
+                }
+            }
+            outputStream.flush();
+        }
+    }
+
+    private String humanReadableBytes(long bytes) {
+        if (bytes <= 0) {
+            return "0 B";
+        }
+        String[] units = {"B", "KB", "MB", "GB"};
+        double value = bytes;
+        int unitIndex = 0;
+        while (value >= 1024.0 && unitIndex < units.length - 1) {
+            value /= 1024.0;
+            unitIndex++;
+        }
+        return String.format(Locale.US, unitIndex == 0 ? "%.0f %s" : "%.1f %s", value, units[unitIndex]);
+    }
+
     private static void copyStreamToFile(InputStream inputStream, File file) throws IOException {
         file.getParentFile().mkdirs();
         try (FileOutputStream outputStream = new FileOutputStream(file, false)) {
@@ -2710,6 +2852,10 @@ public class AndroidStudioProjectImporter {
         public final ArrayList<String> visualCustomViews = new ArrayList<>();
         public final ArrayList<String> codeOnlyFiles = new ArrayList<>();
         public final ArrayList<String> importedDependencies = new ArrayList<>();
+        public final ArrayList<String> satisfiedByBundledDependencies = new ArrayList<>();
+        public final ArrayList<String> reusedLocalDependencies = new ArrayList<>();
+        public final ArrayList<String> downloadedDependencies = new ArrayList<>();
+        public final ArrayList<String> manualDependencyActions = new ArrayList<>();
         public final ArrayList<String> warnings = new ArrayList<>();
         public final ArrayList<String> unsupportedFeatures = new ArrayList<>();
 
@@ -2726,6 +2872,30 @@ public class AndroidStudioProjectImporter {
             }
             if (!TextUtils.isEmpty(sourceLabel)) {
                 sb.append("Source: ").append(sourceLabel).append('\n');
+            }
+            if (!satisfiedByBundledDependencies.isEmpty()) {
+                sb.append("\nSatisfied by bundled libraries:\n");
+                for (String line : satisfiedByBundledDependencies) {
+                    sb.append("• ").append(line).append('\n');
+                }
+            }
+            if (!reusedLocalDependencies.isEmpty()) {
+                sb.append("\nReused cached local libraries:\n");
+                for (String line : reusedLocalDependencies) {
+                    sb.append("• ").append(line).append('\n');
+                }
+            }
+            if (!downloadedDependencies.isEmpty()) {
+                sb.append("\nDownloaded external dependencies:\n");
+                for (String line : downloadedDependencies) {
+                    sb.append("• ").append(line).append('\n');
+                }
+            }
+            if (!manualDependencyActions.isEmpty()) {
+                sb.append("\nDependencies needing manual review:\n");
+                for (String line : manualDependencyActions) {
+                    sb.append("• ").append(line).append('\n');
+                }
             }
             if (!visualScreens.isEmpty()) {
                 sb.append("\nScreens:\n");
@@ -2753,6 +2923,14 @@ public class AndroidStudioProjectImporter {
             }
             return sb.toString().trim();
         }
+    }
+
+    private static class DependencyResolutionReport {
+        final ArrayList<String> satisfiedByBundled = new ArrayList<>();
+        final ArrayList<String> reusedLocal = new ArrayList<>();
+        final ArrayList<String> downloaded = new ArrayList<>();
+        final ArrayList<String> unresolved = new ArrayList<>();
+        final ArrayList<String> warnings = new ArrayList<>();
     }
 
     private static class DetectedProject {
@@ -2835,7 +3013,50 @@ public class AndroidStudioProjectImporter {
     }
 
     public interface ImportProgressListener {
-        void onProgress(String stage);
+        void onProgress(ImportProgress progress);
+    }
+
+    public static class ImportProgress {
+        public final String title;
+        public final String detail;
+        public final int currentStep;
+        public final int totalSteps;
+        public final boolean indeterminate;
+        public final String statusLine;
+
+        public ImportProgress(String title, String detail, int currentStep, int totalSteps, boolean indeterminate, String statusLine) {
+            this.title = title;
+            this.detail = detail;
+            this.currentStep = currentStep;
+            this.totalSteps = totalSteps;
+            this.indeterminate = indeterminate || totalSteps <= 0;
+            this.statusLine = statusLine;
+        }
+
+        public int getPercent() {
+            if (indeterminate || totalSteps <= 0) {
+                return 0;
+            }
+            int boundedStep = Math.max(0, Math.min(currentStep, totalSteps));
+            return (boundedStep * 100) / totalSteps;
+        }
+
+        public String getStatusLineOrDefault() {
+            if (!TextUtils.isEmpty(statusLine)) {
+                return statusLine;
+            }
+            if (indeterminate || totalSteps <= 0) {
+                return "Working...";
+            }
+            return "Step " + currentStep + " of " + totalSteps;
+        }
+
+        public String toDisplayText() {
+            if (TextUtils.isEmpty(detail)) {
+                return title;
+            }
+            return title + "\n" + detail;
+        }
     }
 
     private static class AdaptiveIconSpec {

@@ -4,14 +4,18 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.LayoutInflater;
+import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.Toolbar;
 
 import com.besome.sketch.lib.base.BaseAppCompatActivity;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
 import com.google.android.material.textfield.TextInputEditText;
 
 import a.a.a.MA;
@@ -30,6 +34,11 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
     private TextInputEditText githubUrlInput;
     private TextInputEditText branchInput;
     private TextInputEditText tokenInput;
+    private Button pickZipButton;
+    private Button importZipButton;
+    private Button importFolderButton;
+    private Button importGithubButton;
+    private ImportProgressDialogController progressDialogController;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -51,10 +60,11 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
         githubUrlInput = findViewById(R.id.et_github_url);
         branchInput = findViewById(R.id.et_branch);
         tokenInput = findViewById(R.id.et_token);
-        Button pickZipButton = findViewById(R.id.btn_pick_zip);
-        Button importZipButton = findViewById(R.id.btn_import_zip);
-        Button importFolderButton = findViewById(R.id.btn_import_folder);
-        Button importGithubButton = findViewById(R.id.btn_import_github);
+        pickZipButton = findViewById(R.id.btn_pick_zip);
+        importZipButton = findViewById(R.id.btn_import_zip);
+        importFolderButton = findViewById(R.id.btn_import_folder);
+        importGithubButton = findViewById(R.id.btn_import_github);
+        progressDialogController = new ImportProgressDialogController();
 
         pickZipButton.setOnClickListener(v -> pickZip());
         importZipButton.setOnClickListener(v -> {
@@ -102,6 +112,26 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
         }
     }
 
+    private void setImportUiEnabled(boolean enabled) {
+        pickZipButton.setEnabled(enabled);
+        importZipButton.setEnabled(enabled);
+        importFolderButton.setEnabled(enabled);
+        importGithubButton.setEnabled(enabled);
+        folderPathInput.setEnabled(enabled);
+        githubUrlInput.setEnabled(enabled);
+        branchInput.setEnabled(enabled);
+        tokenInput.setEnabled(enabled);
+    }
+
+    private void updateProgressUi(AndroidStudioProjectImporter.ImportProgress progress) {
+        if (progress == null) {
+            return;
+        }
+        progressDialogController.show();
+        progressDialogController.update(progress);
+        statusText.setText(progress.toDisplayText());
+    }
+
     private void showResult(AndroidStudioProjectImporter.ImportResult result) {
         statusText.setText(result.toDisplayText());
         new MaterialAlertDialogBuilder(this)
@@ -111,6 +141,14 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
                 .show();
     }
 
+    @Override
+    protected void onDestroy() {
+        if (progressDialogController != null) {
+            progressDialogController.dismiss();
+        }
+        super.onDestroy();
+    }
+
     private class ImportTask extends MA {
         private static final int MODE_ZIP = 1;
         private static final int MODE_FOLDER = 2;
@@ -118,24 +156,38 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
 
         private final int mode;
         private AndroidStudioProjectImporter.ImportResult result;
+        private volatile AndroidStudioProjectImporter.ImportProgress latestProgress;
 
         public ImportTask(int mode) {
             super(ImportAndroidStudioProjectActivity.this);
             this.mode = mode;
             addTask(this);
-            k();
+            setImportUiEnabled(false);
             if (mode == MODE_ZIP) {
-                statusText.setText("Importing Android Studio ZIP...");
+                updateProgressUi(new AndroidStudioProjectImporter.ImportProgress(
+                        "Preparing ZIP import",
+                        "Opening the selected Android Studio archive and validating that Sketchware can read it safely.",
+                        0, 0, true, "Waiting for archive analysis"
+                ));
             } else if (mode == MODE_FOLDER) {
-                statusText.setText("Importing Android Studio project folder...");
+                updateProgressUi(new AndroidStudioProjectImporter.ImportProgress(
+                        "Preparing folder import",
+                        "Scanning the selected project folder and validating the Android module structure before import.",
+                        0, 0, true, "Waiting for folder analysis"
+                ));
             } else {
-                statusText.setText("Downloading and importing GitHub repo...");
+                updateProgressUi(new AndroidStudioProjectImporter.ImportProgress(
+                        "Preparing GitHub import",
+                        "Connecting to GitHub, resolving the target branch, and downloading the repository archive.",
+                        0, 0, true, "Connecting to GitHub"
+                ));
             }
         }
 
         @Override
         public void a() {
-            h();
+            setImportUiEnabled(true);
+            progressDialogController.dismiss();
             if (result != null) {
                 showResult(result);
             }
@@ -143,14 +195,23 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
 
         @Override
         public void a(String errorMessage) {
-            h();
+            setImportUiEnabled(true);
+            progressDialogController.dismiss();
             statusText.setText(errorMessage);
             SketchwareUtil.showAnErrorOccurredDialog(ImportAndroidStudioProjectActivity.this, errorMessage);
         }
 
         @Override
+        protected void onCancelled() {
+            setImportUiEnabled(true);
+            progressDialogController.dismiss();
+        }
+
+        @Override
         protected void onProgressUpdate(String... values) {
-            if (values != null && values.length > 0 && values[0] != null) {
+            if (latestProgress != null) {
+                updateProgressUi(latestProgress);
+            } else if (values != null && values.length > 0 && values[0] != null) {
                 statusText.setText(values[0]);
             }
         }
@@ -159,7 +220,10 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
         public void b() throws a.a.a.By {
             try {
                 AndroidStudioProjectImporter importer = new AndroidStudioProjectImporter(ImportAndroidStudioProjectActivity.this)
-                        .setProgressListener(stage -> publishProgress(stage));
+                        .setProgressListener(progress -> {
+                            latestProgress = progress;
+                            publishProgress(progress.getStatusLineOrDefault());
+                        });
                 if (mode == MODE_ZIP) {
                     result = importer.importFromZipUri(selectedZipUri);
                 } else if (mode == MODE_FOLDER) {
@@ -177,6 +241,64 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
                 }
             } catch (Exception e) {
                 throw new a.a.a.By(e.getMessage() == null ? e.toString() : e.getMessage());
+            }
+        }
+    }
+
+    private final class ImportProgressDialogController {
+        private AlertDialog dialog;
+        private TextView titleView;
+        private TextView statusView;
+        private TextView stepView;
+        private TextView percentView;
+        private TextView detailView;
+        private LinearProgressIndicator progressIndicator;
+
+        void show() {
+            if (dialog == null) {
+                View view = LayoutInflater.from(ImportAndroidStudioProjectActivity.this)
+                        .inflate(R.layout.dialog_import_progress, null, false);
+                titleView = view.findViewById(R.id.tv_progress_title);
+                statusView = view.findViewById(R.id.tv_progress_status);
+                stepView = view.findViewById(R.id.tv_progress_step);
+                percentView = view.findViewById(R.id.tv_progress_percent);
+                detailView = view.findViewById(R.id.tv_progress_detail);
+                progressIndicator = view.findViewById(R.id.progress_indicator);
+                dialog = new MaterialAlertDialogBuilder(ImportAndroidStudioProjectActivity.this)
+                        .setView(view)
+                        .setCancelable(false)
+                        .create();
+            }
+            if (!isFinishing() && !dialog.isShowing()) {
+                dialog.show();
+            }
+        }
+
+        void update(AndroidStudioProjectImporter.ImportProgress progress) {
+            if (progress == null) {
+                return;
+            }
+            show();
+            titleView.setText(TextUtils.isEmpty(progress.title) ? "Importing project" : progress.title);
+            statusView.setText(progress.getStatusLineOrDefault());
+            detailView.setText(TextUtils.isEmpty(progress.detail)
+                    ? "Analyzing the import source and preparing the Sketchware project."
+                    : progress.detail);
+            if (progress.indeterminate || progress.totalSteps <= 0) {
+                progressIndicator.setIndeterminate(true);
+                stepView.setText("Working...");
+                percentView.setText("");
+            } else {
+                progressIndicator.setIndeterminate(false);
+                progressIndicator.setProgressCompat(progress.getPercent(), true);
+                stepView.setText("Step " + progress.currentStep + " of " + progress.totalSteps);
+                percentView.setText(progress.getPercent() + "%");
+            }
+        }
+
+        void dismiss() {
+            if (dialog != null && dialog.isShowing()) {
+                dialog.dismiss();
             }
         }
     }
