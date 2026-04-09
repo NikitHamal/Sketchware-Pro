@@ -125,6 +125,12 @@ import mod.jbk.util.LogUtil;
 import mod.pranav.viewbinding.ViewBindingBuilder;
 import pro.sketchware.R;
 import pro.sketchware.activities.editor.view.CodeViewerActivity;
+import pro.sketchware.activities.editor.view.JavaToBlocksImportActivity;
+import pro.sketchware.blocks.importer.JavaToBlocksConversionResult;
+import pro.sketchware.blocks.importer.JavaToBlocksConverter;
+import pro.sketchware.blocks.importer.JavaToBlocksMetadataStore;
+import pro.sketchware.blocks.importer.JavaToBlocksProjectScopeFactory;
+import pro.sketchware.blocks.importer.JavaToBlocksScope;
 import pro.sketchware.activities.resourceseditor.ResourcesEditorActivity;
 import pro.sketchware.databinding.ImagePickerItemBinding;
 import pro.sketchware.databinding.SearchWithRecyclerViewBinding;
@@ -161,6 +167,12 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
         if (result.getResultCode() == RESULT_OK) {
             paletteSelector.performClickPalette(-1);
         }
+    });
+    private final ActivityResultLauncher<Intent> openJavaToBlocksImporter = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+        if (result.getResultCode() != RESULT_OK || result.getData() == null) {
+            return;
+        }
+        importJavaToBlocks(result.getData().getStringExtra(JavaToBlocksImportActivity.EXTRA_CODE));
     });
     private Rs w;
     private float posInitY, posInitX, s, t;
@@ -1986,9 +1998,75 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
             showSourceCode();
         } else if (itemId == R.id.menu_logic_edit_generated_java) {
             editGeneratedJava();
+        } else if (itemId == R.id.menu_logic_import_java_to_blocks) {
+            launchJavaToBlocksImporter();
         }
 
         return super.onOptionsItemSelected(menuItem);
+    }
+
+    private void launchJavaToBlocksImporter() {
+        if (M == null) {
+            return;
+        }
+
+        Intent intent = new Intent(this, JavaToBlocksImportActivity.class);
+        intent.putExtra(JavaToBlocksImportActivity.EXTRA_CODE, getCurrentGeneratedEventSource());
+        intent.putExtra(JavaToBlocksImportActivity.EXTRA_SC_ID, scId);
+        intent.putExtra(JavaToBlocksImportActivity.EXTRA_TITLE, id.equals("_fab") ? "fab" : ReturnMoreblockManager.getMbName(id));
+        intent.putExtra(JavaToBlocksImportActivity.EXTRA_SUBTITLE, getIntent().getStringExtra("event_text"));
+        openJavaToBlocksImporter.launch(intent);
+    }
+
+    private String getCurrentGeneratedEventSource() {
+        yq yq = new yq(this, scId);
+        yq.a(jC.c(scId), jC.b(scId), jC.a(scId));
+        return new Fx(M.getActivityName(), yq.N, o.getBlocks(), isViewBindingEnabled).a();
+    }
+
+    private void importJavaToBlocks(String source) {
+        if (M == null) {
+            return;
+        }
+        try {
+            String eventTitleSpec = resolveCurrentEventTitleSpec();
+            JavaToBlocksScope scope = JavaToBlocksProjectScopeFactory.create(scId, M, eventTitleSpec, isViewBindingEnabled);
+            JavaToBlocksConversionResult result = JavaToBlocksConverter.convert(source, scope);
+            if (result.hasErrors() && result.getBlocks().isEmpty()) {
+                new MaterialAlertDialogBuilder(this)
+                        .setTitle("Java to Blocks import failed")
+                        .setMessage(result.buildSummary())
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show();
+                return;
+            }
+
+            String eventKey = id + "_" + eventName;
+            jC.a(scId).a(M.getJavaName(), eventKey, result.getBlocks());
+            JavaToBlocksMetadataStore.persist(this, scId, M.getJavaName(), eventKey, source, result);
+
+            String title = result.hasOpaqueNodes()
+                    ? "Imported with source-backed fallback blocks"
+                    : "Imported Java to blocks";
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle(title)
+                    .setMessage(result.buildSummary())
+                    .setCancelable(false)
+                    .setPositiveButton("Reload editor", (dialog, which) -> recreate())
+                    .show();
+        } catch (Exception e) {
+            SketchwareUtil.showAnErrorOccurredDialog(this, Log.getStackTraceString(e));
+        }
+    }
+
+    private String resolveCurrentEventTitleSpec() {
+        if (eventName.equals("moreBlock")) {
+            return getString(R.string.root_spec_common_define) + " " + ReturnMoreblockManager.getLogicEditorTitle(jC.a(scId).b(M.getJavaName(), id));
+        }
+        if (id.equals("_fab")) {
+            return xB.b().a(getContext(), "fab", eventName);
+        }
+        return xB.b().a(getContext(), id, eventName);
     }
 
     private void editGeneratedJava() {

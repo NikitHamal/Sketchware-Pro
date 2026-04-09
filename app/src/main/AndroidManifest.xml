@@ -355,6 +355,10 @@
             android:configChanges="orientation|screenSize" />
 
         <activity
+            android:name=".activities.editor.view.JavaToBlocksImportActivity"
+            android:configChanges="orientation|screenSize" />
+
+        <activity
             android:name=".activities.preview.LayoutPreviewActivity"
             android:configChanges="orientation|screenSize" />
 

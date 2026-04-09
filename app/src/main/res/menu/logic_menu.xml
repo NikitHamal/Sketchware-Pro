@@ -31,6 +31,13 @@
 
 
     <item
+        android:id="@+id/menu_logic_import_java_to_blocks"
+        android:icon="@drawable/ic_mtrl_save"
+        android:orderInCategory="100"
+        android:title="Import Java to Blocks"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/menu_logic_edit_generated_java"
         android:icon="@drawable/ic_mtrl_edit"
         android:orderInCategory="100"
