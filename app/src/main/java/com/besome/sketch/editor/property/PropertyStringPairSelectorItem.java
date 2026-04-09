@@ -114,36 +114,25 @@ public class PropertyStringPairSelectorItem extends RelativeLayout implements Vi
         dialog.setIcon(icon);
         View view = wB.a(getContext(), R.layout.property_popup_selector_single);
         radioGroupContent = view.findViewById(R.id.rg_content);
-        int counter = 0;
+
+        boolean found = false;
         for (Pair<String, String> pair : sq.b(key)) {
-            radioGroupContent.addView(getOption(pair));
-        }
-        int childCount = radioGroupContent.getChildCount();
-        while (true) {
-            if (counter >= childCount) {
-                break;
+            RadioButton option = getOption(pair);
+            radioGroupContent.addView(option);
+            if (!found && option.getTag().toString().equals(value)) {
+                option.setChecked(true);
+                found = true;
             }
-            RadioButton radioButton = (RadioButton) radioGroupContent.getChildAt(counter);
-            if (radioButton.getTag().toString().equals(value)) {
-                radioButton.setChecked(true);
-                break;
-            }
-            counter++;
         }
+
         dialog.setView(view);
         dialog.setPositiveButton(Helper.getResString(R.string.common_word_select), (v, which) -> {
-            int childCount1 = radioGroupContent.getChildCount();
-            int counter1 = 0;
-            while (true) {
-                if (counter1 >= childCount1) {
-                    break;
-                }
-                RadioButton radioButton = (RadioButton) radioGroupContent.getChildAt(counter1);
+            for (int i = 0; i < radioGroupContent.getChildCount(); i++) {
+                RadioButton radioButton = (RadioButton) radioGroupContent.getChildAt(i);
                 if (radioButton.isChecked()) {
                     setValue(radioButton.getTag().toString());
                     break;
                 }
-                counter1++;
             }
             if (valueChangeListener != null) {
                 valueChangeListener.a(key, value);
