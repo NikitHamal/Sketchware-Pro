@@ -127,47 +127,47 @@ dependencies {
 
     implementation libs.bundles.image
 
-    implementation platform(libs.sora.editor)
+    implementation platform(libs.sora_editor)
     implementation libs.bundles.editor.and.lang
 
     implementation libs.bundles.coil
 
     // Flavor-specific dependencies
-    android26Implementation libs.bundletool26
-    android33Implementation libs.bundletool33
+    android26Implementation libs.bundletool_26
+    android33Implementation libs.bundletool_33
 
-    android26Implementation libs.protobuf.java26
-    android33Implementation libs.protobuf.java33
+    android26Implementation libs.protobuf_java_26
+    android33Implementation libs.protobuf_java_33
 
-    android26Implementation(libs.sdklib26) {
+    android26Implementation(libs.sdklib_26) {
         exclude group: "com.intellij", module: "annotations"
     }
-    android33Implementation(libs.sdklib33) {
+    android33Implementation(libs.sdklib_33) {
         exclude group: "com.intellij", module: "annotations"
     }
 
     android26Implementation libs.r8_26
     android33Implementation libs.r8_33
 
-    implementation libs.zipalign.java
+    implementation libs.zipalign_java
 
     implementation libs.gson
-    implementation libs.scpkix.jdk15on
+    implementation libs.scpkix_jdk15on
 
     implementation libs.markwon
 
     implementation libs.bundles.networking
 
     // Flavor-specific ECJ
-    android26Implementation libs.ecj26
-    android33Implementation libs.ecj33
+    android26Implementation libs.ecj_26
+    android33Implementation libs.ecj_33
 
-    implementation libs.stax.api
+    implementation libs.stax_api
 
-    implementation libs.bundles.kotlin.compiler
+    implementation libs.bundles.kotlin_compiler
 
     testImplementation "junit:junit:4.13.2"
-    compileOnly libs.kotlin.compiler
+    compileOnly libs.kotlin_compiler
 
     implementation libs.dependencyresolver
     implementation libs.filepicker
@@ -176,10 +176,10 @@ dependencies {
     implementation libs.insetter
 
     // Flavor-specific JavaParser
-    android26Implementation(libs.javaparser.symbol.solver26) {
+    android26Implementation(libs.javaparser_symbol_solver_26) {
         exclude group: "com.google.guava", module: "guava"
     }
-    android33Implementation(libs.javaparser.symbol.solver33) {
+    android33Implementation(libs.javaparser_symbol_solver_33) {
         exclude group: "com.google.guava", module: "guava"
     }
 
@@ -187,12 +187,12 @@ dependencies {
     if (analyticsEnabled) {
         new File("$projectDir/google-services.json").text = secrets
     }
-    implementation platform(libs.firebase.bom)
-    implementation libs.firebase.crashlytics
-    implementation libs.firebase.analytics
-    implementation libs.firebase.messaging
+    implementation platform(libs.firebase_bom)
+    implementation libs.firebase_crashlytics
+    implementation libs.firebase_analytics
+    implementation libs.firebase_messaging
 
-    coreLibraryDesugaring libs.desugar.jdk.libs.nio
+    coreLibraryDesugaring libs.desugar_jdk_libs_nio
 
     // New dependencies from Daydream
     implementation libs.zip4j
