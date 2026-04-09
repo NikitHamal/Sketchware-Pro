@@ -31,7 +31,7 @@ public final class GeneratedCodeSanitizer {
             return code;
         }
 
-        String sanitized = applySyntaxFixes(code);
+        String sanitized = GeneratedCodeSyntaxFixer.fix(code);
         try {
             CompilationUnit compilationUnit = StaticJavaParser.parse(sanitized);
             LexicalPreservingPrinter.setup(compilationUnit);
@@ -41,15 +41,6 @@ public final class GeneratedCodeSanitizer {
             // Keep the safe syntax-only fixes if parsing fails instead of risking destructive rewrites.
             return sanitized;
         }
-    }
-
-    private static String applySyntaxFixes(String code) {
-        String sanitized = code;
-        sanitized = sanitized.replaceAll("if\\s*\\(\\s*\\)\\s*\\{", "if (true) {");
-        sanitized = sanitized.replaceAll("else\\s+if\\s*\\(\\s*\\)\\s*\\{", "else if (true) {");
-        sanitized = sanitized.replaceAll("(\\.setProgress)\\s*\\(?\\s*([0-9]+)\\s*\\)?\\s*;", "$1($2);");
-        sanitized = sanitized.replaceAll("([A-Za-z_][A-Za-z0-9_]*Boolean)\\s*=\\s*;", "$1 = false;");
-        return sanitized;
     }
 
     private static final class SanitizingVisitor extends ModifierVisitor<SanitizerContext> {

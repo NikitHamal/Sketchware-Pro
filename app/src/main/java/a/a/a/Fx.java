@@ -18,6 +18,7 @@ import mod.hey.studios.editor.manage.block.ExtraBlockInfo;
 import mod.hey.studios.editor.manage.block.v2.BlockLoader;
 import mod.hey.studios.moreblock.ReturnMoreblockManager;
 import mod.pranav.viewbinding.ViewBindingBuilder;
+import pro.sketchware.compiler.GeneratedCodeSyntaxFixer;
 
 public class Fx {
 
@@ -1565,13 +1566,7 @@ public class Fx {
             return formattedCode;
         }
 
-        String sanitized = formattedCode;
-        sanitized = sanitized.replaceAll("\\(\\((?:int|long|short|byte)\\)\\)", "0");
-        sanitized = sanitized.replaceAll("\\(\\((?:float|double)\\)\\)", "0");
-        sanitized = sanitized.replaceAll("\\bif\\s*\\(\\s*\\)", "if (false)");
-        sanitized = sanitized.replaceAll("\\bwhile\\s*\\(\\s*\\)", "while (false)");
-        sanitized = sanitized.replaceAll("\\bswitch\\s*\\(\\s*\\(\\(int\\)\\)\\s*\\)", "switch(0)");
-        sanitized = sanitized.replaceAll("\\bcase\\s*\\(\\(int\\)\\)\\s*:", "case 0:");
+        String sanitized = GeneratedCodeSyntaxFixer.fix(formattedCode);
         sanitized = sanitized.replaceAll(
                 "(?s)(\\b[\\w$.]+\\.requestOverlayDisplayPermission\\s*\\()\\s*new\\s+View\\.OnClickListener\\s*\\(\\)\\s*\\{.*?\\}\\s*(\\))",
                 "$1" + (isActivity ? activityName + ".this" : "requireActivity()") + "$2"

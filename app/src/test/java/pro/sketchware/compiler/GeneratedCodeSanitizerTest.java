@@ -113,6 +113,33 @@ public class GeneratedCodeSanitizerTest {
     }
 
     @Test
+    public void syntaxFixerUsesConsistentSafeDefaultsAcrossGeneratorStages() {
+        String malformed = """
+                if () {
+                } else if () {
+                }
+                while () {
+                }
+                switch (((int))) {
+                    case ((int)):
+                        break;
+                }
+                progress.setProgress 7;
+                someBoolean = ;
+                """;
+
+        String fixed = GeneratedCodeSyntaxFixer.fix(malformed);
+
+        assertTrue(fixed.contains("if (false)"));
+        assertTrue(fixed.contains("else if (false)"));
+        assertTrue(fixed.contains("while (false)"));
+        assertTrue(fixed.contains("switch(0)"));
+        assertTrue(fixed.contains("case 0:"));
+        assertTrue(fixed.contains("progress.setProgress(7);"));
+        assertTrue(fixed.contains("someBoolean = false;"));
+    }
+
+    @Test
     public void normalizerDoesNotApplyActivitySanitizerToHelperClasses() {
         String code = """
                 package test;
