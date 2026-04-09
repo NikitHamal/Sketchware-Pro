@@ -127,8 +127,12 @@ dependencies {
 
     implementation libs.bundles.image
 
-    implementation platform(libs.sora_editor)
-    implementation libs.bundles.editor.and.lang
+    // Sora editor (BOM platform - direct coordinates to avoid version catalog naming issues)
+    def editorGroupId = "io.github.Rosemoe.sora-editor"
+    implementation platform("$editorGroupId:bom:0.23.5")
+    implementation "$editorGroupId:editor"
+    implementation "$editorGroupId:language-java"
+    implementation "$editorGroupId:language-textmate"
 
     implementation libs.bundles.coil
 
