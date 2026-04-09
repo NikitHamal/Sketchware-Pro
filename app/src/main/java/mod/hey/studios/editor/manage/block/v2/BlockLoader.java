@@ -20,6 +20,7 @@ import mod.hey.studios.editor.manage.block.ExtraBlockInfo;
 import mod.jbk.util.LogUtil;
 import pro.sketchware.R;
 import pro.sketchware.SketchApplication;
+import pro.sketchware.compiler.CustomBlockDefinitionValidator;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
 
@@ -54,23 +55,9 @@ public class BlockLoader {
     }
 
     public static ExtraBlockInfo getBlockFromProject(String sc_id, String block_name) {
-        File customBlocksConfig = new File(Environment.getExternalStorageDirectory(),
-                ".sketchware/data/" + sc_id + "/custom_blocks");
-        if (customBlocksConfig.exists()) {
-            try {
-                ArrayList<ExtraBlockInfo> extraBlocks = new Gson().fromJson(
-                        FileUtil.readFile(customBlocksConfig.getAbsolutePath()),
-                        new TypeToken<ArrayList<ExtraBlockInfo>>() {
-                        }.getType());
-
-                for (ExtraBlockInfo info : extraBlocks) {
-                    if (block_name.equals(info.getName())) {
-                        return info;
-                    }
-                }
-
-            } catch (Exception e) {
-                SketchwareUtil.toastError("Failed to get Custom Blocks for project " + sc_id + ": " + e.getMessage());
+        for (ExtraBlockInfo info : loadProjectBlocks(sc_id)) {
+            if (block_name.equals(info.getName())) {
+                return info;
             }
         }
 
@@ -78,6 +65,37 @@ public class BlockLoader {
         in.setName(block_name);
         in.isMissing = true;
         return in;
+    }
+
+    public static ArrayList<ExtraBlockInfo> loadProjectBlocks(String sc_id) {
+        ArrayList<ExtraBlockInfo> result = new ArrayList<>();
+        File customBlocksConfig = new File(Environment.getExternalStorageDirectory(),
+                ".sketchware/data/" + sc_id + "/custom_blocks");
+        if (!customBlocksConfig.exists()) {
+            return result;
+        }
+
+        try {
+            ArrayList<ExtraBlockInfo> extraBlocks = new Gson().fromJson(
+                    FileUtil.readFile(customBlocksConfig.getAbsolutePath()),
+                    new TypeToken<ArrayList<ExtraBlockInfo>>() {
+                    }.getType());
+            if (extraBlocks == null) {
+                return result;
+            }
+
+            for (ExtraBlockInfo info : extraBlocks) {
+                if (info == null) {
+                    continue;
+                }
+                applyValidation(info);
+                result.add(info);
+            }
+        } catch (Exception e) {
+            SketchwareUtil.toastError("Failed to get Custom Blocks for project " + sc_id + ": " + e.getMessage());
+        }
+
+        return result;
     }
 
     private static void loadCustomBlocks() {
@@ -119,6 +137,20 @@ public class BlockLoader {
 
                 if (spec2 instanceof String) {
                     info.setSpec2((String) spec2);
+                }
+            }
+
+            if (map.containsKey("type")) {
+                Object type = map.get("type");
+                if (type instanceof String) {
+                    info.setType((String) type);
+                }
+            }
+
+            if (map.containsKey("typeName")) {
+                Object typeName = map.get("typeName");
+                if (typeName instanceof String) {
+                    info.setTypeName((String) typeName);
                 }
             }
 
@@ -187,8 +219,19 @@ public class BlockLoader {
                 }
             }
 
+            applyValidation(info);
             blocks.add(info);
         }
+    }
+
+    private static void applyValidation(ExtraBlockInfo info) {
+        info.setType(CustomBlockDefinitionValidator.normalizeType(info.getType()));
+        info.setValidationError(CustomBlockDefinitionValidator.validate(
+                info.getName(),
+                info.getSpec(),
+                info.getCode(),
+                info.getType()
+        ));
     }
 
     /**

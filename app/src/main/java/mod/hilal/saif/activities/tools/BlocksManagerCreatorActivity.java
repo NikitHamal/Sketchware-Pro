@@ -42,9 +42,9 @@ import mod.hey.studios.util.Helper;
 import mod.hilal.saif.lib.PCP;
 import pro.sketchware.R;
 import pro.sketchware.databinding.ActivityBlocksManagerCreatorBinding;
+import pro.sketchware.compiler.CustomBlockDefinitionValidator;
 import pro.sketchware.lib.base.BaseTextWatcher;
 import pro.sketchware.lib.highlighter.SimpleHighlighter;
-import pro.sketchware.compiler.CustomBlockFormatHelper;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.PropertiesUtil;
 import pro.sketchware.utility.SketchwareUtil;
@@ -439,6 +439,8 @@ public class BlocksManagerCreatorActivity extends BaseAppCompatActivity {
         } else {
             binding.code.setHint("(Invalid code block data)");
         }
+
+        surfaceLegacyValidation(block);
     }
 
     private void getBlockList() {
@@ -492,55 +494,31 @@ public class BlocksManagerCreatorActivity extends BaseAppCompatActivity {
         String name = Helper.getText(binding.name).trim();
         String spec = Helper.getText(binding.spec).trim();
         String code = Helper.getText(binding.code);
-        String type = Helper.getText(binding.type).trim();
-
-        if (name.isEmpty()) {
-            return "Block name is required";
-        }
-        if (spec.isEmpty()) {
-            return "Block spec is required";
-        }
-        if (code.trim().isEmpty()) {
-            return "Block code is required";
-        }
-        if (Pattern.compile("%\\d+s").matcher(code).find()) {
-            return "Use String.format placeholders like %1$s, not %1s";
-        }
-
-        int parameterCount = extractSpecParameterCount(spec);
-        int stackCount = switch (type) {
-            case "c" -> 1;
-            case "e" -> 2;
-            default -> 0;
-        };
-
-        CustomBlockFormatHelper.ValidationResult validation =
-                CustomBlockFormatHelper.validateDefinition(code, parameterCount, stackCount);
-        if (!validation.isValid()) {
-            return validation.errorMessage();
-        }
-
-        if (stackCount > 0 && !validation.analysis().referencesRange(parameterCount + 1, parameterCount + stackCount)) {
-            return "Control blocks must use their stack placeholder(s) in code";
-        }
-
-        if (type.equals("c") && parameterCount == 0
-                && code.contains("requestOverlayDisplayPermission(")
-                && code.contains("%1$s")) {
-            return "Overlay permission blocks must declare an activity/context parameter instead of using the stack placeholder as the first argument";
-        }
-
-        return null;
+        String type = CustomBlockDefinitionValidator.normalizeType(Helper.getText(binding.type));
+        return CustomBlockDefinitionValidator.validate(name, spec, code, type);
     }
 
-    private int extractSpecParameterCount(String spec) {
-        Pattern pattern = Pattern.compile("%\\w+(?:\\.\\w+)?|%\\w");
-        Matcher matcher = pattern.matcher(spec);
-        int count = 0;
-        while (matcher.find()) {
-            count++;
+    private void surfaceLegacyValidation(HashMap<String, Object> block) {
+        String validationError = CustomBlockDefinitionValidator.validate(
+                block.get("name") instanceof String ? (String) block.get("name") : "",
+                block.get("spec") instanceof String ? (String) block.get("spec") : "",
+                block.get("code") instanceof String ? (String) block.get("code") : "",
+                block.get("type") instanceof String ? (String) block.get("type") : " "
+        );
+        if (validationError == null) {
+            binding.codeLayout.setError(null);
+            binding.codeLayout.setErrorEnabled(false);
+            return;
         }
-        return count;
+
+        binding.codeLayout.setError(validationError);
+        binding.codeLayout.setErrorEnabled(true);
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(Helper.getResString(R.string.common_word_warning))
+                .setMessage("This legacy custom block definition needs attention before it can be used safely.\n\n"
+                        + validationError + "\n\nReview the fields below and save the block to migrate it.")
+                .setPositiveButton("Review", null)
+                .show();
     }
 
     private void addBlock() {

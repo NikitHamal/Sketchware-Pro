@@ -6,7 +6,6 @@ import android.os.Environment;
 import com.besome.sketch.beans.BlockBean;
 import com.besome.sketch.beans.ProjectFileBean;
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -22,7 +21,6 @@ import a.a.a.kq;
 import dev.aldi.sayuti.block.ExtraBlockFile;
 import mod.hey.studios.editor.manage.block.ExtraBlockInfo;
 import mod.hey.studios.editor.manage.block.v2.BlockLoader;
-import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
 
 public class CustomBlocksManager {
@@ -109,10 +107,7 @@ public class CustomBlocksManager {
                 ".sketchware/data/" + sc_id + "/custom_blocks");
         if (customBlocksConfig.exists()) {
             try {
-                custom_blocks = new Gson().fromJson(
-                        FileUtil.readFile(customBlocksConfig.getAbsolutePath()),
-                        new TypeToken<ArrayList<ExtraBlockInfo>>() {
-                        }.getType());
+                custom_blocks = BlockLoader.loadProjectBlocks(sc_id);
             } catch (Exception e) {
                 SketchwareUtil.toastError("Failed to get Custom Blocks : " + e.getMessage());
             }

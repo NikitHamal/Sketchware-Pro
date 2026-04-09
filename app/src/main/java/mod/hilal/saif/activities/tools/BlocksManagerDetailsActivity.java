@@ -40,6 +40,7 @@ import dev.pranav.filepicker.FilePickerDialogFragment;
 import dev.pranav.filepicker.FilePickerOptions;
 import mod.hey.studios.util.Helper;
 import pro.sketchware.R;
+import pro.sketchware.compiler.CustomBlockDefinitionValidator;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
 
@@ -61,6 +62,15 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
     private ListView block_list;
     private LinearLayout background;
     private com.google.android.material.floatingactionbutton.FloatingActionButton fab_button;
+
+    private String getLegacyValidationError(HashMap<String, Object> block) {
+        return CustomBlockDefinitionValidator.validate(
+                block.get("name") instanceof String ? (String) block.get("name") : "",
+                block.get("spec") instanceof String ? (String) block.get("spec") : "",
+                block.get("code") instanceof String ? (String) block.get("code") : "",
+                block.get("type") instanceof String ? (String) block.get("type") : " "
+        );
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -601,6 +611,18 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
             } else {
                 spec.setText("");
                 spec.setHint("(Invalid block spec entry)");
+            }
+
+            int defaultSpecTextColor = spec.getCurrentTextColor();
+            String validationError = getLegacyValidationError(block);
+            if (validationError != null) {
+                if (blockName instanceof String blockNameString) {
+                    name.setText(blockNameString + " (needs migration)");
+                }
+                spec.setHint(validationError);
+                spec.setTextColor(getColor(R.color.md_theme_light_error));
+            } else {
+                spec.setTextColor(defaultSpecTextColor);
             }
 
             Object blockType = block.get("type");

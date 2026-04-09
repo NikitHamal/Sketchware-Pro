@@ -61,6 +61,7 @@ public class CustomBlocksDialog {
             customBlocks = customBlocksManager.getUsedBlocks();
 
             int missingBlocks = (int) customBlocks.stream().filter(this::isMissingBlock).count();
+            int invalidBlocks = (int) customBlocks.stream().filter(this::isInvalidBlock).count();
 
             if (!customBlocks.isEmpty()) {
 
@@ -79,6 +80,12 @@ public class CustomBlocksDialog {
                                 ? "There is one missing block"
                                 : "There are " + missingBlocks + " missing blocks";
                         SketchwareUtil.toastError(errorMsg);
+                    }
+
+                    if (invalidBlocks > 0) {
+                        subtitle += "\n" + (invalidBlocks == 1
+                                ? "1 block has a legacy definition issue and must be repaired before import."
+                                : invalidBlocks + " blocks have legacy definition issues and must be repaired before import.");
                     }
 
                     dialogBinding.subtitle.setText(subtitle);
@@ -231,6 +238,16 @@ public class CustomBlocksDialog {
         return blockInfo.isMissing && BlockLoader.getBlockFromProject(sc_id, block.opCode).isMissing;
     }
 
+    private boolean isInvalidBlock(@NonNull BlockBean block) {
+        ExtraBlockInfo projectBlock = BlockLoader.getBlockFromProject(sc_id, block.opCode);
+        return !projectBlock.isMissing && projectBlock.isInvalid();
+    }
+
+    private String getInvalidBlockReason(@NonNull BlockBean block) {
+        ExtraBlockInfo projectBlock = BlockLoader.getBlockFromProject(sc_id, block.opCode);
+        return projectBlock.getValidationError();
+    }
+
     private boolean validateInput(DialogPaletteBinding binding, String name, String color) {
         if (name.isEmpty()) {
             binding.name.setError("Name cannot be empty");
@@ -371,6 +388,8 @@ public class CustomBlocksDialog {
                         boolean reversedState = !binding.checkBox.isChecked();
                         binding.checkBox.setChecked(reversedState);
                         block.isSelected = reversedState;
+                    } else if (isInvalidBlock(block)) {
+                        SketchwareUtil.toastError("This block has a legacy definition issue: " + getInvalidBlockReason(block));
                     } else if (blockInfo.equals("Missing")) {
                         SketchwareUtil.toastError("This block is Missing");
                     } else {
@@ -381,12 +400,17 @@ public class CustomBlocksDialog {
 
             private boolean isBlockImportable(@NonNull BlockBean block) {
                 ExtraBlockInfo blockInfo = BlockLoader.getBlockInfo(block.opCode);
-                return blockInfo.isMissing && !BlockLoader.getBlockFromProject(sc_id, block.opCode).isMissing;
+                ExtraBlockInfo projectBlock = BlockLoader.getBlockFromProject(sc_id, block.opCode);
+                return blockInfo.isMissing && !projectBlock.isMissing && !projectBlock.isInvalid();
             }
 
             private String getBlockInfo(@NonNull BlockBean block) {
+                ExtraBlockInfo projectBlock = BlockLoader.getBlockFromProject(sc_id, block.opCode);
+                if (!projectBlock.isMissing && projectBlock.isInvalid()) {
+                    return "Invalid legacy definition";
+                }
                 ExtraBlockInfo blockInfo = BlockLoader.getBlockInfo(block.opCode);
-                if (BlockLoader.getBlockFromProject(sc_id, block.opCode).isMissing && blockInfo.isMissing) {
+                if (projectBlock.isMissing && blockInfo.isMissing) {
                     return "Missing";
                 }
                 return block.opCode;

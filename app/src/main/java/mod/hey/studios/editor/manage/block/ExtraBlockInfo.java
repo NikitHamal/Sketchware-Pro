@@ -3,12 +3,15 @@ package mod.hey.studios.editor.manage.block;
 public class ExtraBlockInfo {
 
     public transient boolean isMissing;
+    public transient String validationError;
     private String code = "";
     private int color = 0;
     private String name = "";
     private int paletteColor = 0;
     private String spec = "";
     private String spec2 = "";
+    private String type = " ";
+    private String typeName = "";
 
     public String getName() {
         return name;
@@ -56,5 +59,33 @@ public class ExtraBlockInfo {
 
     public void setSpec2(String str) {
         spec2 = str;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public String getTypeName() {
+        return typeName;
+    }
+
+    public void setTypeName(String typeName) {
+        this.typeName = typeName;
+    }
+
+    public String getValidationError() {
+        return validationError;
+    }
+
+    public void setValidationError(String validationError) {
+        this.validationError = validationError;
+    }
+
+    public boolean isInvalid() {
+        return validationError != null && !validationError.isEmpty();
     }
 }
