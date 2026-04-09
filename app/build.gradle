@@ -121,20 +121,29 @@ androidComponents {
 
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar", "*.aar"])
-    testImplementation libs.junit
+    testImplementation "junit:junit:4.13.2"
 
     implementation libs.bundles.ui
     implementation libs.bundles.image
     implementation libs.bundles.coil
-    implementation libs.gson
-    implementation libs.markwon
     implementation libs.bundles.networking
-    implementation libs.dependencyresolver
-    implementation libs.filepicker
-    implementation libs.libsu
-    implementation libs.insetter
 
-    // Flavor-specific dependencies (direct coordinates to avoid version catalog naming issues)
+    implementation "com.google.code.gson:gson:2.13.2"
+    implementation "io.noties.markwon:core:4.6.2"
+    implementation "com.github.Cosmic-Ide:DependencyResolver:05ec26af0b"
+    implementation "com.github.PranavPurwar:filepicker:74526bea66"
+    implementation "com.github.topjohnwu.libsu:core:5.0.4"
+    implementation "dev.chrisbanes.insetter:insetter:0.6.1"
+    implementation "com.github.Iyxan23:zipalign-java:1.2.2"
+    implementation "com.madgag:scpkix-jdk15on:1.47.0.3"
+    implementation "javax.xml.stream:stax-api:1.0-2"
+    implementation "com.github.waelchateur:kotlinc-for-sketchware:2.1.21_rc3"
+    implementation "io.github.itsaky:nb-javac-android:17.0.0.3"
+    implementation "com.fasterxml.woodstox:woodstox-core:6.5.1"
+    implementation "com.guardsquare:proguard-core:9.0.2"
+    compileOnly "org.jetbrains.kotlin:kotlin-compiler:2.1.21"
+
+    // Flavor-specific dependencies (direct coordinates)
     android26Implementation "com.android.tools.build:bundletool:1.18.1"
     android33Implementation "com.android.tools.build:bundletool:1.18.3"
     android26Implementation "com.google.protobuf:protobuf-java:3.19.2"
@@ -156,28 +165,22 @@ dependencies {
         exclude group: "com.google.guava", module: "guava"
     }
 
-    implementation libs.zipalign_java
-    implementation libs.scpkix_jdk15on
-    implementation libs.stax_api
-    implementation libs.bundles.kotlin_compiler
-    implementation libs.bundles.shrinker
-
     // Analytics and Crashlytics
     if (analyticsEnabled) {
         new File("$projectDir/google-services.json").text = secrets
     }
-    implementation platform(libs.firebase_bom)
-    implementation libs.firebase_crashlytics
-    implementation libs.firebase_analytics
-    implementation libs.firebase_messaging
+    implementation platform("com.google.firebase:firebase-bom:34.9.0")
+    implementation "com.google.firebase:firebase-crashlytics"
+    implementation "com.google.firebase:firebase-analytics"
+    implementation "com.google.firebase:firebase-messaging"
 
-    coreLibraryDesugaring libs.desugar_jdk_libs_nio
+    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs_nio:2.1.5"
 
     // New dependencies from Daydream
     implementation "net.lingala.zip4j:zip4j:2.11.5"
     implementation "org.eclipse.jgit:org.eclipse.jgit:7.3.0.202506031305-r"
 
-    testImplementation libs.junit
+    testImplementation "junit:junit:4.13.2"
 }
 
 tasks.register('createMockGoogleServices') {
