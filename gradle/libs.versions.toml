@@ -40,8 +40,10 @@ swiperefreshlayout = "1.1.0"
 viewpager = "1.1.0"
 woodstoxCore = "7.1.1"
 zipalignJava = "1.2.2"
+junit = "4.13.2"
 
 [libraries]
+junit = { module = "junit:junit", version.ref = "junit" }
 androidx-activity = { module = "androidx.activity:activity", version.ref = "activity" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-cardview = { module = "androidx.cardview:cardview", version.ref = "cardview" }
