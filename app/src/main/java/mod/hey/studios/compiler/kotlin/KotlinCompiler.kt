@@ -43,7 +43,8 @@ class KotlinCompiler(
         )
         val plugins = getCompilerPlugins(workspace).map(File::getAbsolutePath).toTypedArray()
         val compileCache = IncrementalCompileCache(workspace.sc_id, "kotlin")
-        val changeSet = compileCache.getChangeSet(buildEnvironmentFingerprint(plugins), *sourceRoots)
+        val envFingerprint = buildEnvironmentFingerprint(plugins)
+        val changeSet = compileCache.getChangeSetWithEnvironment(envFingerprint, *sourceRoots)
         val classOutput = File(workspace.compiledClassesPath)
         val hasCompiledClasses = classOutput.exists() && classOutput.isDirectory()
 

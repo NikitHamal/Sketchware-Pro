@@ -73,6 +73,14 @@ public class IncrementalCompileCache {
         return new ChangeSet(current, changedOrAdded, removed, environmentChanged, safe(environmentFingerprint));
     }
 
+    /**
+     * Same as {@link #getChangeSet(String, String...)} but with a distinct name
+     * to avoid Kotlin overload resolution ambiguity with {@link #getChangeSet(String...)}.
+     */
+    public ChangeSet getChangeSetWithEnvironment(String environmentFingerprint, String... directoriesOrFiles) {
+        return getChangeSet(environmentFingerprint, directoriesOrFiles);
+    }
+
     public void save(String... directoriesOrFiles) {
         save(getChangeSet(directoriesOrFiles));
     }
