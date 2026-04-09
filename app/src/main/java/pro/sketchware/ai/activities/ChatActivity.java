@@ -222,7 +222,7 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
         }
 
         String apiKey = preferences.getApiKey(currentProvider);
-        if (apiKey == null || apiKey.isEmpty()) {
+        if (currentProvider.requiresApiKey() && (apiKey == null || apiKey.isEmpty())) {
             Toast.makeText(this,
                     "No API key set for " + currentProvider.getDisplayName(),
                     Toast.LENGTH_SHORT).show();
@@ -299,7 +299,7 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
 
         List<AiProvider> availableProviders = new ArrayList<>();
         for (AiProvider p : AiProvider.values()) {
-            if (preferences.hasApiKey(p)) {
+            if (!p.requiresApiKey() || preferences.hasApiKey(p)) {
                 availableProviders.add(p);
             }
         }

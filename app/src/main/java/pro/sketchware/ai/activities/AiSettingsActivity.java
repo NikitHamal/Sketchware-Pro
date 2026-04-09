@@ -11,9 +11,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import pro.sketchware.ai.api.AiApiClient;
+import pro.sketchware.ai.api.DeepInfraApiClient;
 import pro.sketchware.ai.api.GeminiApiClient;
 import pro.sketchware.ai.api.NvidiaApiClient;
 import pro.sketchware.ai.api.OpenRouterApiClient;
+import pro.sketchware.ai.api.PaxsenixApiClient;
 import pro.sketchware.ai.models.AiProvider;
 import pro.sketchware.ai.models.ModelInfo;
 import pro.sketchware.ai.storage.AiPreferences;
@@ -24,11 +26,6 @@ public class AiSettingsActivity extends AppCompatActivity {
     private ActivityAiSettingsBinding binding;
     private AiPreferences preferences;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
-
-    /**
-     * Stores the default system prompt text so we can compare against it
-     * when deciding whether to populate the input field.
-     */
     private String defaultSystemPrompt;
 
     @Override
@@ -40,8 +37,6 @@ public class AiSettingsActivity extends AppCompatActivity {
         setContentView(binding.getRoot());
 
         preferences = AiPreferences.getInstance(this);
-
-        // Capture the default prompt (what getSystemPrompt returns when nothing is stored)
         defaultSystemPrompt = preferences.getSystemPrompt();
 
         binding.toolbar.setNavigationOnClickListener(v -> finish());
@@ -57,10 +52,14 @@ public class AiSettingsActivity extends AppCompatActivity {
         String geminiKey = preferences.getApiKey(AiProvider.GEMINI);
         String nvidiaKey = preferences.getApiKey(AiProvider.NVIDIA);
         String openrouterKey = preferences.getApiKey(AiProvider.OPENROUTER);
+        String paxsenixKey = preferences.getApiKey(AiProvider.PAXSENIX);
 
         if (geminiKey != null) binding.inputGeminiKey.setText(geminiKey);
         if (nvidiaKey != null) binding.inputNvidiaKey.setText(nvidiaKey);
         if (openrouterKey != null) binding.inputOpenrouterKey.setText(openrouterKey);
+        if (paxsenixKey != null) binding.inputPaxsenixKey.setText(paxsenixKey);
+        binding.inputDeepinfraKey.setEnabled(false);
+        binding.inputDeepinfraKey.setText("No API key required");
     }
 
     private void setupSaveListeners() {
@@ -73,9 +72,16 @@ public class AiSettingsActivity extends AppCompatActivity {
         binding.inputOpenrouterKey.setOnFocusChangeListener((v, hasFocus) -> {
             if (!hasFocus) saveApiKey(AiProvider.OPENROUTER, getInputText(binding.inputOpenrouterKey));
         });
+        binding.inputPaxsenixKey.setOnFocusChangeListener((v, hasFocus) -> {
+            if (!hasFocus) saveApiKey(AiProvider.PAXSENIX, getInputText(binding.inputPaxsenixKey));
+        });
     }
 
     private void saveApiKey(AiProvider provider, String key) {
+        if (!provider.requiresApiKey()) {
+            return;
+        }
+
         String existing = preferences.getApiKey(provider);
         if (key.equals(existing != null ? existing : "")) return;
 
@@ -106,22 +112,29 @@ public class AiSettingsActivity extends AppCompatActivity {
             saveApiKey(AiProvider.OPENROUTER, getInputText(binding.inputOpenrouterKey));
             fetchModels(AiProvider.OPENROUTER);
         });
+        binding.btnRefreshDeepinfra.setOnClickListener(v -> fetchModels(AiProvider.DEEPINFRA));
+        binding.btnRefreshPaxsenix.setOnClickListener(v -> {
+            saveApiKey(AiProvider.PAXSENIX, getInputText(binding.inputPaxsenixKey));
+            fetchModels(AiProvider.PAXSENIX);
+        });
     }
 
     private void fetchModels(AiProvider provider) {
-        String apiKey = preferences.getApiKey(provider);
-        if (apiKey == null || apiKey.isEmpty()) {
-            Toast.makeText(this,
-                    "Set an API key for " + provider.getDisplayName() + " first",
-                    Toast.LENGTH_SHORT).show();
-            return;
+        if (provider.requiresApiKey()) {
+            String apiKey = preferences.getApiKey(provider);
+            if (apiKey == null || apiKey.isEmpty()) {
+                Toast.makeText(this,
+                        "Set an API key for " + provider.getDisplayName() + " first",
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
         }
 
         setModelCountText(provider, "Fetching models...");
 
         executor.execute(() -> {
             try {
-                AiApiClient client = createClient(provider, apiKey);
+                AiApiClient client = createClient(provider, preferences.getApiKey(provider));
                 if (client == null) return;
 
                 List<ModelInfo> models = client.fetchModels();
@@ -137,7 +150,9 @@ public class AiSettingsActivity extends AppCompatActivity {
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
-                    setModelCountText(provider, "Failed to fetch models");
+                    setModelCountText(provider, provider.requiresApiKey()
+                            ? "Failed to fetch models"
+                            : "Using fallback models");
                     Toast.makeText(this,
                             "Error: " + e.getMessage(),
                             Toast.LENGTH_LONG).show();
@@ -154,6 +169,10 @@ public class AiSettingsActivity extends AppCompatActivity {
                 return new NvidiaApiClient(apiKey);
             case OPENROUTER:
                 return new OpenRouterApiClient(apiKey);
+            case DEEPINFRA:
+                return new DeepInfraApiClient(apiKey);
+            case PAXSENIX:
+                return new PaxsenixApiClient(apiKey);
             default:
                 return null;
         }
@@ -164,10 +183,14 @@ public class AiSettingsActivity extends AppCompatActivity {
             List<ModelInfo> cached = preferences.getCachedModels(provider);
             if (cached != null && !cached.isEmpty()) {
                 setModelCountText(provider, cached.size() + " models available");
-            } else if (preferences.hasApiKey(provider)) {
-                setModelCountText(provider, "No models loaded - tap refresh");
+            } else if (provider.requiresApiKey()) {
+                if (preferences.hasApiKey(provider)) {
+                    setModelCountText(provider, "No models loaded - tap refresh");
+                } else {
+                    setModelCountText(provider, "No API key set");
+                }
             } else {
-                setModelCountText(provider, "No API key set");
+                setModelCountText(provider, "No API key required - tap refresh");
             }
         }
     }
@@ -183,13 +206,17 @@ public class AiSettingsActivity extends AppCompatActivity {
             case OPENROUTER:
                 binding.openrouterModelsCount.setText(text);
                 break;
+            case DEEPINFRA:
+                binding.deepinfraModelsCount.setText(text);
+                break;
+            case PAXSENIX:
+                binding.paxsenixModelsCount.setText(text);
+                break;
         }
     }
 
     private void setupSystemPrompt() {
         String systemPrompt = preferences.getSystemPrompt();
-
-        // Only populate the field if the user has customized the prompt
         if (!systemPrompt.equals(defaultSystemPrompt)) {
             binding.inputSystemPrompt.setText(systemPrompt);
         }
@@ -201,7 +228,6 @@ public class AiSettingsActivity extends AppCompatActivity {
         });
 
         binding.btnResetSystemPrompt.setOnClickListener(v -> {
-            // Clear the stored prompt so that getSystemPrompt() returns the built-in default
             preferences.setSystemPrompt(defaultSystemPrompt);
             binding.inputSystemPrompt.setText("");
             Toast.makeText(this, "System prompt reset to default", Toast.LENGTH_SHORT).show();
@@ -219,10 +245,10 @@ public class AiSettingsActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        // Persist any unsaved API keys when the activity loses focus
         saveApiKey(AiProvider.GEMINI, getInputText(binding.inputGeminiKey));
         saveApiKey(AiProvider.NVIDIA, getInputText(binding.inputNvidiaKey));
         saveApiKey(AiProvider.OPENROUTER, getInputText(binding.inputOpenrouterKey));
+        saveApiKey(AiProvider.PAXSENIX, getInputText(binding.inputPaxsenixKey));
         saveSystemPrompt();
     }
 

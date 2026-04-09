@@ -5,31 +5,51 @@ public enum AiProvider {
             "Gemini",
             "https://generativelanguage.googleapis.com",
             "/v1beta/models",
-            "/v1beta/chat/completions"
+            "/v1beta/chat/completions",
+            true
     ),
     NVIDIA(
             "NVIDIA",
             "https://integrate.api.nvidia.com",
             "/v1/models",
-            "/v1/chat/completions"
+            "/v1/chat/completions",
+            true
     ),
     OPENROUTER(
             "OpenRouter",
             "https://openrouter.ai",
             "/api/v1/models",
-            "/api/v1/chat/completions"
+            "/api/v1/chat/completions",
+            true
+    ),
+    DEEPINFRA(
+            "DeepInfra",
+            "https://api.deepinfra.com",
+            "/models/featured",
+            "/v1/openai/chat/completions",
+            false
+    ),
+    PAXSENIX(
+            "Paxsenix",
+            "https://api.paxsenix.org",
+            "/v1/models",
+            "/v1/chat/completions",
+            true
     );
 
     private final String displayName;
     private final String baseUrl;
     private final String modelsEndpoint;
     private final String chatEndpoint;
+    private final boolean apiKeyRequired;
 
-    AiProvider(String displayName, String baseUrl, String modelsEndpoint, String chatEndpoint) {
+    AiProvider(String displayName, String baseUrl, String modelsEndpoint, String chatEndpoint,
+               boolean apiKeyRequired) {
         this.displayName = displayName;
         this.baseUrl = baseUrl;
         this.modelsEndpoint = modelsEndpoint;
         this.chatEndpoint = chatEndpoint;
+        this.apiKeyRequired = apiKeyRequired;
     }
 
     public String getDisplayName() {
@@ -46,6 +66,10 @@ public enum AiProvider {
 
     public String getChatEndpoint() {
         return chatEndpoint;
+    }
+
+    public boolean requiresApiKey() {
+        return apiKeyRequired;
     }
 
     public static AiProvider fromName(String name) {

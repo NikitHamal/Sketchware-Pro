@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@drawable/bg_tool_call"
+    android:background="@drawable/rounded_container_background"
     android:orientation="vertical"
     android:padding="12dp">
 
@@ -14,19 +14,36 @@
         android:orientation="horizontal">
 
         <ImageView
-            android:layout_width="16dp"
-            android:layout_height="16dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
             app:srcCompat="@drawable/ic_tool_call"
-            app:tint="?attr/colorPrimary" />
+            app:tint="?attr/colorOnSurfaceVariant" />
 
-        <TextView
-            android:id="@+id/tool_name"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:textAppearance="?attr/textAppearanceLabelMedium"
-            android:textColor="?attr/colorPrimary" />
+            android:layout_marginStart="8dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tool_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="middle"
+                android:maxLines="1"
+                android:textAppearance="?attr/textAppearanceLabelLarge"
+                android:textColor="?attr/colorOnSurface" />
+
+            <TextView
+                android:id="@+id/tool_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="Running"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+        </LinearLayout>
 
         <ImageView
             android:id="@+id/tool_status_icon"
@@ -35,15 +52,6 @@
             app:srcCompat="@drawable/ic_mtrl_check"
             app:tint="?attr/colorPrimary" />
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/tool_status"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="Running"
-        android:textAppearance="?attr/textAppearanceLabelSmall"
-        android:textColor="?attr/colorOnSurfaceVariant" />
 
     <com.google.android.material.progressindicator.LinearProgressIndicator
         android:id="@+id/tool_progress"
@@ -58,7 +66,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:maxLines="4"
+        android:fontFamily="monospace"
+        android:maxLines="6"
         android:textAppearance="?attr/textAppearanceLabelSmall"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -67,7 +76,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:lineSpacingExtra="1dp"
+        android:textAppearance="?attr/textAppearanceBodySmall"
         android:textColor="?attr/colorOnSurface"
         android:visibility="gone" />
 

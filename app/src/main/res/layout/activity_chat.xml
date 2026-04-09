@@ -45,17 +45,20 @@
                         android:id="@+id/toolbar_model"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:background="@drawable/rounded_model_name_background"
                         android:ellipsize="end"
                         android:maxLines="1"
                         android:maxWidth="220dp"
+                        android:paddingHorizontal="9dp"
+                        android:paddingVertical="4dp"
                         android:textAppearance="?attr/textAppearanceLabelSmall"
-                        android:textColor="?attr/colorPrimary"
+                        android:textColor="?attr/colorOnPrimaryContainer"
                         tools:text="gemini-2.5-flash" />
 
                     <ImageView
                         android:layout_width="14dp"
                         android:layout_height="14dp"
-                        android:layout_marginStart="2dp"
+                        android:layout_marginStart="4dp"
                         app:srcCompat="@drawable/ic_mtrl_arrow_down"
                         app:tint="?attr/colorPrimary" />
                 </LinearLayout>
@@ -78,8 +81,10 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false"
-            android:paddingTop="12dp"
-            android:paddingBottom="112dp"
+            android:overScrollMode="ifContentScrolls"
+            android:paddingHorizontal="8dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="126dp"
             app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
             app:stackFromEnd="true"
             tools:itemCount="5" />
@@ -90,19 +95,31 @@
             android:layout_height="match_parent"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="32dp">
+            android:padding="28dp">
 
-            <ImageView
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                app:srcCompat="@drawable/ic_agent"
-                app:tint="?attr/colorPrimary" />
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="68dp"
+                android:layout_height="68dp"
+                app:cardBackgroundColor="?attr/colorPrimaryContainer"
+                app:cardCornerRadius="34dp"
+                app:cardElevation="0dp"
+                app:strokeWidth="0dp">
+
+                <ImageView
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="AI assistant icon"
+                    app:srcCompat="@drawable/ic_agent"
+                    app:tint="?attr/colorOnPrimaryContainer" />
+            </com.google.android.material.card.MaterialCardView>
 
             <TextView
                 android:id="@+id/empty_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
+                android:gravity="center"
                 android:text="Autonomous Sketchware agent"
                 android:textAppearance="?attr/textAppearanceTitleMedium" />
 
@@ -110,10 +127,10 @@
                 android:id="@+id/empty_description"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="6dp"
                 android:gravity="center"
-                android:text="Create or open a conversation and ask for a Sketchware-compatible app, feature, fix, or refactor."
-                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:text="Ask for edits, debugging, project creation, or full tool-driven agent runs."
+                android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
     </FrameLayout>
@@ -123,57 +140,11 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         android:background="?attr/colorSurface"
-        android:elevation="8dp"
-        android:orientation="vertical">
-
-        <com.google.android.material.divider.MaterialDivider
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:dividerColor="?attr/colorSurfaceContainerHighest" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="bottom|center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="12dp"
-            android:paddingTop="10dp"
-            android:paddingBottom="8dp">
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/input_layout"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                app:boxCornerRadiusBottomEnd="24dp"
-                app:boxCornerRadiusBottomStart="24dp"
-                app:boxCornerRadiusTopEnd="24dp"
-                app:boxCornerRadiusTopStart="24dp"
-                app:hintEnabled="false">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/input_message"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="Ask the agent..."
-                    android:inputType="textMultiLine|textCapSentences"
-                    android:maxLines="6"
-                    android:minHeight="48dp"
-                    android:paddingHorizontal="20dp"
-                    android:textAppearance="?attr/textAppearanceBodyMedium" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.floatingactionbutton.FloatingActionButton
-                android:id="@+id/btn_send"
-                style="?attr/floatingActionButtonSmallStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:contentDescription="Send"
-                app:srcCompat="@drawable/ic_send"
-                app:tint="?attr/colorOnPrimary" />
-        </LinearLayout>
+        android:elevation="6dp"
+        android:orientation="vertical"
+        android:paddingHorizontal="8dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="8dp">
 
         <LinearLayout
             android:id="@+id/typing_indicator"
@@ -181,8 +152,9 @@
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingHorizontal="16dp"
-            android:paddingBottom="10dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="6dp"
             android:visibility="gone">
 
             <com.google.android.material.progressindicator.CircularProgressIndicator
@@ -200,6 +172,72 @@
                 android:text="Agent is thinking..."
                 android:textAppearance="?attr/textAppearanceLabelSmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/input_shell"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_input_bar"
+            android:minHeight="48dp"
+            android:orientation="vertical"
+            android:paddingHorizontal="7dp"
+            android:paddingTop="5dp"
+            android:paddingBottom="5dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/input_message"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@android:color/transparent"
+                android:hint="Ask the agent..."
+                android:inputType="textMultiLine|textCapSentences"
+                android:maxLines="6"
+                android:minHeight="44dp"
+                android:paddingHorizontal="8dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingTop="4dp">
+
+                <TextView
+                    android:id="@+id/input_hint_chip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/rounded_model_name_background"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="5dp"
+                    android:text="Tools enabled"
+                    android:textAppearance="?attr/textAppearanceLabelSmall"
+                    android:textColor="?attr/colorOnPrimaryContainer" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_send"
+                    style="@style/Widget.Material3.Button"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:contentDescription="Send"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minWidth="0dp"
+                    app:cornerRadius="20dp"
+                    app:icon="@drawable/ic_send"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:iconSize="18dp"
+                    app:iconTint="?attr/colorOnPrimary" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 

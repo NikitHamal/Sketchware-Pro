@@ -26,6 +26,9 @@ import pro.sketchware.utility.SketchwareUtil;
 
 public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
     private static final int REQUEST_PICK_ZIP = 9101;
+    private static final String PREFS_IMPORTER = "import_android_studio_project";
+    private static final String KEY_GITHUB_TOKEN = "github_token";
+
 
     private Uri selectedZipUri;
     private TextView selectedZipText;
@@ -66,6 +69,8 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
         importGithubButton = findViewById(R.id.btn_import_github);
         progressDialogController = new ImportProgressDialogController();
 
+        restoreSavedGithubToken();
+
         pickZipButton.setOnClickListener(v -> pickZip());
         importZipButton.setOnClickListener(v -> {
             if (selectedZipUri == null) {
@@ -86,8 +91,25 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
                 githubUrlInput.setError("Enter a GitHub repository URL");
                 return;
             }
+            persistGithubToken();
             new ImportTask(ImportTask.MODE_GITHUB).execute();
         });
+    }
+
+    private void restoreSavedGithubToken() {
+        String savedToken = getSharedPreferences(PREFS_IMPORTER, MODE_PRIVATE)
+                .getString(KEY_GITHUB_TOKEN, "");
+        if (!TextUtils.isEmpty(savedToken)) {
+            tokenInput.setText(savedToken);
+        }
+    }
+
+    private void persistGithubToken() {
+        String token = Helper.getText(tokenInput).trim();
+        getSharedPreferences(PREFS_IMPORTER, MODE_PRIVATE)
+                .edit()
+                .putString(KEY_GITHUB_TOKEN, token)
+                .apply();
     }
 
     private void pickZip() {
@@ -139,6 +161,12 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
                 .setMessage(result.toDisplayText() + "\n\nThe imported project is now available in your project list.")
                 .setPositiveButton("OK", null)
                 .show();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        persistGithubToken();
     }
 
     @Override

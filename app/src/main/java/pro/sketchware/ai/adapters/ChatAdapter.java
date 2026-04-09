@@ -462,6 +462,14 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             binding.messageMeta.setText(message != null ? formatTimestamp(message.getTimestamp()) : "");
             binding.streamingBadge.setVisibility(message != null && message.isStreaming() ? View.VISIBLE : View.GONE);
 
+            String thoughtSummary = extractThoughtSummary(item);
+            boolean hasThoughtSummary = !TextUtils.isEmpty(thoughtSummary);
+            binding.reasoningCard.setVisibility(hasThoughtSummary ? View.VISIBLE : View.GONE);
+            if (hasThoughtSummary) {
+                binding.reasoningSummary.setText(thoughtSummary);
+                binding.reasoningDetail.setText(thoughtSummary);
+            }
+
             boolean hasMessageContent = !TextUtils.isEmpty(content);
             binding.messageContent.setVisibility(hasMessageContent ? View.VISIBLE : View.GONE);
             if (hasMessageContent) {
@@ -476,6 +484,25 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 binding.toolsContainer.addView(toolBinding.getRoot());
             }
             binding.toolsContainer.setVisibility(item.toolStates.isEmpty() ? View.GONE : View.VISIBLE);
+        }
+
+
+        @Nullable
+        private String extractThoughtSummary(@NonNull ChatItem item) {
+            for (ToolUiState state : item.toolStates) {
+                ToolCall toolCall = state.toolCall;
+                if (toolCall != null && !TextUtils.isEmpty(toolCall.getThoughtSignature())) {
+                    return toolCall.getThoughtSignature();
+                }
+            }
+            if (item.message != null && item.message.getToolCalls() != null) {
+                for (ToolCall toolCall : item.message.getToolCalls()) {
+                    if (toolCall != null && !TextUtils.isEmpty(toolCall.getThoughtSignature())) {
+                        return toolCall.getThoughtSignature();
+                    }
+                }
+            }
+            return null;
         }
 
         private void bindToolCard(@NonNull ItemChatToolCallBinding binding,

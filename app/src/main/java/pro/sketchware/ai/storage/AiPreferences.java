@@ -78,6 +78,9 @@ public class AiPreferences {
     }
 
     public boolean hasApiKey(@NonNull AiProvider provider) {
+        if (!provider.requiresApiKey()) {
+            return true;
+        }
         String key = getApiKey(provider);
         return key != null && !key.isEmpty();
     }

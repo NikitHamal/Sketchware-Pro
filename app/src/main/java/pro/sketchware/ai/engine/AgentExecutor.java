@@ -16,9 +16,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import pro.sketchware.ai.api.AiApiClient;
+import pro.sketchware.ai.api.DeepInfraApiClient;
 import pro.sketchware.ai.api.GeminiApiClient;
 import pro.sketchware.ai.api.NvidiaApiClient;
 import pro.sketchware.ai.api.OpenRouterApiClient;
+import pro.sketchware.ai.api.PaxsenixApiClient;
 import pro.sketchware.ai.api.StreamingResponseHandler;
 import pro.sketchware.ai.api.ToolDefinition;
 import pro.sketchware.ai.models.AiProvider;
@@ -83,7 +85,7 @@ public class AgentExecutor {
         executor.execute(() -> {
             try {
                 String apiKey = preferences.getApiKey(provider);
-                if (apiKey == null || apiKey.isEmpty()) {
+                if (provider.requiresApiKey() && (apiKey == null || apiKey.isEmpty())) {
                     postError(callback, "No API key set for " + provider.getDisplayName() +
                             ". Please configure it in AI Settings.");
                     return;
@@ -227,6 +229,10 @@ public class AgentExecutor {
                 return new NvidiaApiClient(apiKey);
             case OPENROUTER:
                 return new OpenRouterApiClient(apiKey);
+            case DEEPINFRA:
+                return new DeepInfraApiClient(apiKey);
+            case PAXSENIX:
+                return new PaxsenixApiClient(apiKey);
             default:
                 return null;
         }

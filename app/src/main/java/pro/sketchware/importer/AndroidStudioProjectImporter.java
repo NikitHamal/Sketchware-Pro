@@ -284,6 +284,9 @@ public class AndroidStudioProjectImporter {
 
         String projectName = chooseProjectName(preferredProjectName, manifest.applicationLabel, detectedProject.rootDirectory.getName());
         String applicationId = chooseApplicationId(gradle.applicationId, gradle.namespace, manifest.packageName, projectName);
+        if (TextUtils.isEmpty(manifest.packageName)) {
+            manifest.packageName = applicationId;
+        }
         String versionCode = gradle.versionCode == null ? "1" : gradle.versionCode;
         String versionName = gradle.versionName == null ? "1.0" : gradle.versionName;
         int minSdk = gradle.minSdk > 0 ? gradle.minSdk : 21;

@@ -256,8 +256,7 @@ class DependencyResolver(
         Files.createDirectories(jarFile.parent)
         D8.run(
             D8Command.builder()
-                .setIntermediate(true)
-                .setMode(CompilationMode.RELEASE)
+                                .setMode(CompilationMode.RELEASE)
                 .setMinApiLevel(buildSettings.minSdkVersion)
                 .addProgramFiles(jarFile)
                 .addLibraryFiles(libraryJars)
