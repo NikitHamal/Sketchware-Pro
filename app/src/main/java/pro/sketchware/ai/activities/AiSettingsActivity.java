@@ -243,7 +243,7 @@ public class AiSettingsActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onPause() {
+    public void onPause() {
         super.onPause();
         saveApiKey(AiProvider.GEMINI, getInputText(binding.inputGeminiKey));
         saveApiKey(AiProvider.NVIDIA, getInputText(binding.inputNvidiaKey));

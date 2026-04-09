@@ -140,12 +140,12 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
     private void refreshComposerState() {
         if (isAgentRunning) {
             binding.btnSend.setEnabled(true);
-            binding.btnSend.setImageResource(R.drawable.ic_mtrl_cancel);
+            binding.btnSend.setIconResource(R.drawable.ic_mtrl_cancel);
             binding.btnSend.setContentDescription("Stop");
         } else {
             boolean hasInput = binding.inputMessage.getText() != null && binding.inputMessage.getText().length() > 0;
             binding.btnSend.setEnabled(hasInput);
-            binding.btnSend.setImageResource(R.drawable.ic_send);
+            binding.btnSend.setIconResource(R.drawable.ic_send);
             binding.btnSend.setContentDescription("Send");
         }
     }

@@ -164,7 +164,7 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
     }
 
     @Override
-    protected void onPause() {
+    public void onPause() {
         super.onPause();
         persistGithubToken();
     }
