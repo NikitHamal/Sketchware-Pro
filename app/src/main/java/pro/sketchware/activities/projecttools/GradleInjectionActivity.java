@@ -13,7 +13,7 @@ import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 
-import pro.sketchware.gradle.GradleInjectionManager;
+import pro.sketchware.build.GradleInjectionManager;
 import pro.sketchware.utility.SketchwareUtil;
 
 public class GradleInjectionActivity extends BaseAppCompatActivity {

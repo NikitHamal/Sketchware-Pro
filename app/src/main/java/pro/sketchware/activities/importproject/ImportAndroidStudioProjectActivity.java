@@ -142,7 +142,7 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
     }
 
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         if (progressDialogController != null) {
             progressDialogController.dismiss();
         }
