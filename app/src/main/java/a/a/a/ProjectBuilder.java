@@ -708,7 +708,7 @@ public class ProjectBuilder {
         );
 
         IncrementalCompileCache compileCache = new IncrementalCompileCache(yq.sc_id, "java");
-        IncrementalCompileCache.ChangeSet changeSet = compileCache.getChangeSet(
+        IncrementalCompileCache.ChangeSet changeSet = compileCache.getChangeSetWithEnvironment(
                 buildJavaCompilationEnvironmentFingerprint(),
                 normalizedGeneratedPath,
                 yq.rJavaDirectoryPath,
