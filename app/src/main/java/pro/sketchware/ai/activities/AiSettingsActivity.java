@@ -11,6 +11,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import pro.sketchware.ai.api.AiApiClient;
+import pro.sketchware.ai.api.AirForceApiClient;
 import pro.sketchware.ai.api.DeepInfraApiClient;
 import pro.sketchware.ai.api.GeminiApiClient;
 import pro.sketchware.ai.api.NvidiaApiClient;
@@ -58,8 +59,12 @@ public class AiSettingsActivity extends AppCompatActivity {
         if (nvidiaKey != null) binding.inputNvidiaKey.setText(nvidiaKey);
         if (openrouterKey != null) binding.inputOpenrouterKey.setText(openrouterKey);
         if (paxsenixKey != null) binding.inputPaxsenixKey.setText(paxsenixKey);
+        
+        // No-API-key providers
         binding.inputDeepinfraKey.setEnabled(false);
         binding.inputDeepinfraKey.setText("No API key required");
+        binding.inputAirforceKey.setEnabled(false);
+        binding.inputAirforceKey.setText("No API key required");
     }
 
     private void setupSaveListeners() {
@@ -117,6 +122,7 @@ public class AiSettingsActivity extends AppCompatActivity {
             saveApiKey(AiProvider.PAXSENIX, getInputText(binding.inputPaxsenixKey));
             fetchModels(AiProvider.PAXSENIX);
         });
+        binding.btnRefreshAirforce.setOnClickListener(v -> fetchModels(AiProvider.AIRFORCE));
     }
 
     private void fetchModels(AiProvider provider) {
@@ -173,6 +179,8 @@ public class AiSettingsActivity extends AppCompatActivity {
                 return new DeepInfraApiClient(apiKey);
             case PAXSENIX:
                 return new PaxsenixApiClient(apiKey);
+            case AIRFORCE:
+                return new AirForceApiClient(apiKey);
             default:
                 return null;
         }
@@ -211,6 +219,9 @@ public class AiSettingsActivity extends AppCompatActivity {
                 break;
             case PAXSENIX:
                 binding.paxsenixModelsCount.setText(text);
+                break;
+            case AIRFORCE:
+                binding.airforceModelsCount.setText(text);
                 break;
         }
     }

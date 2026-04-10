@@ -140,7 +140,7 @@ import kellinwood.security.zipsigner.optional.LoadKeystoreException;
 public class DesignActivity extends BaseAppCompatActivity implements View.OnClickListener {
     public static String sc_id;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final FirebaseCrashlytics crashlytics = FirebaseCrashlytics.getInstance();
+    private FirebaseCrashlytics crashlytics;
     private ImageView xmlLayoutOrientation;
     private boolean B;
     private int currentTabNumber;
@@ -689,8 +689,11 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             ProjectLoader projectLoader = new ProjectLoader(this, savedInstanceState);
             projectLoader.execute();
         } catch (Exception e) {
-            crashlytics.log("ProjectLoader failed");
-            crashlytics.recordException(e);
+            FirebaseCrashlytics crashlytics = getCrashlytics();
+            if (crashlytics != null) {
+                crashlytics.log("ProjectLoader failed");
+                crashlytics.recordException(e);
+            }
         } finally {
             SystemLogPrinter.stop();
         }
@@ -748,7 +751,10 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 try {
                     saveChangesAndCloseProject();
                 } catch (Exception e) {
-                    crashlytics.recordException(e);
+                    FirebaseCrashlytics crashlytics = getCrashlytics();
+                    if (crashlytics != null) {
+                        crashlytics.recordException(e);
+                    }
                     h();
                 }
             }
@@ -761,7 +767,10 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                     DiscardChangesProjectCloser discardChangesProjectCloser = new DiscardChangesProjectCloser(this);
                     discardChangesProjectCloser.execute();
                 } catch (Exception e) {
-                    crashlytics.recordException(e);
+                    FirebaseCrashlytics crashlytics = getCrashlytics();
+                    if (crashlytics != null) {
+                        crashlytics.recordException(e);
+                    }
                     h();
                 }
             }
@@ -1900,5 +1909,17 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 return position == 1 ? new rs() : new br();
             }
         }
+    }
+
+    private FirebaseCrashlytics getCrashlytics() {
+        if (crashlytics == null) {
+            try {
+                crashlytics = FirebaseCrashlytics.getInstance();
+            } catch (IllegalStateException e) {
+                // Firebase not initialized
+                crashlytics = null;
+            }
+        }
+        return crashlytics;
     }
 }

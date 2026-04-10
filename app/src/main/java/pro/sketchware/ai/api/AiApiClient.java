@@ -29,7 +29,7 @@ public abstract class AiApiClient {
     protected final String apiKey;
     protected final AiProvider provider;
 
-    private static final long TIMEOUT_SECONDS = 60;
+    private static final long TIMEOUT_SECONDS = 180;
 
     /**
      * Constructs a new API client.

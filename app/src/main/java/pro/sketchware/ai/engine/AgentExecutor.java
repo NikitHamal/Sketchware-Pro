@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import pro.sketchware.ai.api.AiApiClient;
+import pro.sketchware.ai.api.AirForceApiClient;
 import pro.sketchware.ai.api.DeepInfraApiClient;
 import pro.sketchware.ai.api.GeminiApiClient;
 import pro.sketchware.ai.api.NvidiaApiClient;
@@ -233,6 +234,8 @@ public class AgentExecutor {
                 return new DeepInfraApiClient(apiKey);
             case PAXSENIX:
                 return new PaxsenixApiClient(apiKey);
+            case AIRFORCE:
+                return new AirForceApiClient(apiKey);
             default:
                 return null;
         }

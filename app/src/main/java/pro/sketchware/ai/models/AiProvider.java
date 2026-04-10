@@ -35,6 +35,13 @@ public enum AiProvider {
             "/v1/models",
             "/v1/chat/completions",
             true
+    ),
+    AIRFORCE(
+            "AirForce",
+            "https://api.airforce",
+            "/v1/models",
+            "/v1/chat/completions",
+            false
     );
 
     private final String displayName;

@@ -342,6 +342,66 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp" />
 
+            <!-- API AirForce Section -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="16dp"
+                android:paddingTop="16dp"
+                android:paddingBottom="8dp"
+                android:text="API AirForce (Free)"
+                android:textAppearance="?attr/textAppearanceTitleSmall"
+                android:textColor="?attr/colorPrimary" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/layout_airforce_key"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="16dp"
+                android:hint="Authentication">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/input_airforce_key"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:enabled="false"
+                    android:singleLine="true" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="16dp"
+                android:paddingTop="8dp">
+
+                <TextView
+                    android:id="@+id/airforce_models_count"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="No API key required - tap refresh"
+                    android:textAppearance="?attr/textAppearanceLabelSmall"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+
+                <ImageView
+                    android:id="@+id/btn_refresh_airforce"
+                    android:layout_width="@dimen/mtrl_min_touch_target_size"
+                    android:layout_height="@dimen/mtrl_min_touch_target_size"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Refresh models"
+                    android:padding="12dp"
+                    app:srcCompat="@drawable/ic_mtrl_refresh"
+                    app:tint="?attr/colorPrimary" />
+            </LinearLayout>
+
+            <com.google.android.material.divider.MaterialDivider
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp" />
+
             <!-- System Prompt Section -->
             <TextView
                 android:layout_width="match_parent"

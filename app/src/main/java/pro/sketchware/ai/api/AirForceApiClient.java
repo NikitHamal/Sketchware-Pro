@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -26,57 +25,56 @@ import pro.sketchware.ai.models.ChatMessage;
 import pro.sketchware.ai.models.ModelInfo;
 
 /**
- * DeepInfra client using the OpenAI-compatible chat completions endpoint.
- * Designed to work with DeepInfra's free tier by rotating identity headers
- * (User-Agent, X-Request-ID, etc.) to avoid 403 rate-limiting blocks.
+ * API Airforce client - free, no authentication required.
+ * Base URL: https://api.airforce/v1
+ * Models: /v1/models, Chat: /v1/chat/completions
+ * 
+ * Many models are free (multiplier=0), others require credits.
+ * This client filters for free models only by default.
  */
-public class DeepInfraApiClient extends AiApiClient {
+public class AirForceApiClient extends AiApiClient {
 
-    private static final String CHAT_URL = "https://api.deepinfra.com/v1/openai/chat/completions";
-    private static final String MODELS_URL = "https://api.deepinfra.com/v1/openai/models";
+    private static final String BASE_URL = "https://api.airforce";
+    private static final String MODELS_URL = BASE_URL + "/v1/models";
+    private static final String CHAT_URL = BASE_URL + "/v1/chat/completions";
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
-    // Rotating User-Agent pool to avoid fingerprinting
     private static final String[] USER_AGENTS = {
-        "Mozilla/5.0 (Linux; Android 14) Sketchware-Pro/1.0",
-        "Mozilla/5.0 (Linux; Android 13) Sketchware-Pro/1.0",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15",
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
     };
 
     private static final Random RANDOM = new Random();
-    private static final AtomicInteger REQUEST_COUNT = new AtomicInteger(0);
+    
+    /** If true, only show free models (multiplier=0). If false, show all. */
+    private boolean showFreeOnly = true;
 
-    public DeepInfraApiClient(String apiKey) {
-        super(apiKey, AiProvider.DEEPINFRA);
+    public AirForceApiClient(String apiKey) {
+        super(apiKey, AiProvider.AIRFORCE);
     }
 
-    /**
-     * Picks a random User-Agent from the pool.
-     */
+    public void setShowFreeOnly(boolean showFreeOnly) {
+        this.showFreeOnly = showFreeOnly;
+    }
+
+    public boolean isShowFreeOnly() {
+        return showFreeOnly;
+    }
+
     private String getRandomUserAgent() {
         return USER_AGENTS[RANDOM.nextInt(USER_AGENTS.length)];
     }
 
-    /**
-     * Generates a unique request ID to make each request look distinct.
-     */
     private String generateRequestId() {
         return UUID.randomUUID().toString().replace("-", "");
     }
 
-    /**
-     * Applies randomized headers common to browser-like requests.
-     * Called on every request to avoid fingerprinting.
-     */
-    private Request.Builder applyRandomizedHeaders(Request.Builder builder) {
+    private Request.Builder applyHeaders(Request.Builder builder) {
         return builder
                 .header("User-Agent", getRandomUserAgent())
-                .header("Accept", "text/event-stream, */*")
+                .header("Accept", "application/json, text/event-stream")
                 .header("X-Request-ID", generateRequestId())
                 .header("Cache-Control", "no-cache");
     }
@@ -87,15 +85,15 @@ public class DeepInfraApiClient extends AiApiClient {
                 .url(MODELS_URL)
                 .get();
         
-        applyRandomizedHeaders(builder);
+        applyHeaders(builder);
 
         try (Response response = client.newCall(builder.build()).execute()) {
             if (!response.isSuccessful()) {
                 String body = readBodySafely(response);
-                if (response.code() == 403) {
+                if (response.code() == 403 || response.code() == 429) {
                     return fallbackModels();
                 }
-                throw new IOException("DeepInfra fetchModels failed: HTTP " + response.code() + " " + body);
+                throw new IOException("AirForce fetchModels failed: HTTP " + response.code() + " " + body);
             }
 
             ResponseBody body = response.body();
@@ -106,75 +104,73 @@ public class DeepInfraApiClient extends AiApiClient {
             String bodyString = body.string();
             JsonElement root = JsonParser.parseString(bodyString);
             List<ModelInfo> result = new ArrayList<>();
-            JsonArray array;
             
-            // /v1/openai/models returns a plain array of model objects
-            if (root.isJsonArray()) {
-                array = root.getAsJsonArray();
-            } else if (root.isJsonObject()) {
+            JsonArray dataArray;
+            if (root.isJsonObject()) {
                 JsonObject obj = root.getAsJsonObject();
                 if (obj.has("data") && obj.get("data").isJsonArray()) {
-                    array = obj.getAsJsonArray("data");
+                    dataArray = obj.getAsJsonArray("data");
                 } else {
                     return fallbackModels();
                 }
+            } else if (root.isJsonArray()) {
+                dataArray = root.getAsJsonArray();
             } else {
                 return fallbackModels();
             }
 
-            for (JsonElement element : array) {
+            for (JsonElement element : dataArray) {
                 if (!element.isJsonObject()) continue;
                 JsonObject model = element.getAsJsonObject();
                 
-                // Try both id and model_name fields
                 String id = getString(model, "id");
-                if (id == null || id.isEmpty()) {
-                    id = getString(model, "model_name");
-                }
                 if (id == null || id.isEmpty()) continue;
                 
-                // Skip embedding-only / non-chat models
-                String type = getString(model, "type");
-                if (type != null) {
-                    String lowerType = type.toLowerCase(Locale.US);
-                    if (lowerType.contains("embedding") && !lowerType.contains("generation")) continue;
-                    if ("text-to-image".equalsIgnoreCase(type)) continue;
-                    if ("text-to-speech".equalsIgnoreCase(type)) continue;
-                    if ("image-to-text".equalsIgnoreCase(type)) continue;
+                // Only include chat models
+                Boolean supportsChat = model.has("supports_chat") ? model.get("supports_chat").getAsBoolean() : null;
+                if (supportsChat != null && !supportsChat) continue;
+                
+                // Filter by free only
+                if (showFreeOnly) {
+                    JsonElement mult = model.get("multiplier");
+                    if (mult != null && !mult.isJsonNull()) {
+                        try {
+                            double m = mult.getAsDouble();
+                            if (m > 0) continue; // skip paid models
+                        } catch (Exception ignore) {}
+                    }
                 }
                 
-                // Parse metadata sub-object (DeepInfra /v1/openai/models format)
-                long contextLength = 0L;
+                // Check status
+                String status = getString(model, "status");
+                if (status != null && "major_outage".equalsIgnoreCase(status)) continue;
+
+                String ownedBy = getString(model, "owned_by");
+                String displayName = id;
+                if (ownedBy != null && !ownedBy.isEmpty()) {
+                    displayName = ownedBy + "/" + id;
+                }
+
                 int maxTokens = 0;
-                String description = null;
-                if (model.has("metadata") && model.get("metadata").isJsonObject()) {
-                    JsonObject meta = model.getAsJsonObject("metadata");
-                    description = getString(meta, "description");
-                    if (meta.has("context_length") && !meta.get("context_length").isJsonNull()) {
-                        try { contextLength = meta.get("context_length").getAsLong(); } catch (Exception ignore) {}
-                    }
-                    if (meta.has("max_tokens") && !meta.get("max_tokens").isJsonNull()) {
-                        try { maxTokens = meta.get("max_tokens").getAsInt(); } catch (Exception ignore) {}
-                    }
+                if (model.has("max_tokens") && !model.get("max_tokens").isJsonNull()) {
+                    try { maxTokens = model.get("max_tokens").getAsInt(); } catch (Exception ignore) {}
                 }
-                
-                // Fallback: top-level description
-                if (description == null || description.isEmpty()) {
-                    description = getString(model, "description");
+
+                boolean supportsStreaming = model.has("supports_streaming")
+                        && model.get("supports_streaming").getAsBoolean();
+                boolean supportsNonStreaming = model.has("supports_non_streaming")
+                        && model.get("supports_non_streaming").getAsBoolean();
+
+                String description = "AirForce model";
+                if (status != null) {
+                    description = "Status: " + status;
                 }
-                
-                String displayName = getString(model, "name");
-                if (displayName == null || displayName.isEmpty()) {
-                    displayName = toDisplayName(id);
+                if (maxTokens > 0) {
+                    description += " | Max tokens: " + maxTokens;
                 }
-                
-                ModelInfo baseInfo = new ModelInfo(id, displayName, AiProvider.DEEPINFRA, contextLength,
-                        description != null ? description : "DeepInfra model");
-                if (maxTokens > 0 || contextLength > 0) {
-                    result.add(baseInfo.withMetadata(maxTokens, true, true, null));
-                } else {
-                    result.add(baseInfo);
-                }
+
+                ModelInfo baseInfo = new ModelInfo(id, displayName, AiProvider.AIRFORCE, maxTokens, description);
+                result.add(baseInfo.withMetadata(maxTokens, supportsStreaming, supportsNonStreaming, status));
             }
 
             return result.isEmpty() ? fallbackModels() : result;
@@ -194,7 +190,7 @@ public class DeepInfraApiClient extends AiApiClient {
         try {
             JsonObject requestBody = NvidiaApiClient.buildOpenAiRequestBody(
                     messages,
-                    (modelId == null || modelId.trim().isEmpty()) ? "deepseek-ai/DeepSeek-V3" : modelId,
+                    (modelId == null || modelId.trim().isEmpty()) ? "roleplay:free" : modelId,
                     systemPrompt,
                     tools
             );
@@ -203,33 +199,38 @@ public class DeepInfraApiClient extends AiApiClient {
                     .url(CHAT_URL)
                     .post(RequestBody.create(requestBody.toString(), JSON));
             
-            applyRandomizedHeaders(builder);
+            applyHeaders(builder);
 
             client.newCall(builder.build()).enqueue(new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
-                    handler.onError("DeepInfra request failed: " + e.getMessage());
+                    handler.onError("AirForce request failed: " + e.getMessage());
                 }
 
                 @Override
                 public void onResponse(Call call, Response response) {
+                    if (response.code() == 429) {
+                        handler.onError("AirForce rate limited. Please wait and try again.");
+                        response.close();
+                        return;
+                    }
+                    
                     if (response.code() == 403) {
-                        // 403 means temporarily blocked; retry with fresh headers
-                        handler.onError("DeepInfra returned 403 (rate limited). Try again in a moment or switch provider.");
+                        handler.onError("AirForce returned 403. Try again in a moment.");
                         response.close();
                         return;
                     }
                     
                     if (!response.isSuccessful()) {
                         String errorBody = readBodySafely(response);
-                        handler.onError("DeepInfra HTTP " + response.code() + ": " + errorBody);
+                        handler.onError("AirForce HTTP " + response.code() + ": " + errorBody);
                         response.close();
                         return;
                     }
 
                     ResponseBody body = response.body();
                     if (body == null) {
-                        handler.onError("DeepInfra returned empty response body");
+                        handler.onError("AirForce returned empty response body");
                         return;
                     }
 
@@ -238,7 +239,7 @@ public class DeepInfraApiClient extends AiApiClient {
                 }
             });
         } catch (Exception e) {
-            handler.onError("Failed to build DeepInfra request: " + e.getMessage());
+            handler.onError("Failed to build AirForce request: " + e.getMessage());
         }
     }
 
@@ -257,17 +258,21 @@ public class DeepInfraApiClient extends AiApiClient {
 
     private static List<ModelInfo> fallbackModels() {
         List<ModelInfo> fallback = new ArrayList<>();
-        fallback.add(new ModelInfo("deepseek-ai/DeepSeek-V3", "DeepInfra DeepSeek V3",
-                AiProvider.DEEPINFRA, 0L, "Fast default DeepInfra chat model"));
-        fallback.add(new ModelInfo("meta-llama/Llama-3.3-70B-Instruct", "DeepInfra Llama 3.3 70B",
-                AiProvider.DEEPINFRA, 0L, "General-purpose instruct model"));
+        fallback.add(new ModelInfo("roleplay:free", "AirForce Roleplay Free",
+                AiProvider.AIRFORCE, 4096, "Free roleplay model"));
+        fallback.add(new ModelInfo("lana", "AirForce Lana",
+                AiProvider.AIRFORCE, 4096, "Free Lana model"));
+        fallback.add(new ModelInfo("grok-4.1-mini:free", "AirForce Grok 4.1 Mini Free",
+                AiProvider.AIRFORCE, 4096, "Free Grok model"));
+        fallback.add(new ModelInfo("deepseek-v3:free", "AirForce DeepSeek V3 Free",
+                AiProvider.AIRFORCE, 4096, "Free DeepSeek model"));
         return fallback;
     }
 
     private static String toDisplayName(String id) {
         String value = id.replace('/', ' ').replace('-', ' ').replace('_', ' ').trim();
         if (value.isEmpty()) {
-            return "DeepInfra";
+            return "AirForce";
         }
         return value.substring(0, 1).toUpperCase(Locale.US) + value.substring(1);
     }
