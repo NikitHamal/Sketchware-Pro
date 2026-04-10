@@ -1,16 +1,15 @@
 package pro.sketchware.ai.models;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
-import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 public class Workspace {
-
-    private static final Gson GSON = new Gson();
 
     private String id;
     private String name;
@@ -107,13 +106,66 @@ public class Workspace {
         return projectIds.contains(scId);
     }
 
+    public JsonObject toJsonObject() {
+        JsonObject json = new JsonObject();
+        json.addProperty("id", id);
+        json.addProperty("name", name);
+        json.addProperty("description", description);
+        json.addProperty("createdAt", createdAt);
+        json.addProperty("updatedAt", updatedAt);
+        JsonArray projectIdsArray = new JsonArray();
+        for (String projectId : projectIds) {
+            projectIdsArray.add(projectId);
+        }
+        json.add("projectIds", projectIdsArray);
+        return json;
+    }
+
     public String toJson() {
-        return GSON.toJson(this);
+        return toJsonObject().toString();
+    }
+
+    public static Workspace fromJsonObject(JsonObject json) {
+        if (json == null) {
+            return null;
+        }
+        String id = getString(json, "id", UUID.randomUUID().toString());
+        String name = getString(json, "name", "Workspace");
+        String description = getString(json, "description", "");
+        long createdAt = getLong(json, "createdAt", System.currentTimeMillis());
+        long updatedAt = getLong(json, "updatedAt", createdAt);
+        ArrayList<String> projectIds = new ArrayList<>();
+        if (json.has("projectIds") && json.get("projectIds").isJsonArray()) {
+            for (JsonElement element : json.getAsJsonArray("projectIds")) {
+                if (!element.isJsonNull()) {
+                    projectIds.add(element.getAsString());
+                }
+            }
+        }
+        return new Workspace(id, name, description, projectIds, createdAt, updatedAt);
     }
 
     public static Workspace fromJson(String json) {
-        if (json == null || json.isEmpty()) return null;
-        return GSON.fromJson(json, Workspace.class);
+        if (json == null || json.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return fromJsonObject(new JsonParser().parse(json).getAsJsonObject());
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static String getString(JsonObject json, String key, String fallback) {
+        return json.has(key) && !json.get(key).isJsonNull() ? json.get(key).getAsString() : fallback;
+    }
+
+    private static long getLong(JsonObject json, String key, long fallback) {
+        try {
+            return json.has(key) && !json.get(key).isJsonNull() ? json.get(key).getAsLong() : fallback;
+        } catch (Exception ignored) {
+            return fallback;
+        }
     }
 
     @Override

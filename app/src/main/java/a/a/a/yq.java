@@ -159,6 +159,8 @@ public class yq {
      * Example content: /storage/emulated/0/.sketchware/mysc/605/bin/classes
      */
     public final String compiledClassesPath;
+    public final String compiledJavaClassesPath;
+    public final String compiledKotlinClassesPath;
     /**
      * Project's generated R.java files directory,
      * e.g. /storage/emulated/0/.sketchware/mysc/605/gen
@@ -223,6 +225,8 @@ public class yq {
         packageNameAsFolders = packageName.replaceAll("\\.", File.separator);
         binDirectoryPath = projectMyscPath + "bin";
         compiledClassesPath = binDirectoryPath + File.separator + "classes";
+        compiledJavaClassesPath = binDirectoryPath + File.separator + "classes-java";
+        compiledKotlinClassesPath = binDirectoryPath + File.separator + "classes-kotlin";
         proguardClassesPath = binDirectoryPath + File.separator + "classes_proguard.jar";
         proguardAaptRules = binDirectoryPath + File.separator + "aapt_rules.pro";
         proguardSeedsPath = binDirectoryPath + File.separator + "seeds.txt";
@@ -264,6 +268,8 @@ public class yq {
     public void c(Context context) {
         fileUtil.f(binDirectoryPath);
         fileUtil.f(compiledClassesPath);
+        fileUtil.f(compiledJavaClassesPath);
+        fileUtil.f(compiledKotlinClassesPath);
         fileUtil.f(rJavaDirectoryPath);
         fileUtil.f(javaFilesPath);
         fileUtil.f(resDirectoryPath);
@@ -280,6 +286,8 @@ public class yq {
     public void e() {
         fileUtil.f(binDirectoryPath);
         fileUtil.f(compiledClassesPath);
+        fileUtil.f(compiledJavaClassesPath);
+        fileUtil.f(compiledKotlinClassesPath);
         fileUtil.f(rJavaDirectoryPath);
     }
 

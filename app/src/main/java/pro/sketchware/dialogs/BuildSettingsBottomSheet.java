@@ -12,6 +12,7 @@ import static mod.hey.studios.build.BuildSettings.SETTING_JAVA_VERSION_1_8;
 import static mod.hey.studios.build.BuildSettings.SETTING_JAVA_VERSION_1_9;
 import static mod.hey.studios.build.BuildSettings.SETTING_NO_HTTP_LEGACY;
 import static mod.hey.studios.build.BuildSettings.SETTING_NO_WARNINGS;
+import static mod.hey.studios.build.BuildSettings.SETTING_PARALLEL_ECJ;
 
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -40,6 +41,7 @@ public class BuildSettingsBottomSheet extends BottomSheetDialogFragment {
     private static final int VIEW_NO_WARNINGS = totalViews++;
     private static final int VIEW_NO_HTTP_LEGACY = totalViews++;
     private static final int VIEW_ENABLE_LOGCAT = totalViews++;
+    private static final int VIEW_PARALLEL_ECJ = totalViews++;
     private View[] views;
 
     private ProjectConfigLayoutBinding binding;
@@ -87,6 +89,7 @@ public class BuildSettingsBottomSheet extends BottomSheetDialogFragment {
         binding.noWarnings.setOnClickListener(v -> binding.cbNoWarnings.performClick());
         binding.noHttpLegacy.setOnClickListener(v -> binding.cbNoHttpLegacy.performClick());
         binding.enableLogcat.setOnClickListener(v -> binding.cbEnableLogcat.performClick());
+        binding.parallelEcj.setOnClickListener(v -> binding.cbParallelEcj.performClick());
 
         binding.tilAndroidJar.getEditText().setText(projectSettings.getValue(SETTING_ANDROID_JAR_PATH, ""));
         binding.tilClasspath.getEditText().setText(projectSettings.getValue(SETTING_CLASSPATH, ""));
@@ -97,6 +100,7 @@ public class BuildSettingsBottomSheet extends BottomSheetDialogFragment {
         setCheckboxValue(binding.cbNoWarnings, SETTING_NO_WARNINGS, true);
         setCheckboxValue(binding.cbNoHttpLegacy, SETTING_NO_HTTP_LEGACY, false);
         setCheckboxValue(binding.cbEnableLogcat, SETTING_ENABLE_LOGCAT, true);
+        setCheckboxValue(binding.cbParallelEcj, SETTING_PARALLEL_ECJ, false);
 
         binding.btnCancel.setOnClickListener(v -> dismiss());
         binding.btnSave.setOnClickListener(v -> {
@@ -119,11 +123,13 @@ public class BuildSettingsBottomSheet extends BottomSheetDialogFragment {
         binding.cbNoWarnings.setTag(SETTING_NO_WARNINGS);
         binding.cbNoHttpLegacy.setTag(SETTING_NO_HTTP_LEGACY);
         binding.cbEnableLogcat.setTag(SETTING_ENABLE_LOGCAT);
+        binding.cbParallelEcj.setTag(SETTING_PARALLEL_ECJ);
 
         views[VIEW_ANDROIR_JAR_PATH] = binding.tilAndroidJar.getEditText();
         views[VIEW_CLASS_PATH] = binding.tilClasspath.getEditText();
         views[VIEW_DEXER] = binding.rgDexer;
         views[VIEW_ENABLE_LOGCAT] = binding.cbEnableLogcat;
+        views[VIEW_PARALLEL_ECJ] = binding.cbParallelEcj;
         views[VIEW_JAVA_VERSION] = binding.rgJavaVersion;
         views[VIEW_NO_HTTP_LEGACY] = binding.cbNoHttpLegacy;
         views[VIEW_NO_WARNINGS] = binding.cbNoWarnings;

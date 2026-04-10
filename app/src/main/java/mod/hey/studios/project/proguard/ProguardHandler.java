@@ -14,13 +14,20 @@ import pro.sketchware.utility.FileUtil;
 public class ProguardHandler {
     public static String ANDROID_PROGUARD_RULES_PATH = createAndroidRules();
     public static String DEFAULT_PROGUARD_RULES_PATH = "";
+    private static final String KEY_ENABLED = "enabled";
+    private static final String KEY_DEBUG = "debug";
+    private static final String KEY_R8 = "r8";
+    private static final String KEY_R8_PROFILE = "r8_profile";
+
     private final String config_path;
     private final String fm_config_path;
+    private final String r8_profile_rules_path;
 
     public ProguardHandler(String sc_id) {
         DEFAULT_PROGUARD_RULES_PATH = createDefaultRules(sc_id);
         config_path = FileUtil.getExternalStorageDir() + "/.sketchware/data/" + sc_id + "/proguard";
         fm_config_path = FileUtil.getExternalStorageDir() + "/.sketchware/data/" + sc_id + "/proguard_fm";
+        r8_profile_rules_path = FileUtil.getExternalStorageDir() + "/.sketchware/data/" + sc_id + "/r8-profile-rules.pro";
 
         if (!FileUtil.isExistFile(config_path)) {
             FileUtil.writeFile(config_path, getDefaultConfig());
@@ -124,8 +131,10 @@ public class ProguardHandler {
     private String getDefaultConfig() {
         HashMap<String, String> defaultConfig = new HashMap<>();
 
-        defaultConfig.put("enabled", "false");
-        defaultConfig.put("debug", "false");
+        defaultConfig.put(KEY_ENABLED, "false");
+        defaultConfig.put(KEY_DEBUG, "false");
+        defaultConfig.put(KEY_R8, "false");
+        defaultConfig.put(KEY_R8_PROFILE, R8Profiles.PROFILE_STANDARD);
 
         return new Gson().toJson(defaultConfig);
     }
@@ -140,9 +149,9 @@ public class ProguardHandler {
             try {
                 HashMap<String, String> config = new Gson().fromJson(FileUtil.readFile(config_path), Helper.TYPE_STRING_MAP);
 
-                if (!config.containsKey("debug")) return false;
+                if (!config.containsKey(KEY_DEBUG)) return false;
 
-                String debug = config.get("debug");
+                String debug = config.get(KEY_DEBUG);
                 if (debug != null) {
                     debugFiles = debug.equals("true");
                 }
@@ -161,7 +170,7 @@ public class ProguardHandler {
             try {
                 HashMap<String, String> config = new Gson().fromJson(FileUtil.readFile(config_path), Helper.TYPE_STRING_MAP);
 
-                String enabled = config.get("enabled");
+                String enabled = config.get(KEY_ENABLED);
                 if (enabled == null) {
                     proguardEnabled = false;
                 } else {
@@ -178,7 +187,7 @@ public class ProguardHandler {
 
     public void setProguardEnabled(boolean proguardEnabled) {
         HashMap<String, String> config = new Gson().fromJson(FileUtil.readFile(config_path), Helper.TYPE_STRING_MAP);
-        config.put("enabled", String.valueOf(proguardEnabled));
+        config.put(KEY_ENABLED, String.valueOf(proguardEnabled));
 
         FileUtil.writeFile(config_path, new Gson().toJson(config));
     }
@@ -187,9 +196,9 @@ public class ProguardHandler {
         boolean r8Enabled = true;
         if (FileUtil.isExistFile(config_path)) {
             try {
-                var config = new Gson().fromJson(FileUtil.readFile(config_path), Helper.TYPE_STRING_MAP);
+                HashMap<String, String> config = new Gson().fromJson(FileUtil.readFile(config_path), Helper.TYPE_STRING_MAP);
 
-                String enabled = config.get("r8");
+                String enabled = config.get(KEY_R8);
                 if (enabled == null) {
                     r8Enabled = false;
                 } else {
@@ -205,10 +214,42 @@ public class ProguardHandler {
     }
 
     public void setR8Enabled(boolean r8Enabled) {
-        var config = new Gson().fromJson(FileUtil.readFile(config_path), Helper.TYPE_STRING_MAP);
-        config.put("r8", String.valueOf(r8Enabled));
+        HashMap<String, String> config = new Gson().fromJson(FileUtil.readFile(config_path), Helper.TYPE_STRING_MAP);
+        config.put(KEY_R8, String.valueOf(r8Enabled));
 
         FileUtil.writeFile(config_path, new Gson().toJson(config));
+    }
+
+
+    public String getR8ProfileId() {
+        if (FileUtil.isExistFile(config_path)) {
+            try {
+                HashMap<String, String> config = new Gson().fromJson(FileUtil.readFile(config_path), Helper.TYPE_STRING_MAP);
+                String profile = config.get(KEY_R8_PROFILE);
+                if (R8Profiles.isValid(profile)) {
+                    return profile;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return R8Profiles.PROFILE_STANDARD;
+    }
+
+    public void setR8ProfileId(String profileId) {
+        String safeProfile = R8Profiles.isValid(profileId) ? profileId : R8Profiles.PROFILE_STANDARD;
+        HashMap<String, String> config = new Gson().fromJson(FileUtil.readFile(config_path), Helper.TYPE_STRING_MAP);
+        config.put(KEY_R8_PROFILE, safeProfile);
+        FileUtil.writeFile(config_path, new Gson().toJson(config));
+    }
+
+    public R8Profiles.Profile getR8Profile() {
+        return R8Profiles.get(getR8ProfileId());
+    }
+
+    public String getR8ProfileRulesPath() {
+        R8Profiles.Profile profile = getR8Profile();
+        FileUtil.writeFile(r8_profile_rules_path, String.join("\n", profile.getRules()).trim());
+        return r8_profile_rules_path;
     }
 
     public boolean libIsProguardFMEnabled(String library) {
@@ -233,7 +274,7 @@ public class ProguardHandler {
 
     public void setDebugEnabled(boolean debugEnabled) {
         HashMap<String, String> config = new Gson().fromJson(FileUtil.readFile(config_path), Helper.TYPE_STRING_MAP);
-        config.put("debug", String.valueOf(debugEnabled));
+        config.put(KEY_DEBUG, String.valueOf(debugEnabled));
 
         FileUtil.writeFile(config_path, new Gson().toJson(config));
     }

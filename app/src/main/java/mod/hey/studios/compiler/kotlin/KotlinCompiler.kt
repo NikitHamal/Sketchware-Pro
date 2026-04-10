@@ -8,6 +8,7 @@ import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import org.jetbrains.kotlin.config.Services
 import pro.sketchware.compiler.IncrementalCompileCache
+import pro.sketchware.compiler.SourceOutputTracker
 import pro.sketchware.utility.FilePathUtil
 import java.io.File
 
@@ -43,9 +44,8 @@ class KotlinCompiler(
         )
         val plugins = getCompilerPlugins(workspace).map(File::getAbsolutePath).toTypedArray()
         val compileCache = IncrementalCompileCache(workspace.sc_id, "kotlin")
-        val envFingerprint = buildEnvironmentFingerprint(plugins)
-        val changeSet = compileCache.getChangeSetWithEnvironment(envFingerprint, *sourceRoots)
-        val classOutput = File(workspace.compiledClassesPath)
+        val changeSet = compileCache.getChangeSet(buildEnvironmentFingerprint(plugins), *sourceRoots)
+        val classOutput = File(workspace.compiledKotlinClassesPath)
         val hasCompiledClasses = classOutput.exists() && classOutput.isDirectory()
 
         if (!changeSet.hasChanges() && hasCompiledClasses) {
@@ -65,7 +65,7 @@ class KotlinCompiler(
 
         val mKotlinHome = File(KotlinCompilerBridge.getKotlinHome(workspace)).apply { mkdirs() }
         // Output in the same place as ecj, makes everything easier
-        val mClassOutput = File(workspace.compiledClassesPath).apply { mkdirs() }
+        val mClassOutput = File(workspace.compiledKotlinClassesPath).apply { mkdirs() }
 
         val arguments = mutableListOf<String>().apply {
             // Classpath
@@ -108,6 +108,12 @@ class KotlinCompiler(
             throw Exception(collector.getDiagnostics(areWarningsEnabled()))
         } else {
             compileCache.save(changeSet)
+            SourceOutputTracker(workspace.sc_id, "kotlin").removeSources(changeSet.getRemovedFilesWithExtension(".kt"))
+            SourceOutputTracker(workspace.sc_id, "kotlin").refreshOutputsForSources(
+                changeSet.currentSnapshot.keys.filter { it.endsWith(".kt") },
+                mClassOutput
+            )
+            builder.rebuildMergedCompiledClassesDirectory()
             LogUtil.d(
                 TAG,
                 "Compiling Kotlin files took ${System.currentTimeMillis() - timeMillis} ms"
@@ -128,7 +134,7 @@ class KotlinCompiler(
 
         this.builder.getClasspath()
             .split(":")
-            .filter { it.isNotEmpty() && it != workspace.compiledClassesPath }
+            .filter { it.isNotEmpty() && it != workspace.compiledClassesPath && it != workspace.compiledJavaClassesPath && it != workspace.compiledKotlinClassesPath }
             .forEach { appendPathFingerprint(builder, it) }
 
         plugins.forEach { appendPathFingerprint(builder, it) }

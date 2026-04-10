@@ -33,6 +33,8 @@ public class ManageProguardActivity extends BaseAppCompatActivity
             startActivity(intent);
         } else if (id == binding.lnPgFm.getId()) {
             fmDialog();
+        } else if (id == binding.lnR8Profile.getId()) {
+            showR8ProfileDialog();
         }
     }
 
@@ -106,6 +108,7 @@ public class ManageProguardActivity extends BaseAppCompatActivity
         binding.r8Enabled.setOnCheckedChangeListener(this);
         binding.swPgDebug.setOnCheckedChangeListener(this);
         binding.lnPgFm.setOnClickListener(this);
+        binding.lnR8Profile.setOnClickListener(this);
     }
 
     private void initializeLogic() {
@@ -114,6 +117,37 @@ public class ManageProguardActivity extends BaseAppCompatActivity
         binding.swPgEnabled.setChecked(pg.isShrinkingEnabled());
         binding.swPgDebug.setChecked(pg.isDebugFilesEnabled());
         binding.r8Enabled.setChecked(pg.isR8Enabled());
+        updateR8ProfileSummary();
+    }
+
+
+    private void updateR8ProfileSummary() {
+        R8Profiles.Profile profile = pg.getR8Profile();
+        binding.tvR8ProfileValue.setText(profile.getDisplayName() + " - " + profile.getDescription());
+    }
+
+    private void showR8ProfileDialog() {
+        java.util.List<R8Profiles.Profile> profiles = R8Profiles.getAll();
+        String[] labels = new String[profiles.size()];
+        int checkedItem = 0;
+        String currentProfile = pg.getR8ProfileId();
+        for (int i = 0; i < profiles.size(); i++) {
+            labels[i] = profiles.get(i).getDisplayName() + "\n" + profiles.get(i).getDescription();
+            if (profiles.get(i).getId().equals(currentProfile)) {
+                checkedItem = i;
+            }
+        }
+
+        final int[] selected = new int[]{checkedItem};
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Select R8 optimization profile")
+                .setSingleChoiceItems(labels, checkedItem, (dialog, which) -> selected[0] = which)
+                .setPositiveButton(R.string.common_word_save, (dialog, which) -> {
+                    pg.setR8ProfileId(profiles.get(selected[0]).getId());
+                    updateR8ProfileSummary();
+                })
+                .setNegativeButton(R.string.common_word_cancel, null)
+                .show();
     }
 
     private void _initToolbar() {

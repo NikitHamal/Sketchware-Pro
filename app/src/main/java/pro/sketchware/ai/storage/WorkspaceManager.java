@@ -5,15 +5,10 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.google.gson.Gson;
-
 import pro.sketchware.ai.models.Workspace;
+import pro.sketchware.utility.FileUtil;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -21,7 +16,6 @@ import java.util.List;
 public class WorkspaceManager {
 
     private final File storageDir;
-    private final Gson gson;
     private final ConversationManager conversationManager;
 
     public WorkspaceManager(@NonNull Context context) {
@@ -29,17 +23,12 @@ public class WorkspaceManager {
         if (!storageDir.exists()) {
             storageDir.mkdirs();
         }
-        gson = new Gson();
         conversationManager = new ConversationManager(context);
     }
 
     public void saveWorkspace(@NonNull Workspace workspace) {
         File file = new File(storageDir, workspace.getId() + ".json");
-        try (FileWriter writer = new FileWriter(file)) {
-            gson.toJson(workspace, writer);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        FileUtil.writeFile(file.getAbsolutePath(), workspace.toJson());
     }
 
     @Nullable
@@ -48,12 +37,7 @@ public class WorkspaceManager {
         if (!file.exists()) {
             return null;
         }
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            return gson.fromJson(reader, Workspace.class);
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        }
+        return Workspace.fromJson(FileUtil.readFile(file.getAbsolutePath()));
     }
 
     @NonNull
@@ -64,13 +48,9 @@ public class WorkspaceManager {
             return workspaces;
         }
         for (File file : files) {
-            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-                Workspace workspace = gson.fromJson(reader, Workspace.class);
-                if (workspace != null) {
-                    workspaces.add(workspace);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
+            Workspace workspace = Workspace.fromJson(FileUtil.readFile(file.getAbsolutePath()));
+            if (workspace != null) {
+                workspaces.add(workspace);
             }
         }
         Collections.sort(workspaces, (a, b) -> Long.compare(b.getUpdatedAt(), a.getUpdatedAt()));

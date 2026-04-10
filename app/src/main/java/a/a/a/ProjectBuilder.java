@@ -39,18 +39,25 @@ import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import pro.sketchware.compiler.LegacyJavaSourceNormalizer;
 import pro.sketchware.compiler.IncrementalCompileCache;
 import pro.sketchware.compiler.ECJCompilerClient;
+import pro.sketchware.compiler.JavaCompileGraph;
+import pro.sketchware.compiler.SourceOutputTracker;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import mod.agus.jcoderz.dex.Dex;
 import mod.agus.jcoderz.dex.FieldId;
@@ -285,7 +292,7 @@ public class ProjectBuilder {
         cleanCompiledClassesDirectory();
         forceFullJavaCompilation = true;
         compiledClassesPreparedForJointRebuild = true;
-        LogUtil.d(TAG, "Prepared compiled classes output for a joint Kotlin/Java full rebuild. Reason: " + reason);
+        LogUtil.d(TAG, "Prepared compiled class outputs for a joint Kotlin/Java full rebuild. Reason: " + reason);
     }
 
     private synchronized boolean consumeForceFullJavaCompilationFlag() {
@@ -310,11 +317,18 @@ public class ProjectBuilder {
                 .append(build_settings.getValue(BuildSettings.SETTING_NO_WARNINGS,
                         BuildSettings.SETTING_GENERIC_VALUE_TRUE))
                 .append('\n');
+        fingerprint.append("parallelEcj=")
+                .append(build_settings.getValue(BuildSettings.SETTING_PARALLEL_ECJ,
+                        ProjectSettings.SETTING_GENERIC_VALUE_FALSE))
+                .append('\n');
 
         String classpath = getClasspath();
         if (!TextUtils.isEmpty(classpath)) {
             for (String part : classpath.split(":")) {
-                if (TextUtils.isEmpty(part) || yq.compiledClassesPath.equals(part)) {
+                if (TextUtils.isEmpty(part)
+                        || yq.compiledClassesPath.equals(part)
+                        || yq.compiledJavaClassesPath.equals(part)
+                        || yq.compiledKotlinClassesPath.equals(part)) {
                     continue;
                 }
                 appendPathFingerprint(fingerprint, part);
@@ -356,6 +370,13 @@ public class ProjectBuilder {
                 BuildSettings.SETTING_DEXER,
                 BuildSettings.SETTING_DEXER_DX
         ).equals(BuildSettings.SETTING_DEXER_D8);
+    }
+
+    public boolean isParallelEcjEnabled() {
+        return build_settings.getValue(
+                BuildSettings.SETTING_PARALLEL_ECJ,
+                ProjectSettings.SETTING_GENERIC_VALUE_FALSE
+        ).equals(ProjectSettings.SETTING_GENERIC_VALUE_TRUE);
     }
 
     public String getDxRunningText() {
@@ -411,11 +432,12 @@ public class ProjectBuilder {
     public String getClasspath() {
         StringBuilder classpath = new StringBuilder();
 
-        /*
-         * Add yq#u (.sketchware/mysc/xxx/bin/classes) if it exists
-         * since there might be compiled Kotlin files for ecj to use classpath as.
-         */
-        KotlinCompilerBridge.maybeAddKotlinFilesToClasspath(classpath, yq);
+        appendProjectClassOutput(classpath, yq.compiledJavaClassesPath);
+        appendProjectClassOutput(classpath, yq.compiledKotlinClassesPath);
+
+        if (classpath.length() > 0) {
+            classpath.append(':');
+        }
 
         /* Add android.jar */
         classpath.append(androidJarPath);
@@ -462,6 +484,12 @@ public class ProjectBuilder {
         return classpath.toString();
     }
 
+    private void appendProjectClassOutput(StringBuilder classpath, String outputPath) {
+        if (!TextUtils.isEmpty(outputPath) && FileUtil.isExistFile(outputPath)) {
+            classpath.append(outputPath);
+        }
+    }
+
     /**
      * @return Similar to {@link ProjectBuilder#getClasspath()}, but doesn't return some local libraries' JARs if ProGuard full mode is enabled
      */
@@ -491,13 +519,16 @@ public class ProjectBuilder {
                 }
             }
 
-            if (!classpathPart.equals(yq.compiledClassesPath)) {
+            if (!classpathPart.equals(yq.compiledClassesPath)
+                    && !classpathPart.equals(yq.compiledJavaClassesPath)
+                    && !classpathPart.equals(yq.compiledKotlinClassesPath)) {
                 classpath.append(classpathPart).append(':');
             }
         }
 
-        // remove trailing delimiter
-        classpath.deleteCharAt(classpath.length() - 1);
+        if (classpath.length() > 0) {
+            classpath.deleteCharAt(classpath.length() - 1);
+        }
 
         return classpath.toString();
     }
@@ -677,7 +708,7 @@ public class ProjectBuilder {
         );
 
         IncrementalCompileCache compileCache = new IncrementalCompileCache(yq.sc_id, "java");
-        IncrementalCompileCache.ChangeSet changeSet = compileCache.getChangeSetWithEnvironment(
+        IncrementalCompileCache.ChangeSet changeSet = compileCache.getChangeSet(
                 buildJavaCompilationEnvironmentFingerprint(),
                 normalizedGeneratedPath,
                 yq.rJavaDirectoryPath,
@@ -685,8 +716,13 @@ public class ProjectBuilder {
                 normalizedPathBroadcast,
                 normalizedPathService
         );
-        File compiledClassesDirectory = new File(yq.compiledClassesPath);
-        boolean hasCompiledClasses = compiledClassesDirectory.exists() && compiledClassesDirectory.isDirectory();
+
+        List<String> allJavaSourceFiles = changeSet.getCurrentSnapshot().keySet().stream()
+                .filter(path -> path.endsWith(".java"))
+                .sorted()
+                .collect(Collectors.toList());
+        File javaClassesDirectory = new File(yq.compiledJavaClassesPath);
+        boolean hasCompiledClasses = javaClassesDirectory.exists() && javaClassesDirectory.isDirectory();
         boolean fullJavaCompilationRequested = consumeForceFullJavaCompilationFlag();
         boolean compiledClassesPrepared = consumeCompiledClassesPreparedFlag();
 
@@ -699,11 +735,13 @@ public class ProjectBuilder {
 
         if (!changeSet.hasChanges() && hasCompiledClasses && !fullJavaCompilationRequested) {
             LogUtil.d(TAG, "Skipping Java compilation because no Java sources or compilation inputs changed");
+            rebuildMergedCompiledClassesDirectory();
             return;
         }
 
         List<String> changedJavaSources = changeSet.getChangedOrAddedFilesWithExtension(".java");
-        boolean hasRemovedJavaSources = !changeSet.getRemovedFilesWithExtension(".java").isEmpty();
+        List<String> removedJavaSources = changeSet.getRemovedFilesWithExtension(".java");
+        boolean hasRemovedJavaSources = !removedJavaSources.isEmpty();
 
         if (changedJavaSources.isEmpty()
                 && !hasRemovedJavaSources
@@ -712,49 +750,73 @@ public class ProjectBuilder {
                 && !fullJavaCompilationRequested) {
             LogUtil.d(TAG, "Skipping Java compilation because only non-Java sources changed");
             compileCache.save(changeSet);
+            rebuildMergedCompiledClassesDirectory();
             return;
         }
+
+        JavaCompileGraph compileGraph = new JavaCompileGraph(allJavaSourceFiles);
+        List<String> impactedJavaSources = compileGraph.collectImpactedSources(changedJavaSources);
+        if (impactedJavaSources.isEmpty()) {
+            impactedJavaSources = new ArrayList<>(changedJavaSources);
+        }
+        Collections.sort(impactedJavaSources);
 
         boolean incrementalCompile = hasCompiledClasses
                 && !compiledClassesPrepared
                 && !fullJavaCompilationRequested
                 && !changeSet.isEnvironmentChanged()
                 && !hasRemovedJavaSources
-                && !changedJavaSources.isEmpty()
-                && changedJavaSources.size() < fullCompileSources.size();
+                && !impactedJavaSources.isEmpty()
+                && impactedJavaSources.size() < allJavaSourceFiles.size();
 
         File rJavaFileWithoutPackage = new File(yq.rJavaDirectoryPath, "R.java");
         if (rJavaFileWithoutPackage.exists() && !rJavaFileWithoutPackage.delete()) {
             LogUtil.w(TAG, "Failed to delete file " + rJavaFileWithoutPackage.getAbsolutePath());
         }
 
+        SourceOutputTracker javaOutputTracker = new SourceOutputTracker(yq.sc_id, "java");
+        javaOutputTracker.deleteOutputsForSources(removedJavaSources, javaClassesDirectory);
+        javaOutputTracker.removeSources(removedJavaSources);
+
         EcjCompileResult result;
+        List<String> successfullyCompiledJavaSources;
         if (incrementalCompile) {
-            LogUtil.d(TAG, "Running incremental Java compilation for " + changedJavaSources.size()
-                    + " file(s): " + changedJavaSources);
-            result = runEcjCompile(buildEcjArguments(changedJavaSources));
+            successfullyCompiledJavaSources = new ArrayList<>(impactedJavaSources);
+            javaOutputTracker.deleteOutputsForSources(impactedJavaSources, javaClassesDirectory);
+
+            List<List<String>> compileGroups = compileGraph.partitionIndependentSourceGroups(impactedJavaSources);
+            boolean canRunInParallel = isParallelEcjEnabled() && compileGroups.size() > 1;
+            LogUtil.d(TAG, (canRunInParallel ? "Running safe parallel incremental Java compilation" : "Running incremental Java compilation")
+                    + " for " + impactedJavaSources.size() + " impacted source file(s): " + impactedJavaSources);
+            result = canRunInParallel
+                    ? runParallelEcjCompile(compileGroups, javaClassesDirectory)
+                    : runEcjCompile(buildEcjArguments(impactedJavaSources, yq.compiledJavaClassesPath));
             if (!result.success) {
                 LogUtil.w(TAG, "Incremental Java compilation failed. Falling back to a clean full recompilation. Error: "
                         + result.getBestErrorMessage());
             }
         } else {
             result = null;
+            successfullyCompiledJavaSources = new ArrayList<>(allJavaSourceFiles);
         }
 
         if (result == null || !result.success) {
+            cleanJavaAndMergedOutputs();
             if (compiledClassesPrepared) {
-                LogUtil.d(TAG, "Reusing compiled classes directory that was already prepared by Kotlin compilation");
-            } else {
-                cleanCompiledClassesDirectory();
+                FileUtil.makeDir(yq.compiledKotlinClassesPath);
+                LogUtil.d(TAG, "Reusing Kotlin classes directory that was already prepared by Kotlin compilation");
             }
             LogUtil.d(TAG, "Running full Java compilation for " + fullCompileSources.size() + " source roots/files");
-            result = runEcjCompile(buildEcjArguments(fullCompileSources));
+            result = runEcjCompile(buildEcjArguments(fullCompileSources, yq.compiledJavaClassesPath));
+            successfullyCompiledJavaSources = new ArrayList<>(allJavaSourceFiles);
         }
 
         LogUtil.d(TAG, "System.out of Eclipse compiler: " + result.output);
         if (result.success) {
             LogUtil.d(TAG, "System.err of Eclipse compiler: " + result.errors);
             compileCache.save(changeSet);
+            javaOutputTracker.refreshOutputsForSources(successfullyCompiledJavaSources, javaClassesDirectory);
+            rebuildMergedCompiledClassesDirectory();
             LogUtil.d(TAG, "Compiling Java files took " + (System.currentTimeMillis() - savedTimeMillis) + " ms");
         } else {
             LogUtil.e(TAG, "Failed to compile Java files");
@@ -762,7 +824,7 @@ public class ProjectBuilder {
         }
     }
 
-    private ArrayList<String> buildEcjArguments(List<String> sourceInputs) {
+    private ArrayList<String> buildEcjArguments(List<String> sourceInputs, String outputDirectory) {
         ArrayList<String> args = new ArrayList<>();
         args.add("-" + build_settings.getValue(BuildSettings.SETTING_JAVA_VERSION,
                 BuildSettings.SETTING_JAVA_VERSION_1_8));
@@ -772,7 +834,7 @@ public class ProjectBuilder {
             args.add("-deprecation");
         }
         args.add("-d");
-        args.add(yq.compiledClassesPath);
+        args.add(outputDirectory);
         args.add("-cp");
         args.add(getClasspath());
         args.add("-proc:none");
@@ -799,7 +861,114 @@ public class ProjectBuilder {
 
     private void cleanCompiledClassesDirectory() {
         FileUtil.deleteFile(yq.compiledClassesPath);
+        FileUtil.deleteFile(yq.compiledJavaClassesPath);
+        FileUtil.deleteFile(yq.compiledKotlinClassesPath);
         FileUtil.makeDir(yq.compiledClassesPath);
+        FileUtil.makeDir(yq.compiledJavaClassesPath);
+        FileUtil.makeDir(yq.compiledKotlinClassesPath);
+    }
+
+    private void cleanJavaAndMergedOutputs() {
+        FileUtil.deleteFile(yq.compiledJavaClassesPath);
+        FileUtil.deleteFile(yq.compiledClassesPath);
+        FileUtil.makeDir(yq.compiledJavaClassesPath);
+        FileUtil.makeDir(yq.compiledClassesPath);
+    }
+
+    public void rebuildMergedCompiledClassesDirectory() {
+        File mergedOutput = new File(yq.compiledClassesPath);
+        FileUtil.deleteFile(mergedOutput.getAbsolutePath());
+        FileUtil.makeDir(mergedOutput.getAbsolutePath());
+
+        try {
+            File javaOutput = new File(yq.compiledJavaClassesPath);
+            if (javaOutput.exists()) {
+                FileUtil.copyDirectory(javaOutput, mergedOutput);
+            }
+            File kotlinOutput = new File(yq.compiledKotlinClassesPath);
+            if (kotlinOutput.exists()) {
+                FileUtil.copyDirectory(kotlinOutput, mergedOutput);
+            }
+        } catch (IOException e) {
+            LogUtil.e(TAG, "Failed to rebuild merged compiled classes directory", e);
+        }
+    }
+
+    private EcjCompileResult runParallelEcjCompile(List<List<String>> compileGroups, File targetOutputDirectory) throws zy {
+        File parallelRoot = new File(yq.binDirectoryPath, "ecj_parallel");
+        FileUtil.deleteFile(parallelRoot.getAbsolutePath());
+        FileUtil.makeDir(parallelRoot.getAbsolutePath());
+        FileUtil.makeDir(targetOutputDirectory.getAbsolutePath());
+
+        int threadCount = Math.min(compileGroups.size(), Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
+        ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch latch = new CountDownLatch(compileGroups.size());
+        AtomicBoolean failed = new AtomicBoolean(false);
+        AtomicReference<String> bestError = new AtomicReference<>("");
+        StringBuilder stdout = new StringBuilder();
+        StringBuilder stderr = new StringBuilder();
+        List<File> tempOutputs = Collections.synchronizedList(new ArrayList<>());
+
+        for (int i = 0; i < compileGroups.size(); i++) {
+            final int groupIndex = i;
+            final List<String> group = compileGroups.get(i);
+            executorService.submit(() -> {
+                try {
+                    if (failed.get()) {
+                        return;
+                    }
+                    File tempOutput = new File(parallelRoot, "group_" + groupIndex);
+                    FileUtil.makeDir(tempOutput.getAbsolutePath());
+                    EcjCompileResult groupResult = runEcjCompile(buildEcjArguments(group, tempOutput.getAbsolutePath()));
+                    synchronized (stdout) {
+                        if (!groupResult.output.isEmpty()) {
+                            stdout.append(groupResult.output).append('\n');
+                        }
+                        if (!groupResult.errors.isEmpty()) {
+                            stderr.append(groupResult.errors).append('\n');
+                        }
+                    }
+                    if (!groupResult.success) {
+                        failed.set(true);
+                        bestError.compareAndSet("", groupResult.getBestErrorMessage());
+                    } else {
+                        tempOutputs.add(tempOutput);
+                    }
+                } catch (Exception e) {
+                    failed.set(true);
+                    bestError.compareAndSet("", e.getMessage() == null ? "Parallel Java compilation failed" : e.getMessage());
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        try {
+            if (!latch.await(300, TimeUnit.SECONDS)) {
+                failed.set(true);
+                bestError.compareAndSet("", "Timed out while waiting for parallel Java compilation");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new zy("Parallel Java compilation interrupted");
+        } finally {
+            executorService.shutdownNow();
+        }
+
+        if (!failed.get()) {
+            for (File tempOutput : tempOutputs) {
+                try {
+                    FileUtil.copyDirectory(tempOutput, targetOutputDirectory);
+                } catch (IOException e) {
+                    failed.set(true);
+                    bestError.compareAndSet("", e.getMessage() == null ? "Failed to merge parallel Java compiler outputs" : e.getMessage());
+                    break;
+                }
+            }
+        }
+
+        FileUtil.deleteFile(parallelRoot.getAbsolutePath());
+        return new EcjCompileResult(!failed.get(), stdout.toString().trim(), stderr.toString().trim(), bestError.get());
     }
 
     private EcjCompileResult runEcjCompile(ArrayList<String> args) throws zy {
@@ -1172,6 +1341,7 @@ public class ProjectBuilder {
         config.add(ProguardHandler.ANDROID_PROGUARD_RULES_PATH);
         config.add(yq.proguardAaptRules);
         config.add(proguard.getCustomProguardRules());
+        config.add(proguard.getR8ProfileRulesPath());
         var rules = new ArrayList<>(Arrays.asList(getRJavaRules().split("\n")));
         for (Jp library : builtInLibraryManager.getLibraries()) {
             File f = BuiltInLibraries.getLibraryProguardConfiguration(library.getName());
@@ -1199,7 +1369,7 @@ public class ProjectBuilder {
         for (String dexPath : FileUtil.listFiles(yq.binDirectoryPath + File.separator + "dex", "dex")) {
             outputDexSize += new File(dexPath).length();
         }
-        LogUtil.d(TAG, "R8 took " + (System.currentTimeMillis() - savedTimeMillis) + " ms");
+        LogUtil.d(TAG, "R8 took " + (System.currentTimeMillis() - savedTimeMillis) + " ms using profile " + proguard.getR8Profile().getDisplayName());
         LogUtil.d(TAG, "R8 output stats: input JAR=" + inputJarSize + " B, output DEX=" + outputDexSize + " B");
     }
 

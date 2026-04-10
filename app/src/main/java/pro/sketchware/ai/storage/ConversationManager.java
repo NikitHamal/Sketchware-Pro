@@ -5,18 +5,15 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
 
 import pro.sketchware.ai.models.ChatMessage;
 import pro.sketchware.ai.models.Conversation;
+import pro.sketchware.utility.FileUtil;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -25,7 +22,6 @@ public class ConversationManager {
 
     private final File conversationsBaseDir;
     private final File messagesBaseDir;
-    private final Gson gson;
 
     public ConversationManager(@NonNull Context context) {
         conversationsBaseDir = new File(context.getFilesDir(), "ai_agent/conversations");
@@ -36,10 +32,7 @@ public class ConversationManager {
         if (!messagesBaseDir.exists()) {
             messagesBaseDir.mkdirs();
         }
-        gson = new Gson();
     }
-
-    // --- Conversation Methods ---
 
     public void saveConversation(@NonNull Conversation conversation) {
         File workspaceDir = new File(conversationsBaseDir, conversation.getWorkspaceId());
@@ -47,11 +40,7 @@ public class ConversationManager {
             workspaceDir.mkdirs();
         }
         File file = new File(workspaceDir, conversation.getId() + ".json");
-        try (FileWriter writer = new FileWriter(file)) {
-            gson.toJson(conversation, writer);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        FileUtil.writeFile(file.getAbsolutePath(), conversation.toJson());
     }
 
     @Nullable
@@ -60,12 +49,7 @@ public class ConversationManager {
         if (!file.exists()) {
             return null;
         }
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            return gson.fromJson(reader, Conversation.class);
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        }
+        return Conversation.fromJson(FileUtil.readFile(file.getAbsolutePath()));
     }
 
     @NonNull
@@ -80,13 +64,9 @@ public class ConversationManager {
             return conversations;
         }
         for (File file : files) {
-            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-                Conversation conversation = gson.fromJson(reader, Conversation.class);
-                if (conversation != null) {
-                    conversations.add(conversation);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
+            Conversation conversation = Conversation.fromJson(FileUtil.readFile(file.getAbsolutePath()));
+            if (conversation != null) {
+                conversations.add(conversation);
             }
         }
         Collections.sort(conversations, (a, b) -> Long.compare(b.getUpdatedAt(), a.getUpdatedAt()));
@@ -119,8 +99,6 @@ public class ConversationManager {
         }
     }
 
-    // --- Message Methods ---
-
     public void saveMessage(@NonNull String conversationId, @NonNull ChatMessage message) {
         List<ChatMessage> messages = getMessages(conversationId);
         messages.add(message);
@@ -134,18 +112,26 @@ public class ConversationManager {
         if (!file.exists()) {
             return new ArrayList<>();
         }
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            Type listType = new TypeToken<List<ChatMessage>>() {}.getType();
-            List<ChatMessage> messages = gson.fromJson(reader, listType);
-            if (messages == null) {
-                return new ArrayList<>();
-            }
-            Collections.sort(messages, (a, b) -> Long.compare(a.getTimestamp(), b.getTimestamp()));
-            return messages;
-        } catch (Exception e) {
-            e.printStackTrace();
+        String content = FileUtil.readFile(file.getAbsolutePath());
+        if (content == null || content.trim().isEmpty()) {
             return new ArrayList<>();
         }
+        ArrayList<ChatMessage> messages = new ArrayList<>();
+        try {
+            JsonArray array = new JsonParser().parse(content).getAsJsonArray();
+            for (JsonElement element : array) {
+                if (element.isJsonObject()) {
+                    ChatMessage message = ChatMessage.fromJson(element.getAsJsonObject());
+                    if (message != null) {
+                        messages.add(message);
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            return new ArrayList<>();
+        }
+        Collections.sort(messages, (a, b) -> Long.compare(a.getTimestamp(), b.getTimestamp()));
+        return messages;
     }
 
     public void updateLastMessage(@NonNull String conversationId, @NonNull ChatMessage message) {
@@ -176,18 +162,15 @@ public class ConversationManager {
         }
     }
 
-    // --- Private Helper ---
-
     private void writeMessages(@NonNull String conversationId, @NonNull List<ChatMessage> messages) {
         File messagesDir = new File(messagesBaseDir, conversationId);
         if (!messagesDir.exists()) {
             messagesDir.mkdirs();
         }
-        File file = new File(messagesDir, "messages.json");
-        try (FileWriter writer = new FileWriter(file)) {
-            gson.toJson(messages, writer);
-        } catch (IOException e) {
-            e.printStackTrace();
+        JsonArray array = new JsonArray();
+        for (ChatMessage message : messages) {
+            array.add(message.toJson());
         }
+        FileUtil.writeFile(new File(messagesDir, "messages.json").getAbsolutePath(), array.toString());
     }
 }
