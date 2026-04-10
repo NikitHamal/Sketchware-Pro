@@ -2,12 +2,8 @@
 <data-extraction-rules>
     <cloud-backup>
         <include domain="sharedpref" path="." />
-        <exclude domain="sharedpref" path="com.google.firebase.crashlytics.xml" />
-        <exclude domain="no_backup" path="." />
-        <exclude domain="database" path="." />
     </cloud-backup>
     <device-transfer>
         <include domain="sharedpref" path="." />
-        <exclude domain="no_backup" path="." />
     </device-transfer>
 </data-extraction-rules>
