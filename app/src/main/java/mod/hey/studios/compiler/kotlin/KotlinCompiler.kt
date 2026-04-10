@@ -44,9 +44,9 @@ class KotlinCompiler(
         )
         val plugins = getCompilerPlugins(workspace).map(File::getAbsolutePath).toTypedArray()
         val compileCache = IncrementalCompileCache(workspace.sc_id, "kotlin")
-        val changeSet = compileCache.getChangeSet(buildEnvironmentFingerprint(plugins), *sourceRoots)
+        val changeSet = compileCache.getChangeSetWithEnvironment(buildEnvironmentFingerprint(plugins), *sourceRoots)
         val classOutput = File(workspace.compiledKotlinClassesPath)
-        val hasCompiledClasses = classOutput.exists() && classOutput.isDirectory()
+        val hasCompiledClasses = classOutput.exists() && classOutput.isDirectory
 
         if (!changeSet.hasChanges() && hasCompiledClasses) {
             LogUtil.d(TAG, "Skipping Kotlin compilation because no Kotlin/Java source inputs changed")
@@ -110,7 +110,7 @@ class KotlinCompiler(
             compileCache.save(changeSet)
             SourceOutputTracker(workspace.sc_id, "kotlin").removeSources(changeSet.getRemovedFilesWithExtension(".kt"))
             SourceOutputTracker(workspace.sc_id, "kotlin").refreshOutputsForSources(
-                changeSet.currentSnapshot.keys.filter { it.endsWith(".kt") },
+                changeSet.getCurrentSnapshot().keys.filter { it.endsWith(".kt") },
                 mClassOutput
             )
             builder.rebuildMergedCompiledClassesDirectory()
