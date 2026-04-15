@@ -117,7 +117,9 @@ import pro.sketchware.utility.ThemeUtils;
 
 public class ViewPane extends RelativeLayout {
     private final String stringsStart = "@string/";
-    private final FirebaseCrashlytics crashlytics = FirebaseCrashlytics.getInstance();
+    private FirebaseCrashlytics getCrashlytics() {
+        return FirebaseCrashlytics.getInstance();
+    }
     private Context context;
     private ViewGroup rootLayout;
     private int b = 99;
@@ -388,7 +390,7 @@ public class ViewPane extends RelativeLayout {
             view.setLayoutParams(layoutParams);
             if (viewBean.getClassInfo().b("FloatingActionButton") && (imageBean = viewBean.image) != null && (str = imageBean.resName) != null && !str.isEmpty()) {
                 try {
-                    crashlytics.log("ViewPane: trying to set image to FAB");
+                    getCrashlytics().log("ViewPane: trying to set image to FAB");
                     FloatingActionButton fab = (FloatingActionButton) view;
                     if (resourcesManager.h(viewBean.image.resName) == ProjectResourceBean.PROJECT_RES_TYPE_RESOURCE) {
                         int resourceId = getContext().getResources().getIdentifier(viewBean.image.resName, "drawable", getContext().getPackageName());
@@ -405,7 +407,7 @@ public class ViewPane extends RelativeLayout {
                             int scaleFactor = Math.round(getResources().getDisplayMetrics().density / 2.0f);
 
                             if (imagePath.endsWith(".xml")) {
-                                crashlytics.log("ViewPane: loading scaled XML/SVG image");
+                                getCrashlytics().log("ViewPane: loading scaled XML/SVG image");
                                 FilePathUtil fpu = new FilePathUtil();
                                 svgUtils.loadScaledSvgIntoImageView(new AppCompatImageView(getContext()) {
                                     @Override
@@ -426,7 +428,7 @@ public class ViewPane extends RelativeLayout {
                                 }
                             }
                         } else {
-                            crashlytics.log("ViewPane: converting XML to SVG for FAB");
+                            getCrashlytics().log("ViewPane: converting XML to SVG for FAB");
                             VectorDrawableLoader vectorDrawableLoader = new VectorDrawableLoader();
                             ImageView tempImageView = new AppCompatImageView(getContext()) {
                                 @Override
@@ -437,11 +439,11 @@ public class ViewPane extends RelativeLayout {
                             vectorDrawableLoader.setImageVectorFromFile(tempImageView, vectorDrawableLoader.getVectorFullPath(DesignActivity.sc_id, viewBean.image.resName));
                         }
                     }
-                } catch (Exception exception) {
-                    crashlytics.recordException(exception);
-                }
-            }
-            view.setRotation(viewBean.image.rotate);
+} catch (Exception exception) {
+            getCrashlytics().recordException(exception);
+        }
+    }
+    view.setRotation(viewBean.image.rotate);
             view.setAlpha(viewBean.alpha);
             view.setTranslationX(wB.a(getContext(), viewBean.translationX));
             view.setTranslationY(wB.a(getContext(), viewBean.translationY));
@@ -533,8 +535,8 @@ public class ViewPane extends RelativeLayout {
                         VectorDrawableLoader vectorDrawableLoader = new VectorDrawableLoader();
                         vectorDrawableLoader.setImageVectorFromFile((ImageView) view, vectorDrawableLoader.getVectorFullPath(DesignActivity.sc_id, viewBean.image.resName));
                     }
-                } catch (Exception unused2) {
-                    crashlytics.recordException(unused2);
+} catch (Exception unused2) {
+            getCrashlytics().recordException(unused2);
                     FileUtil.deleteFile(new VectorDrawableLoader().getVectorFullPath(DesignActivity.sc_id, viewBean.image.resName));
                     viewBean.image.resName = "default_image";
                     ((ImageView) view).setImageResource(R.drawable.default_image);
@@ -633,17 +635,17 @@ public class ViewPane extends RelativeLayout {
                 //lmao use simple_list_item_1 for now
                 listItem.setListItem(android.R.layout.simple_list_item_1);
             }
-            crashlytics.log("ViewPane: setting item count to EditorListItem");
+            getCrashlytics().log("ViewPane: setting item count to EditorListItem");
             if (!TextUtils.isEmpty(itemCount)) {
                 if (TextUtils.isEmpty(listitem)) {
                     try {
                         listItem.setItemCount(Integer.parseInt(itemCount));
-                    } catch (Exception exception) {
-                        crashlytics.recordException(exception);
-                    }
-                }
+} catch (Exception exception) {
+                getCrashlytics().recordException(exception);
             }
         }
+    }
+}
     }
 
     public ItemView findItemViewByTag(String str) {
@@ -1026,7 +1028,7 @@ public class ViewPane extends RelativeLayout {
     }
 
     private void updateLayout(View view, ViewBean viewBean) {
-        crashlytics.log("ViewPane: Updating layout");
+        getCrashlytics().log("ViewPane: Updating layout");
         LayoutBean layoutBean = viewBean.layout;
         int width = layoutBean.width;
         int height = layoutBean.height;
