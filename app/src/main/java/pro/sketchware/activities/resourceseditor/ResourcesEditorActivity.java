@@ -52,6 +52,7 @@ import pro.sketchware.utility.UI;
 
 public class ResourcesEditorActivity extends BaseAppCompatActivity {
 
+    private static final Pattern VARIANT_PATTERN = Pattern.compile("(values(-[^/]+)*)");
     private final String variantFullNameStarts = "values-";
     public yq yq;
     public boolean isComingFromSrcCodeEditor;
@@ -557,9 +558,7 @@ public class ResourcesEditorActivity extends BaseAppCompatActivity {
     public ArrayList<String> extractVariants(ArrayList<String> resourcesDir) {
         ArrayList<String> variants = new ArrayList<>();
         for (String dir : resourcesDir) {
-            String regex = "(values(-[^/]+)*)";
-            Pattern pattern = Pattern.compile(regex);
-            Matcher matcher = pattern.matcher(dir);
+            Matcher matcher = VARIANT_PATTERN.matcher(dir);
 
             if (matcher.find()) {
                 variants.add(matcher.group(1));
