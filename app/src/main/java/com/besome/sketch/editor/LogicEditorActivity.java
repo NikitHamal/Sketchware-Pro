@@ -113,6 +113,7 @@ import a.a.a.xB;
 import a.a.a.yq;
 import dev.aldi.sayuti.block.ExtraPaletteBlock;
 import mod.bobur.VectorDrawableLoader;
+import pro.sketchware.ai.integration.AiProjectIntegrationHelper;
 import mod.hey.studios.editor.view.IdGenerator;
 import mod.hey.studios.moreblock.ReturnMoreblockManager;
 import mod.hey.studios.moreblock.importer.MoreblockImporterDialog;

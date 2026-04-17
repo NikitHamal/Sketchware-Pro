@@ -7,7 +7,6 @@ import android.content.Intent;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import java.util.List;
 
 import a.a.a.lC;
 import pro.sketchware.ai.activities.ChatActivity;
@@ -83,18 +82,15 @@ public final class AiProjectIntegrationHelper {
             return fallback.trim();
         }
         try {
-            List<java.util.HashMap<String, Object>> projects = lC.b();
-            for (java.util.HashMap<String, Object> project : projects) {
-                Object candidateId = project.get("sc_id");
-                if (candidateId != null && scId.equals(String.valueOf(candidateId))) {
-                    Object workspaceName = project.get("my_ws_name");
-                    if (workspaceName != null && !String.valueOf(workspaceName).trim().isEmpty()) {
-                        return String.valueOf(workspaceName).trim();
-                    }
-                    Object appName = project.get("my_app_name");
-                    if (appName != null && !String.valueOf(appName).trim().isEmpty()) {
-                        return String.valueOf(appName).trim();
-                    }
+            java.util.HashMap<String, Object> project = lC.b(scId);
+            if (project != null) {
+                Object workspaceName = project.get("my_ws_name");
+                if (workspaceName != null && !String.valueOf(workspaceName).trim().isEmpty()) {
+                    return String.valueOf(workspaceName).trim();
+                }
+                Object appName = project.get("my_app_name");
+                if (appName != null && !String.valueOf(appName).trim().isEmpty()) {
+                    return String.valueOf(appName).trim();
                 }
             }
         } catch (Throwable ignored) {

@@ -156,7 +156,7 @@ public class EnableBuiltInLibrariesActivity extends BaseAppCompatActivity {
     }
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (!isStoragePermissionGranted()) {
             finish();
