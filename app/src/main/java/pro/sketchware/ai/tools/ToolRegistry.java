@@ -103,6 +103,7 @@ public class ToolRegistry {
 
         // Activity tools
         registry.register(new ActivityTools.ListActivitiesTool());
+        registry.register(new ActivityTools.GetScreenSourceTool());
         registry.register(new ActivityTools.CreateActivityTool());
         registry.register(new ActivityTools.DeleteActivityTool());
 

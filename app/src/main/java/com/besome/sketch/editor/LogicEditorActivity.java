@@ -1968,6 +1968,7 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
         getMenuInflater().inflate(R.menu.logic_menu, menu);
         menu.findItem(R.id.menu_logic_redo).setEnabled(M != null && bC.d(scId).g(s()));
         menu.findItem(R.id.menu_logic_undo).setEnabled(M != null && bC.d(scId).h(s()));
+        menu.findItem(R.id.menu_logic_reset_generated_java).setVisible(M != null && hasGeneratedJavaOverride());
         return true;
     }
 
@@ -1986,9 +1987,61 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
             showSourceCode();
         } else if (itemId == R.id.menu_logic_edit_generated_java) {
             editGeneratedJava();
+        } else if (itemId == R.id.menu_logic_reset_generated_java) {
+            resetGeneratedJavaOverride();
+        } else if (itemId == R.id.menu_logic_ask_ai) {
+            openAiForCurrentScreen();
         }
 
         return super.onOptionsItemSelected(menuItem);
+    }
+
+
+
+    private boolean hasGeneratedJavaOverride() {
+        if (M == null) {
+            return false;
+        }
+        String overridePath = new FilePathUtil().getPathJava(scId)
+                + File.separator
+                + new yq(this, scId).packageName.replace(".", File.separator)
+                + File.separator
+                + M.getJavaName();
+        return FileUtil.isExistFile(overridePath);
+    }
+
+    private void resetGeneratedJavaOverride() {
+        if (M == null) {
+            return;
+        }
+        String overridePath = new FilePathUtil().getPathJava(scId)
+                + File.separator
+                + new yq(this, scId).packageName.replace(".", File.separator)
+                + File.separator
+                + M.getJavaName();
+        if (!FileUtil.isExistFile(overridePath)) {
+            SketchwareUtil.toast("This screen is using the auto-generated Java already.");
+            return;
+        }
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Reset generated Java override")
+                .setMessage("Delete the manual Java override for this screen and go back to the auto-generated code from blocks?")
+                .setPositiveButton("Reset", (dialog, which) -> {
+                    FileUtil.deleteFile(overridePath);
+                    invalidateOptionsMenu();
+                    SketchwareUtil.toast("The screen now uses auto-generated Java again.");
+                })
+                .setNegativeButton(R.string.common_word_cancel, null)
+                .show();
+    }
+
+    private void openAiForCurrentScreen() {
+        if (M == null) {
+            return;
+        }
+        String projectName = AiProjectIntegrationHelper.resolveProjectName(scId, null);
+        String prompt = "Review the Sketchware logic and generated source for screen '" + M.fileName + "' and help me improve blocks, events, components, and generated Java without breaking Sketchware compatibility.";
+        AiProjectIntegrationHelper.openProjectChat(this, scId, projectName, "AI • " + M.fileName, prompt);
     }
 
     private void editGeneratedJava() {
@@ -2012,8 +2065,7 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
                     + File.separator
                     + packageName.replace(".", File.separator)
                     + File.separator
-                    + M.getActivityName()
-                    + ".java";
+                    + M.getJavaName();
 
             if (!FileUtil.isExistFile(overridePath)) {
                 String code = metadata.getFileSrc(M.getJavaName(), jC.b(scId), jC.a(scId), jC.c(scId));
@@ -2083,7 +2135,9 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
         super.onResume();
         if (!super.isStoragePermissionGranted()) {
             finish();
+            return;
         }
+        invalidateOptionsMenu();
     }
 
     @Override

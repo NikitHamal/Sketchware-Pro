@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 import a.a.a.jC;
+import a.a.a.yq;
 import pro.sketchware.ai.models.ToolResult;
 
 public final class ActivityTools {
@@ -135,6 +136,89 @@ public final class ActivityTools {
                 return success(result.toString());
             } catch (Throwable e) {
                 return error("Failed to list activities: " + e.getMessage());
+            }
+        }
+    }
+
+
+
+    public static class GetScreenSourceTool implements AgentTool {
+        @Override
+        public String getName() {
+            return "get_screen_source";
+        }
+
+        @Override
+        public String getDescription() {
+            return "Returns the generated Java and XML source for a Sketchware screen, including fragments and dialog fragments.";
+        }
+
+        @Override
+        public JsonObject getParametersSchema() {
+            JsonObject properties = new JsonObject();
+            JsonObject scIdProp = new JsonObject();
+            scIdProp.addProperty("type", "string");
+            scIdProp.addProperty("description", "The project SC ID");
+            properties.add("sc_id", scIdProp);
+
+            JsonObject screenProp = new JsonObject();
+            screenProp.addProperty("type", "string");
+            screenProp.addProperty("description", "The fileName of the screen, such as main, settings_fragment, sheet_bottomdialog_fragment");
+            properties.add("screen_name", screenProp);
+
+            JsonArray required = new JsonArray();
+            required.add("sc_id");
+            required.add("screen_name");
+
+            JsonObject schema = new JsonObject();
+            schema.addProperty("type", "object");
+            schema.add("properties", properties);
+            schema.add("required", required);
+            return schema;
+        }
+
+        @Override
+        public ToolResult execute(JsonObject arguments, ToolContext context) {
+            if (!arguments.has("sc_id") || arguments.get("sc_id").isJsonNull()) {
+                return error("Missing required parameter: sc_id");
+            }
+            if (!arguments.has("screen_name") || arguments.get("screen_name").isJsonNull()) {
+                return error("Missing required parameter: screen_name");
+            }
+
+            String scId = arguments.get("sc_id").getAsString();
+            String screenName = arguments.get("screen_name").getAsString();
+            if (!context.isProjectAllowed(scId)) {
+                return error("Access denied: project " + scId + " is not in the current workspace");
+            }
+
+            try {
+                ArrayList<ProjectFileBean> files = new ArrayList<>();
+                if (jC.b(scId).b() != null) files.addAll(jC.b(scId).b());
+                if (jC.b(scId).c() != null) files.addAll(jC.b(scId).c());
+                ProjectFileBean target = null;
+                for (ProjectFileBean file : files) {
+                    if (screenName.equals(file.fileName) || screenName.equals(file.getJavaName()) || screenName.equals(file.getXmlName())) {
+                        target = file;
+                        break;
+                    }
+                }
+                if (target == null) {
+                    return error("Screen not found: " + screenName);
+                }
+
+                yq metadata = new yq(context.getAppContext(), scId);
+                JsonObject result = new JsonObject();
+                result.addProperty("sc_id", scId);
+                result.addProperty("file_name", target.fileName);
+                result.addProperty("file_type", target.fileType);
+                result.addProperty("java_name", target.getJavaName());
+                result.addProperty("xml_name", target.getXmlName());
+                result.addProperty("java_source", metadata.getFileSrc(target.getJavaName(), jC.b(scId), jC.a(scId), jC.c(scId)));
+                result.addProperty("xml_source", metadata.getFileSrc(target.getXmlName(), jC.b(scId), jC.a(scId), jC.c(scId)));
+                return success(result.toString());
+            } catch (Throwable e) {
+                return error("Failed to get screen source: " + e.getMessage());
             }
         }
     }

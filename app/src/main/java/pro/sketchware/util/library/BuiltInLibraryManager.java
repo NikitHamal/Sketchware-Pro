@@ -3,13 +3,18 @@ package pro.sketchware.util.library;
 import android.util.Log;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import a.a.a.Jp;
 import a.a.a.ProjectBuilder;
+import a.a.a.yq;
 import mod.jbk.build.BuiltInLibraries;
+import mod.jbk.editor.manage.library.EnableBuiltInLibrariesActivity;
 import mod.jbk.editor.manage.library.ExcludeBuiltInLibrariesActivity;
+import pro.sketchware.SketchApplication;
 
 /**
  * A class to keep track of a project's built-in libraries.
@@ -20,9 +25,14 @@ public class BuiltInLibraryManager {
     private final ArrayList<String> libraryNames = new ArrayList<>();
     private final ArrayList<Jp> libraries = new ArrayList<>();
     private final List<BuiltInLibraries.BuiltInLibrary> excludedLibraries;
+    private final List<BuiltInLibraries.BuiltInLibrary> manuallyEnabledLibraries;
 
     public BuiltInLibraryManager(String projectId) {
         excludedLibraries = ExcludeBuiltInLibrariesActivity.getExcludedLibraries(projectId);
+        manuallyEnabledLibraries = EnableBuiltInLibrariesActivity.getEnabledLibraries(projectId);
+        for (BuiltInLibraries.BuiltInLibrary library : manuallyEnabledLibraries) {
+            addLibrary(library.getName());
+        }
     }
 
     /**
@@ -72,4 +82,21 @@ public class BuiltInLibraryManager {
     public ArrayList<Jp> getLibraries() {
         return libraries;
     }
+
+    public static List<BuiltInLibraries.BuiltInLibrary> getEffectiveEnabledLibraries(String projectId) {
+        try {
+            yq workspace = new yq(SketchApplication.getContext(), projectId);
+            ProjectBuilder projectBuilder = new ProjectBuilder(SketchApplication.getContext(), workspace);
+            projectBuilder.buildBuiltInLibraryInformation();
+            List<BuiltInLibraries.BuiltInLibrary> libraries = new ArrayList<>();
+            for (Jp library : projectBuilder.getBuiltInLibraryManager().getLibraries()) {
+                BuiltInLibraries.BuiltInLibrary.ofName(library.getName()).ifPresent(libraries::add);
+            }
+            libraries.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+            return libraries;
+        } catch (Throwable ignored) {
+            return new ArrayList<>(EnableBuiltInLibrariesActivity.getEnabledLibraries(projectId));
+        }
+    }
+
 }

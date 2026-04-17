@@ -21,6 +21,9 @@ import java.util.Set;
 import dev.aldi.sayuti.editor.manage.LocalLibrariesUtil;
 import dev.aldi.sayuti.editor.manage.LocalLibrary;
 import mod.hey.studios.build.BuildSettings;
+import mod.jbk.build.BuiltInLibraries;
+import mod.jbk.editor.manage.library.EnableBuiltInLibrariesActivity;
+import mod.jbk.editor.manage.library.ExcludeBuiltInLibrariesActivity;
 import mod.pranav.dependency.resolver.DependencyResolver;
 import pro.sketchware.ai.models.ToolResult;
 import pro.sketchware.util.library.BuiltInLibraryCompatibilityMatrix;
@@ -143,6 +146,18 @@ public class LibraryTools {
                     }
                 }
             }
+
+            JsonArray manuallyEnabledBuiltIns = new JsonArray();
+            for (BuiltInLibraries.BuiltInLibrary library : EnableBuiltInLibrariesActivity.getEnabledLibraries(scId)) {
+                manuallyEnabledBuiltIns.add(library.getName());
+            }
+            result.add("manually_enabled_built_in_libraries", manuallyEnabledBuiltIns);
+
+            JsonArray excludedBuiltIns = new JsonArray();
+            for (BuiltInLibraries.BuiltInLibrary library : ExcludeBuiltInLibrariesActivity.getExcludedLibraries(scId)) {
+                excludedBuiltIns.add(library.getName());
+            }
+            result.add("excluded_built_in_libraries", excludedBuiltIns);
 
             JsonArray attachedLocalLibraries = new JsonArray();
             for (HashMap<String, Object> entry : getAttachedLocalLibraries(scId)) {

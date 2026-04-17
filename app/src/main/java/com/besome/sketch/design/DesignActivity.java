@@ -123,6 +123,7 @@ import mod.jbk.util.TestkeySignBridge;
 import mod.khaled.logcat.LogReaderActivity;
 import pro.sketchware.R;
 import pro.sketchware.activities.appcompat.ManageAppCompatActivity;
+import pro.sketchware.ai.integration.AiProjectIntegrationHelper;
 import pro.sketchware.activities.editor.command.ManageXMLCommandActivity;
 import pro.sketchware.activities.editor.view.CodeViewerActivity;
 import pro.sketchware.activities.editor.view.ViewCodeEditorActivity;
@@ -553,6 +554,10 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             resetGeneratedJavaOverride();
             return true;
         });
+        bottomMenu.add(Menu.NONE, 13, Menu.NONE, "Ask AI about this screen").setOnMenuItemClickListener(item -> {
+            openAiForCurrentScreen();
+            return true;
+        });
         bottomPopupMenu.setOnDismissListener(menu -> btnOptions.setChecked(false));
 
         xmlLayoutOrientation = findViewById(R.id.img_orientation);
@@ -706,6 +711,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             finish();
         }
 
+        updateBottomMenu();
         long freeMegabytes = GB.c();
         if (freeMegabytes < 100L && freeMegabytes > 0L) {
             warnAboutInsufficientStorageSpace();
@@ -976,8 +982,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 + File.separator
                 + q.packageName.replace(".", File.separator)
                 + File.separator
-                + file.getActivityName()
-                + ".java";
+                + file.getJavaName();
     }
 
     private boolean hasGeneratedJavaOverride(ProjectFileBean file) {
@@ -1048,6 +1053,18 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 })
                 .setNegativeButton(R.string.common_word_cancel, null)
                 .show();
+    }
+
+
+
+    private void openAiForCurrentScreen() {
+        if (projectFile == null) {
+            SketchwareUtil.toast("No screen is selected.");
+            return;
+        }
+        String projectName = AiProjectIntegrationHelper.resolveProjectName(sc_id, q != null ? q.projectName : null);
+        String prompt = "Audit and improve the currently open Sketchware screen '" + projectFile.fileName + "'. Review its generated XML and Java, then propose or apply changes that stay fully compatible with Sketchware Pro.";
+        AiProjectIntegrationHelper.openProjectChat(this, sc_id, projectName, "AI • " + projectFile.fileName, prompt);
     }
 
     private void showSignedApkBuildDialog() {

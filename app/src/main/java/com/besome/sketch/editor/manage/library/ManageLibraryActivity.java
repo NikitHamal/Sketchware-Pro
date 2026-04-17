@@ -35,8 +35,11 @@ import dev.aldi.sayuti.editor.manage.ManageLocalLibraryActivity;
 import mod.hey.studios.activity.managers.nativelib.ManageNativelibsActivity;
 import mod.hey.studios.util.Helper;
 import mod.jbk.build.BuiltInLibraries;
+import mod.jbk.editor.manage.library.EnableBuiltInLibrariesActivity;
 import mod.jbk.editor.manage.library.ExcludeBuiltInLibrariesActivity;
+import pro.sketchware.ai.integration.AiProjectIntegrationHelper;
 import pro.sketchware.util.library.BuiltInLibraryCompatibilityMatrix;
+import mod.jbk.editor.manage.library.EnableBuiltInLibrariesLibraryItemView;
 import mod.jbk.editor.manage.library.ExcludeBuiltInLibrariesLibraryItemView;
 import pro.sketchware.R;
 import pro.sketchware.utility.UI;
@@ -99,6 +102,9 @@ public class ManageLibraryActivity extends BaseAppCompatActivity implements View
         LibraryItemView libraryItemView;
         if (type == ProjectLibraryBean.PROJECT_LIB_TYPE_EXCLUDE_BUILTIN_LIBRARIES) {
             libraryItemView = new ExcludeBuiltInLibrariesLibraryItemView(this, sc_id);
+            libraryItemView.setData(null);
+        } else if (type == ProjectLibraryBean.PROJECT_LIB_TYPE_ENABLE_BUILTIN_LIBRARIES) {
+            libraryItemView = new EnableBuiltInLibrariesLibraryItemView(this, sc_id);
             libraryItemView.setData(null);
         } else {
             libraryItemView = new Material3LibraryItemView(this);
@@ -305,11 +311,31 @@ public class ManageLibraryActivity extends BaseAppCompatActivity implements View
                         launchCustomActivity(ExcludeBuiltInLibrariesActivity.class);
                         break;
 
+                    case ProjectLibraryBean.PROJECT_LIB_TYPE_ENABLE_BUILTIN_LIBRARIES:
+                        launchCustomActivity(EnableBuiltInLibrariesActivity.class);
+                        break;
+
                     case ProjectLibraryBean.PROJECT_LIB_TYPE_MATERIAL3:
                         toMaterial3Activity();
                 }
             }
         }
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(android.view.Menu menu) {
+        menu.add(android.view.Menu.NONE, 9001, android.view.Menu.NONE, "Open AI for libraries");
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(android.view.MenuItem item) {
+        if (item.getItemId() == 9001) {
+            String projectName = AiProjectIntegrationHelper.resolveProjectName(sc_id, null);
+            AiProjectIntegrationHelper.openProjectChat(this, sc_id, projectName, "AI • Libraries", "Audit this Sketchware Pro project's libraries, built-in dependencies, local libraries, exclusions, and build compatibility, then help me improve them safely.");
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     @Override
@@ -395,6 +421,7 @@ public class ManageLibraryActivity extends BaseAppCompatActivity implements View
         addLibraryItem(new ProjectLibraryBean(ProjectLibraryBean.PROJECT_LIB_TYPE_NATIVE_LIB), externalCategory, false);
 
         LibraryCategoryView advancedCategory = addCategoryItem("Advanced");
+        addCustomLibraryItem(ProjectLibraryBean.PROJECT_LIB_TYPE_ENABLE_BUILTIN_LIBRARIES, advancedCategory);
         addCustomLibraryItem(ProjectLibraryBean.PROJECT_LIB_TYPE_EXCLUDE_BUILTIN_LIBRARIES, advancedCategory, false);
     }
 

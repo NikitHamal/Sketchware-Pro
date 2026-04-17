@@ -36,6 +36,7 @@ import mod.hey.studios.project.backup.BackupRestoreManager;
 import mod.hey.studios.util.Helper;
 import pro.sketchware.R;
 import pro.sketchware.activities.main.fragments.projects.ProjectsFragment;
+import pro.sketchware.ai.integration.AiProjectIntegrationHelper;
 import pro.sketchware.databinding.BottomSheetProjectOptionsBinding;
 import pro.sketchware.databinding.MyprojectsItemBinding;
 
@@ -294,6 +295,15 @@ public class ProjectsAdapter extends RecyclerView.Adapter<ProjectsAdapter.Projec
 
         binding.projectConfig.setOnClickListener(v -> {
             showProjectSettingDialog(projectMap);
+            projectOptionsBSD.dismiss();
+        });
+
+        binding.projectAi.setOnClickListener(v -> {
+            String scId = yB.c(projectMap, "sc_id");
+            String projectName = yB.c(projectMap, "my_ws_name");
+            AiProjectIntegrationHelper.openProjectChat(activity, scId, projectName,
+                    "AI • " + projectName,
+                    "Audit and improve Sketchware project '" + projectName + "'. Understand its screens, logic, resources, libraries, and build setup, then help me make production-ready changes.");
             projectOptionsBSD.dismiss();
         });
 

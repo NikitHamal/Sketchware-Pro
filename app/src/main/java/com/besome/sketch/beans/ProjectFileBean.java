@@ -212,7 +212,7 @@ public class ProjectFileBean extends SelectableBean implements Parcelable {
     }
 
     public String getActivityName() {
-        return fileType != PROJECT_FILE_TYPE_ACTIVITY ? "" : getActivityName(fileName);
+        return getActivityName(fileName);
     }
 
     public int getActivityOptions() {
@@ -237,7 +237,7 @@ public class ProjectFileBean extends SelectableBean implements Parcelable {
     }
 
     public String getJavaName() {
-        return fileType != PROJECT_FILE_TYPE_ACTIVITY ? "" : getJavaName(fileName);
+        return getJavaName(fileName);
     }
 
     public String getXmlName() {

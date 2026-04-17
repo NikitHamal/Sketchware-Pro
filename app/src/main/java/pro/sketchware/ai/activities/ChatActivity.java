@@ -43,6 +43,7 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
 
     public static final String EXTRA_CONVERSATION_ID = "conversation_id";
     public static final String EXTRA_WORKSPACE_ID = "workspace_id";
+    public static final String EXTRA_INITIAL_PROMPT = "initial_prompt";
 
     private ActivityChatBinding binding;
     private ConversationManager conversationManager;
@@ -94,6 +95,24 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
         setupInput();
         loadModelInfo();
         loadMessages();
+        maybeSendInitialPrompt(savedInstanceState);
+    }
+
+
+
+    private void maybeSendInitialPrompt(Bundle savedInstanceState) {
+        if (savedInstanceState != null) {
+            return;
+        }
+        if (conversationManager == null || conversationManager.getMessages(conversationId).size() > 0) {
+            return;
+        }
+        String initialPrompt = getIntent().getStringExtra(EXTRA_INITIAL_PROMPT);
+        if (initialPrompt == null || initialPrompt.trim().isEmpty()) {
+            return;
+        }
+        binding.inputMessage.setText(initialPrompt.trim());
+        binding.inputMessage.post(this::sendMessage);
     }
 
     private void setupToolbar() {
