@@ -9,6 +9,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.besome.sketch.tools.CollectErrorActivity;
+import com.google.firebase.FirebaseApp;
 
 import pro.sketchware.utility.theme.ThemeManager;
 
@@ -34,6 +35,12 @@ public class SketchApplication extends Application {
             }
         });
         super.onCreate();
+        try {
+            if (FirebaseApp.getApps(this).isEmpty()) {
+                FirebaseApp.initializeApp(this);
+            }
+        } catch (Throwable ignored) {
+        }
         ThemeManager.applyTheme(this, ThemeManager.getCurrentTheme(this));
     }
 }

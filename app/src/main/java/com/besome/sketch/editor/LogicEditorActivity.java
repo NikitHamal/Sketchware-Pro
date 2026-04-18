@@ -72,7 +72,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
-import com.google.firebase.crashlytics.FirebaseCrashlytics;
 
 import java.io.File;
 import java.lang.ref.WeakReference;
@@ -133,6 +132,7 @@ import pro.sketchware.menu.ExtraMenuBean;
 import mod.hey.studios.code.SrcCodeEditor;
 import pro.sketchware.utility.FilePathUtil;
 import pro.sketchware.utility.FileUtil;
+import pro.sketchware.utility.CrashlyticsBridge;
 import pro.sketchware.utility.SketchwareUtil;
 import pro.sketchware.utility.SvgUtils;
 
@@ -141,7 +141,6 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
 
     private final Handler handler = new Handler();
     private final int[] v = new int[2];
-    private final FirebaseCrashlytics crashlytics = FirebaseCrashlytics.getInstance();
     public ProjectFileBean M;
     public PaletteBlock m;
     public BlockPane o;
@@ -196,7 +195,7 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
     }
 
     private void loadEventBlocks() {
-        crashlytics.log("Loading event blocks");
+        CrashlyticsBridge.log("Loading event blocks");
         ArrayList<BlockBean> eventBlocks = jC.a(scId).a(M.getJavaName(), id + "_" + eventName);
         if (eventBlocks != null) {
             if (eventBlocks.isEmpty()) {
@@ -455,7 +454,7 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
         try {
             new ProjectSaver(this).schedule(500L);
         } catch (Exception e) {
-            crashlytics.recordException(e);
+            CrashlyticsBridge.recordException(e);
         }
     }
 
@@ -1213,7 +1212,7 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
             Mp.h().a(str, arrayList2, true);
             O.a(str, arrayList2).setOnTouchListener(this);
         } catch (Exception e) {
-            crashlytics.recordException(e);
+            CrashlyticsBridge.recordException(e);
         }
     }
 
@@ -1384,8 +1383,8 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
             try {
                 typeface = Typeface.createFromFile(jC.d(scId).d(fontName));
             } catch (RuntimeException e) {
-                crashlytics.log("Loading font preview");
-                crashlytics.recordException(e);
+                CrashlyticsBridge.log("Loading font preview");
+                CrashlyticsBridge.recordException(e);
                 typeface = Typeface.DEFAULT;
                 preview.setText("Couldn't load font");
             }

@@ -63,7 +63,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.tabs.TabLayout;
-import com.google.firebase.crashlytics.FirebaseCrashlytics;
 import com.topjohnwu.superuser.Shell;
 
 import org.spongycastle.jce.provider.BouncyCastleProvider;
@@ -141,7 +140,6 @@ import kellinwood.security.zipsigner.optional.LoadKeystoreException;
 public class DesignActivity extends BaseAppCompatActivity implements View.OnClickListener {
     public static String sc_id;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private FirebaseCrashlytics crashlytics;
     private ImageView xmlLayoutOrientation;
     private boolean B;
     private int currentTabNumber;
@@ -694,11 +692,8 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             ProjectLoader projectLoader = new ProjectLoader(this, savedInstanceState);
             projectLoader.execute();
         } catch (Exception e) {
-            FirebaseCrashlytics crashlytics = getCrashlytics();
-            if (crashlytics != null) {
-                crashlytics.log("ProjectLoader failed");
-                crashlytics.recordException(e);
-            }
+            CrashlyticsBridge.log("ProjectLoader failed");
+            CrashlyticsBridge.recordException(e);
         } finally {
             SystemLogPrinter.stop();
         }
@@ -757,10 +752,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 try {
                     saveChangesAndCloseProject();
                 } catch (Exception e) {
-                    FirebaseCrashlytics crashlytics = getCrashlytics();
-                    if (crashlytics != null) {
-                        crashlytics.recordException(e);
-                    }
+                    CrashlyticsBridge.recordException(e);
                     h();
                 }
             }
@@ -773,10 +765,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                     DiscardChangesProjectCloser discardChangesProjectCloser = new DiscardChangesProjectCloser(this);
                     discardChangesProjectCloser.execute();
                 } catch (Exception e) {
-                    FirebaseCrashlytics crashlytics = getCrashlytics();
-                    if (crashlytics != null) {
-                        crashlytics.recordException(e);
-                    }
+                    CrashlyticsBridge.recordException(e);
                     h();
                 }
             }
@@ -1927,16 +1916,5 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             }
         }
     }
-
-    private FirebaseCrashlytics getCrashlytics() {
-        if (crashlytics == null) {
-            try {
-                crashlytics = FirebaseCrashlytics.getInstance();
-            } catch (IllegalStateException e) {
-                // Firebase not initialized
-                crashlytics = null;
-            }
-        }
-        return crashlytics;
-    }
 }
+
