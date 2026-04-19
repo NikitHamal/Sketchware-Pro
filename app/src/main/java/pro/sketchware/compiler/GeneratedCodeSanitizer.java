@@ -224,13 +224,15 @@ public final class GeneratedCodeSanitizer {
             LambdaExpr lambdaExpr = new LambdaExpr();
             NodeList<com.github.javaparser.ast.body.Parameter> parameters = new NodeList<>();
             methodDeclaration.getParameters().forEach(parameter -> {
-                com.github.javaparser.ast.body.Parameter lambdaParameter = parameter.clone();
-                lambdaParameter.setType(new UnknownType());
-                lambdaParameter.setVarArgs(false);
+                com.github.javaparser.ast.body.Parameter lambdaParameter =
+                        new com.github.javaparser.ast.body.Parameter(
+                                new NodeList<>(),
+                                new UnknownType(),
+                                parameter.getName().clone());
                 parameters.add(lambdaParameter);
             });
             lambdaExpr.setParameters(parameters);
-            lambdaExpr.setEnclosingParameters(parameters.size() != 1);
+            lambdaExpr.setEnclosingParameters(true);
             lambdaExpr.setBody(methodDeclaration.getBody().get().clone());
             return lambdaExpr;
         }

@@ -41,6 +41,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +55,7 @@ import mod.hey.studios.util.Helper;
 import mod.jbk.build.BuiltInLibraries;
 import mod.jbk.util.LogUtil;
 import pro.sketchware.R;
+import pro.sketchware.util.library.BuiltInLibraryManager;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
 
@@ -372,7 +374,8 @@ public class EnableBuiltInLibrariesActivity extends BaseAppCompatActivity {
         recyclerView.setVerticalScrollBarEnabled(true);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        BuiltInLibraryAdapter adapter = new BuiltInLibraryAdapter(enabledLibraries);
+        List<BuiltInLibraries.BuiltInLibrary> autoEnabledLibraries = computeAutoEnabledLibraries();
+        BuiltInLibraryAdapter adapter = new BuiltInLibraryAdapter(enabledLibraries, autoEnabledLibraries);
         adapter.setHasStableIds(true);
         recyclerView.setAdapter(adapter);
 
@@ -390,6 +393,20 @@ public class EnableBuiltInLibrariesActivity extends BaseAppCompatActivity {
         });
         dialog.setNegativeButton(Helper.getResString(R.string.common_word_cancel), null);
         dialog.show();
+    }
+
+    private List<BuiltInLibraries.BuiltInLibrary> computeAutoEnabledLibraries() {
+        List<BuiltInLibraries.BuiltInLibrary> effective = BuiltInLibraryManager.getEffectiveEnabledLibraries(sc_id);
+        Set<String> manualNames = enabledLibraries.stream()
+                .map(BuiltInLibraries.BuiltInLibrary::getName)
+                .collect(Collectors.toSet());
+        List<BuiltInLibraries.BuiltInLibrary> autoEnabled = new ArrayList<>();
+        for (BuiltInLibraries.BuiltInLibrary lib : effective) {
+            if (!manualNames.contains(lib.getName())) {
+                autoEnabled.add(lib);
+            }
+        }
+        return autoEnabled;
     }
 
     private static class SaveConfigTask extends MA {
@@ -430,17 +447,26 @@ public class EnableBuiltInLibrariesActivity extends BaseAppCompatActivity {
     private static class BuiltInLibraryAdapter extends RecyclerView.Adapter<BuiltInLibraryAdapter.ViewHolder> {
         private final List<BuiltInLibraries.BuiltInLibrary> libraries;
         private final Map<Integer, Void> checkedIndices;
+        private final Set<Integer> autoEnabledIndices;
         private List<BuiltInLibraries.BuiltInLibrary> filteredLibraries;
 
-        public BuiltInLibraryAdapter(List<BuiltInLibraries.BuiltInLibrary> enabledLibraries) {
+        public BuiltInLibraryAdapter(List<BuiltInLibraries.BuiltInLibrary> enabledLibraries,
+                                     List<BuiltInLibraries.BuiltInLibrary> autoEnabledLibraries) {
             libraries = Arrays.asList(BuiltInLibraries.KNOWN_BUILT_IN_LIBRARIES);
             libraries.sort(Comparator.comparing(BuiltInLibraries.BuiltInLibrary::getName, String.CASE_INSENSITIVE_ORDER));
             filteredLibraries = new ArrayList<>(libraries);
             checkedIndices = new HashMap<>();
+            autoEnabledIndices = new HashSet<>();
             for (BuiltInLibraries.BuiltInLibrary enabledLibrary : enabledLibraries) {
                 int index = libraries.indexOf(enabledLibrary);
                 if (index >= 0) {
                     checkedIndices.put(index, null);
+                }
+            }
+            for (BuiltInLibraries.BuiltInLibrary autoEnabledLibrary : autoEnabledLibraries) {
+                int index = libraries.indexOf(autoEnabledLibrary);
+                if (index >= 0) {
+                    autoEnabledIndices.add(index);
                 }
             }
         }
@@ -465,8 +491,15 @@ public class EnableBuiltInLibrariesActivity extends BaseAppCompatActivity {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             BuiltInLibraries.BuiltInLibrary library = filteredLibraries.get(position);
             int originalPosition = libraries.indexOf(library);
-            holder.selected.setChecked(checkedIndices.containsKey(originalPosition));
-            holder.name.setText(library.getName());
+            boolean isAutoEnabled = autoEnabledIndices.contains(originalPosition);
+            boolean isManuallyEnabled = checkedIndices.containsKey(originalPosition);
+            holder.selected.setChecked(isManuallyEnabled || isAutoEnabled);
+            holder.selected.setEnabled(!isAutoEnabled);
+            if (isAutoEnabled) {
+                holder.name.setText(library.getName() + " (auto)");
+            } else {
+                holder.name.setText(library.getName());
+            }
             Optional<String> packageName = library.getPackageName();
             if (packageName.isPresent()) {
                 holder.packageName.setVisibility(View.VISIBLE);
@@ -474,19 +507,30 @@ public class EnableBuiltInLibrariesActivity extends BaseAppCompatActivity {
             } else {
                 holder.packageName.setVisibility(View.GONE);
             }
-            View.OnClickListener selectingListener = v -> {
-                CheckBox selected = holder.selected;
-                if (v.getId() != R.id.chk_select) {
-                    selected.setChecked(!selected.isChecked());
-                }
-                if (selected.isChecked()) {
-                    checkedIndices.put(originalPosition, null);
-                } else {
-                    checkedIndices.remove(originalPosition);
-                }
-            };
-            holder.selected.setOnClickListener(selectingListener);
-            holder.selectableItem.setOnClickListener(selectingListener);
+            if (isAutoEnabled) {
+                holder.selectableItem.setOnClickListener(null);
+                holder.selected.setOnClickListener(null);
+                holder.selectableItem.setClickable(false);
+                holder.selectableItem.setFocusable(false);
+                holder.selectableItem.setAlpha(0.6f);
+            } else {
+                View.OnClickListener selectingListener = v -> {
+                    CheckBox selected = holder.selected;
+                    if (v.getId() != R.id.chk_select) {
+                        selected.setChecked(!selected.isChecked());
+                    }
+                    if (selected.isChecked()) {
+                        checkedIndices.put(originalPosition, null);
+                    } else {
+                        checkedIndices.remove(originalPosition);
+                    }
+                };
+                holder.selected.setOnClickListener(selectingListener);
+                holder.selectableItem.setOnClickListener(selectingListener);
+                holder.selectableItem.setClickable(true);
+                holder.selectableItem.setFocusable(true);
+                holder.selectableItem.setAlpha(1.0f);
+            }
         }
 
         public List<BuiltInLibraries.BuiltInLibrary> getSelectedBuiltInLibraries() {
