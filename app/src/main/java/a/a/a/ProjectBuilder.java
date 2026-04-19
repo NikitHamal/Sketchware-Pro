@@ -26,6 +26,7 @@ import com.github.megatronking.stringfog.plugin.StringFogMappingPrinter;
 import com.iyxan23.zipalignjava.InvalidZipException;
 import com.iyxan23.zipalignjava.ZipAlign;
 
+import com.besome.sketch.beans.ProjectFileBean;
 import org.xml.sax.SAXException;
 
 import java.io.File;
@@ -234,6 +235,7 @@ public class ProjectBuilder {
         HashMap<String, File> layoutByName = new HashMap<>();
         collectViewBindingLayouts(new File(yq.resDirectoryPath), layoutByName);
         collectViewBindingLayouts(new File(fpu.getPathResource(yq.sc_id)), layoutByName);
+        synthesizeMissingViewBindingLayouts(layoutByName);
 
         ArrayList<String> layoutNames = new ArrayList<>(layoutByName.keySet());
         Collections.sort(layoutNames);
@@ -246,6 +248,46 @@ public class ProjectBuilder {
             }
         }
         return layouts;
+    }
+
+    private void synthesizeMissingViewBindingLayouts(HashMap<String, File> layoutByName) {
+        hC projectFileManager = jC.b(yq.sc_id);
+        eC projectDataManager = jC.a(yq.sc_id);
+        iC projectLibraryManager = jC.c(yq.sc_id);
+        if (projectFileManager == null || projectDataManager == null || projectLibraryManager == null) {
+            return;
+        }
+
+        File fallbackRoot = new File(yq.binDirectoryPath, "viewbinding_layout_inputs");
+        if (fallbackRoot.exists()) {
+            FileUtil.deleteFile(fallbackRoot.getAbsolutePath());
+        }
+        fallbackRoot.mkdirs();
+
+        ArrayList<ProjectFileBean> projectFiles = new ArrayList<>();
+        projectFiles.addAll(projectFileManager.b());
+        projectFiles.addAll(projectFileManager.c());
+
+        for (ProjectFileBean projectFile : projectFiles) {
+            if (projectFile == null) {
+                continue;
+            }
+
+            String xmlName = projectFile.getXmlName();
+            if (layoutByName.containsKey(xmlName)) {
+                continue;
+            }
+
+            String xmlSource = yq.getFileSrc(xmlName, projectFileManager, projectDataManager, projectLibraryManager);
+            if (TextUtils.isEmpty(xmlSource)) {
+                continue;
+            }
+
+            File synthesizedLayout = new File(fallbackRoot, xmlName);
+            FileUtil.writeFile(synthesizedLayout.getAbsolutePath(), xmlSource);
+            layoutByName.put(xmlName, synthesizedLayout);
+            LogUtil.d(TAG, "Synthesized missing layout for view binding: " + xmlName);
+        }
     }
 
     private void collectViewBindingLayouts(File resourceRoot, HashMap<String, File> layoutByName) {

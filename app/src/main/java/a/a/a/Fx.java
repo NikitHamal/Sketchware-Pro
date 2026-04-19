@@ -558,21 +558,21 @@ public class Fx {
                 break;
             case "isDrawerOpen":
                 if (buildConfig.a(activityName).hasDrawer) {
-                    opcode = isViewBindingEnabled ? "binding.drawer.isDrawerOpen(GravityCompat.START)" : "_drawer.isDrawerOpen(GravityCompat.START)";
+                    opcode = isViewBindingEnabled ? "binding.Drawer.isDrawerOpen(GravityCompat.START)" : "_drawer.isDrawerOpen(GravityCompat.START)";
                 } else {
                     opcode = "";
                 }
                 break;
             case "openDrawer":
                 if (buildConfig.a(activityName).hasDrawer) {
-                    opcode = isViewBindingEnabled ? "binding.drawer.openDrawer(GravityCompat.START);" : "_drawer.openDrawer(GravityCompat.START);";
+                    opcode = isViewBindingEnabled ? "binding.Drawer.openDrawer(GravityCompat.START);" : "_drawer.openDrawer(GravityCompat.START);";
                 } else {
                     opcode = "";
                 }
                 break;
             case "closeDrawer":
                 if (buildConfig.a(activityName).hasDrawer) {
-                    opcode = isViewBindingEnabled ? "binding.drawer.closeDrawer(GravityCompat.START);" : "_drawer.closeDrawer(GravityCompat.START);";
+                    opcode = isViewBindingEnabled ? "binding.Drawer.closeDrawer(GravityCompat.START);" : "_drawer.closeDrawer(GravityCompat.START);";
                 } else {
                     opcode = "";
                 }
