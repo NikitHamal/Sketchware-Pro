@@ -207,25 +207,90 @@ public class ProjectBuilder {
     }
 
     public void generateViewBinding() throws IOException, SAXException {
+        File outputDirectory = new File(yq.javaFilesPath + File.separator + yq.packageName.replace(".", File.separator) + File.separator + "databinding");
+        if (outputDirectory.exists()) {
+            FileUtil.deleteFile(outputDirectory.getAbsolutePath());
+        }
+
         if (settings.getValue(ProjectSettings.SETTING_ENABLE_VIEWBINDING, ProjectSettings.SETTING_GENERIC_VALUE_FALSE)
                 .equals(ProjectSettings.SETTING_GENERIC_VALUE_FALSE)) {
             return;
         }
 
         pruneGeneratedSourceConflicts();
-
-        File outputDirectory = new File(yq.javaFilesPath + File.separator + yq.packageName.replace(".", File.separator) + File.separator + "databinding");
-        if (outputDirectory.exists()) {
-            FileUtil.deleteFile(outputDirectory.getAbsolutePath());
-        }
         outputDirectory.mkdirs();
 
-        List<File> layouts = FileUtil.listFiles(yq.layoutFilesPath, "xml").stream()
-                .map(File::new)
-                .collect(Collectors.toList());
+        List<File> layouts = collectViewBindingLayouts();
+        if (layouts.isEmpty()) {
+            LogUtil.w(TAG, "View binding is enabled but no eligible layout XML files were found");
+            return;
+        }
 
         ViewBindingBuilder builder = new ViewBindingBuilder(layouts, outputDirectory, yq.packageName + ".databinding");
         builder.generateBindings();
+    }
+
+    private List<File> collectViewBindingLayouts() {
+        HashMap<String, File> layoutByName = new HashMap<>();
+        collectViewBindingLayouts(new File(yq.resDirectoryPath), layoutByName);
+        collectViewBindingLayouts(new File(fpu.getPathResource(yq.sc_id)), layoutByName);
+
+        ArrayList<String> layoutNames = new ArrayList<>(layoutByName.keySet());
+        Collections.sort(layoutNames);
+
+        ArrayList<File> layouts = new ArrayList<>(layoutNames.size());
+        for (String layoutName : layoutNames) {
+            File layout = layoutByName.get(layoutName);
+            if (layout != null && layout.exists() && layout.isFile()) {
+                layouts.add(layout);
+            }
+        }
+        return layouts;
+    }
+
+    private void collectViewBindingLayouts(File resourceRoot, HashMap<String, File> layoutByName) {
+        if (resourceRoot == null || !resourceRoot.exists() || !resourceRoot.isDirectory()) {
+            return;
+        }
+
+        File[] resourceDirectories = resourceRoot.listFiles();
+        if (resourceDirectories == null) {
+            return;
+        }
+
+        Arrays.sort(resourceDirectories, (left, right) -> Integer.compare(getLayoutDirectoryPreference(left), getLayoutDirectoryPreference(right)));
+        for (File resourceDirectory : resourceDirectories) {
+            if (resourceDirectory == null || !resourceDirectory.isDirectory()) {
+                continue;
+            }
+
+            String directoryName = resourceDirectory.getName();
+            if (!directoryName.startsWith("layout")) {
+                continue;
+            }
+
+            File[] layoutFiles = resourceDirectory.listFiles();
+            if (layoutFiles == null) {
+                continue;
+            }
+            Arrays.sort(layoutFiles, (left, right) -> left.getName().compareTo(right.getName()));
+            for (File layoutFile : layoutFiles) {
+                if (layoutFile.isFile() && layoutFile.getName().endsWith(".xml")) {
+                    layoutByName.put(layoutFile.getName(), layoutFile);
+                }
+            }
+        }
+    }
+
+    private int getLayoutDirectoryPreference(File directory) {
+        if (directory == null) {
+            return Integer.MAX_VALUE;
+        }
+        String name = directory.getName();
+        if ("layout".equals(name)) {
+            return 1;
+        }
+        return name.startsWith("layout") ? 0 : Integer.MAX_VALUE;
     }
 
     private void pruneGeneratedSourceConflicts() {
@@ -435,11 +500,10 @@ public class ProjectBuilder {
         appendProjectClassOutput(classpath, yq.compiledJavaClassesPath);
         appendProjectClassOutput(classpath, yq.compiledKotlinClassesPath);
 
+        /* Add android.jar */
         if (classpath.length() > 0) {
             classpath.append(':');
         }
-
-        /* Add android.jar */
         classpath.append(androidJarPath);
 
         /* Add HTTP legacy files if wanted */
@@ -486,6 +550,9 @@ public class ProjectBuilder {
 
     private void appendProjectClassOutput(StringBuilder classpath, String outputPath) {
         if (!TextUtils.isEmpty(outputPath) && FileUtil.isExistFile(outputPath)) {
+            if (classpath.length() > 0) {
+                classpath.append(':');
+            }
             classpath.append(outputPath);
         }
     }
