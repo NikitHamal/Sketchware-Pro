@@ -9,7 +9,15 @@ import java.util.regex.Pattern;
 import pro.sketchware.utility.FileUtil;
 
 /**
- * Produces Java-7-safe temporary source trees from user-provided/imported sources.
+ * Produces Java-7/8-safe temporary source trees from Sketchware-generated sources.
+ *
+ * Transformations applied (in order):
+ *  1. Arrow-switch expressions  → classic switch statements        (Java 8 compat)
+ *  2. Typed-param lambda listeners → anonymous inner classes       (Java 7 compat)
+ *     e.g.  foo(View _v -> { ... })  →  foo(new View.OnClickListener(){ onClick(View _v){...} })
+ *
+ * The lambda conversion uses a character-level brace counter so it handles
+ * multi-line bodies with nested if/else/try blocks correctly.
  */
 public final class LegacyJavaSourceNormalizer {
 
@@ -50,11 +58,119 @@ public final class LegacyJavaSourceNormalizer {
         if (code == null || code.isEmpty()) {
             return code;
         }
-
         code = normalizeArrowSwitchReturnExpression(code);
         code = normalizeArrowSwitchStatement(code);
+        code = normalizeLambdaListeners(code);
         return code;
     }
+
+    // ── Lambda → anonymous-class conversion ──────────────────────────────────
+
+    /**
+     * Converts Sketchware-style typed-parameter lambda listeners to anonymous
+     * inner classes that compile under Java 1.7.
+     *
+     * Handles the two patterns emitted by older Sketchware code generators:
+     *
+     *   Pattern A (typed param):
+     *     someMethod(View _v -> {
+     *         ...body (may contain nested braces)...
+     *     });
+     *   →
+     *     someMethod(new android.view.View.OnClickListener() {
+     *         @Override public void onClick(android.view.View _v) {
+     *             ...body...
+     *         }
+     *     });
+     *
+     * Uses a character-level brace-depth counter so nested if/for/try blocks
+     * inside the body are handled correctly regardless of line count.
+     */
+    private static String normalizeLambdaListeners(String code) {
+        // Matches: ( SomeType paramName -> {
+        // Group 1 = type (e.g. "View"), group 2 = param name
+        Pattern openPattern = Pattern.compile(
+                "\\(\\s*((?:[A-Za-z_$][\\w$.]*\\.)*[A-Za-z_$][\\w$]*)\\s+([A-Za-z_$][\\w$]*)\\s*->\\s*\\{");
+
+        StringBuilder result = new StringBuilder();
+        int pos = 0;
+
+        Matcher m = openPattern.matcher(code);
+        while (m.find(pos)) {
+            // Check this isn't inside a string literal or comment (simple heuristic)
+            // by verifying the preceding context on the same line doesn't look like
+            // it's inside quotes. We rely on the fact that generated code doesn't
+            // put these patterns inside string literals.
+
+            String type  = m.group(1);   // e.g. "View"
+            String param = m.group(2);   // e.g. "_v"
+
+            // Skip obvious non-listener patterns: method signatures, casts, etc.
+            // A listener lambda always follows "(" immediately or after whitespace.
+            // The match starts with "(" so we already know that.
+
+            // Append everything up to and including the "(" before the type
+            int lambdaStart = m.start();   // position of "("
+            result.append(code, pos, lambdaStart);
+
+            // Now find the matching closing "})" using brace depth counting.
+            // m.end() points just after "{"
+            int bodyStart = m.end();       // index of char after "{"
+            int depth = 1;
+            int i = bodyStart;
+            while (i < code.length() && depth > 0) {
+                char c = code.charAt(i);
+                if (c == '{') depth++;
+                else if (c == '}') depth--;
+                i++;
+            }
+            // i now points to char after the closing "}"
+            // The pattern ends with "})" or "});" — consume optional whitespace + ")"
+            int bodyEnd = i - 1; // index of the closing "}"
+            String body = code.substring(bodyStart, bodyEnd);
+
+            // Consume the ")" after "}" (and optional ";")
+            // Find the ")" that closes the method call
+            int afterClose = i; // skip the "}"
+            // skip whitespace
+            while (afterClose < code.length() && code.charAt(afterClose) == ' ') afterClose++;
+            // expect ")"
+            if (afterClose < code.length() && code.charAt(afterClose) == ')') {
+                afterClose++; // skip ")"
+            }
+
+            // Build the replacement anonymous class
+            String fqType = qualifyViewType(type);
+            result.append("(new ").append(fqType).append(".OnClickListener() {\n")
+                  .append("    @Override public void onClick(").append(fqType).append(" ").append(param).append(") {")
+                  .append(body)
+                  .append("    }\n")
+                  .append("})");
+
+            pos = afterClose;
+        }
+
+        result.append(code, pos, code.length());
+        return result.toString();
+    }
+
+    /**
+     * Maps short View type names to their fully-qualified equivalents.
+     * Falls back to {@code android.view.View} for unknown types.
+     */
+    private static String qualifyViewType(String type) {
+        switch (type) {
+            case "View":            return "android.view.View";
+            case "ViewGroup":       return "android.view.ViewGroup";
+            case "AdapterView":     return "android.widget.AdapterView";
+            case "CompoundButton":  return "android.widget.CompoundButton";
+            case "SeekBar":         return "android.widget.SeekBar";
+            default:
+                return type.contains(".") ? type : "android.view." + type;
+        }
+    }
+
+    // ── Switch-expression normalisation (unchanged from original) ─────────────
 
     private static String normalizeArrowSwitchReturnExpression(String code) {
         Pattern pattern = Pattern.compile("return\\s+switch\\s*\\(([^)]*)\\)\\s*\\{([\\s\\S]*?)\\};", Pattern.MULTILINE);
@@ -104,11 +220,11 @@ public final class LegacyJavaSourceNormalizer {
         return sb.toString();
     }
 
+    // ── File utilities ────────────────────────────────────────────────────────
+
     private static void collectJavaFiles(File dir, List<File> out) {
         File[] children = dir.listFiles();
-        if (children == null) {
-            return;
-        }
+        if (children == null) return;
         for (File child : children) {
             if (child.isDirectory()) {
                 collectJavaFiles(child, out);
@@ -122,9 +238,7 @@ public final class LegacyJavaSourceNormalizer {
         if (source.isDirectory()) {
             FileUtil.makeDir(target.getAbsolutePath());
             File[] children = source.listFiles();
-            if (children == null) {
-                return;
-            }
+            if (children == null) return;
             for (File child : children) {
                 copyRecursive(child, new File(target, child.getName()));
             }

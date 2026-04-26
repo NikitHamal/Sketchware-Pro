@@ -19,6 +19,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.PopupMenu;
 import android.widget.Toast;
+import pro.sketchware.ai.integration.AiProjectIntegrationHelper;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.content.res.AppCompatResources;
@@ -178,14 +179,54 @@ public class BlocksManager extends BaseAppCompatActivity {
         itemTouchHelper.attachToRecyclerView(binding.paletteRecycler);
     }
 
+    private static final int MENU_AI = 8801;
+
+    private void showAiBlockAssistant() {
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle("AI Block Assistant")
+                .setMessage("The AI can help you:\n\n" +
+                        "• Add new blocks to any palette\n" +
+                        "• Edit block names, code, or colours\n" +
+                        "• Sort and reorder palettes\n" +
+                        "• Delete duplicate or unused blocks\n" +
+                        "• Merge palettes together\n" +
+                        "• Search for any block\n\n" +
+                        "Changes made here are available across all your projects.")
+                .setPositiveButton("Open AI Chat", (d, w) -> {
+                    android.content.Intent intent = new android.content.Intent(
+                            this, pro.sketchware.ai.activities.ChatActivity.class);
+                    intent.putExtra("scope", "global");
+                    intent.putExtra("page_context", "block_manager");
+                    intent.putExtra("initial_prompt",
+                            "I'm in Block Manager. Help me manage my custom block palettes. " +
+                            "I can add, edit, sort, delete, merge, and deduplicate blocks.");
+                    startActivity(intent);
+                })
+                .setNeutralButton("AI Settings", (d, w) ->
+                        startActivity(new android.content.Intent(
+                                this, pro.sketchware.ai.activities.AiSettingsActivity.class)))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        menu.add(Menu.NONE, Menu.NONE, Menu.NONE, "Settings").setIcon(AppCompatResources.getDrawable(this, R.drawable.ic_mtrl_settings)).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        // AI Assistant — Block operations: add, edit, sort, delete, merge, deduplicate
+        menu.add(Menu.NONE, MENU_AI, Menu.NONE, "AI Assistant")
+                .setIcon(AppCompatResources.getDrawable(this, pro.sketchware.R.drawable.ic_agent))
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        menu.add(Menu.NONE, Menu.NONE, Menu.NONE, "Settings")
+                .setIcon(AppCompatResources.getDrawable(this, R.drawable.ic_mtrl_settings))
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem menuItem) {
+        if (menuItem.getItemId() == MENU_AI) {
+            showAiBlockAssistant();
+            return true;
+        }
         String title = Objects.requireNonNull(menuItem.getTitle()).toString();
         if (title.equals("Settings")) {
             showBlockConfigurationDialog();

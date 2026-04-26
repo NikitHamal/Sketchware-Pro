@@ -25,6 +25,7 @@ android {
         versionName = "v7.0.0-${shortCommitHash}"
 
         buildConfigField("String", "GIT_HASH", "\"${gitCommitHash}\"")
+
     }
 
     buildTypes {

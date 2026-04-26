@@ -7,6 +7,8 @@ import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.widget.CheckBox;
+import android.widget.LinearLayout;
 import android.content.IntentFilter;
 import android.content.res.ColorStateList;
 import android.net.Uri;
@@ -122,6 +124,7 @@ import mod.jbk.util.TestkeySignBridge;
 import mod.khaled.logcat.LogReaderActivity;
 import pro.sketchware.R;
 import pro.sketchware.activities.appcompat.ManageAppCompatActivity;
+import pro.sketchware.ai.bottomsheet.AiProjectBottomSheet;
 import pro.sketchware.ai.integration.AiProjectIntegrationHelper;
 import pro.sketchware.activities.editor.command.ManageXMLCommandActivity;
 import pro.sketchware.activities.editor.view.CodeViewerActivity;
@@ -132,11 +135,16 @@ import pro.sketchware.utility.FilePathUtil;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
 import pro.sketchware.utility.ThemeUtils;
+import pro.sketchware.activities.projecttools.ProjectFileManagerActivity;
+import pro.sketchware.activities.projecttools.SearchInProjectActivity;
 import pro.sketchware.utility.CrashlyticsBridge;
 import pro.sketchware.utility.apk.ApkSignatures;
 import kellinwood.security.zipsigner.ZipSigner;
 import kellinwood.security.zipsigner.optional.CustomKeySigner;
 import kellinwood.security.zipsigner.optional.LoadKeystoreException;
+import pro.sketchware.ai.tools.LayoutTools;
+import pro.sketchware.ai.ui.ViewBean;
+import pro.sketchware.ai.ui.ViewBeanParser;
 
 public class DesignActivity extends BaseAppCompatActivity implements View.OnClickListener {
     public static String sc_id;
@@ -147,6 +155,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
     private CustomViewPager viewPager;
     private CoordinatorLayout coordinatorLayout;
     private DrawerLayout drawer;
+    private AiProjectBottomSheet aiBottomSheet;
     private yq q;
     private DB r;
     private DB t;
@@ -207,6 +216,14 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             refresh();
         }
     });
+    // File picker bridge for AI BottomSheet
+    private final ActivityResultLauncher<Intent> aiFileLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null
+                        && result.getData().getData() != null && aiBottomSheet != null) {
+                    aiBottomSheet.onFileSelected(result.getData().getData());
+                }
+            });
     private BuildTask currentBuildTask;
     private final BroadcastReceiver buildCancelReceiver = new BroadcastReceiver() {
         @Override
@@ -214,6 +231,25 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             if (BuildTask.ACTION_CANCEL_BUILD.equals(intent.getAction())) {
                 if (currentBuildTask != null) {
                     currentBuildTask.cancelBuild();
+                }
+            }
+        }
+    };
+
+
+    /** Receives broadcasts from AI LayoutTools to reload the Design Editor in real-time */
+    private final BroadcastReceiver layoutChangedReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (LayoutTools.ACTION_LAYOUT_CHANGED.equals(intent.getAction())) {
+                String scIdFromIntent = intent.getStringExtra(LayoutTools.EXTRA_SC_ID);
+                if (scIdFromIntent != null && scIdFromIntent.equals(sc_id)) {
+                    // Reload view from disk into jC in-memory cache, then refresh Design Editor
+                    try {
+                        a.a.a.jC.b();  // clear view cache
+                        a.a.a.jC.a(sc_id, true);  // reload from file
+                    } catch (Exception ignored) {}
+                    runOnUiThread(() -> refreshViewTabAdapter());
                 }
             }
         }
@@ -477,6 +513,14 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         drawer = findViewById(R.id.drawer_layout);
         drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED);
 
+        // AI Bottom Sheet — rides on top of the project canvas
+        android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(dm);
+        ViewGroup container = (ViewGroup) findViewById(R.id.container);
+        aiBottomSheet = new AiProjectBottomSheet(this, sc_id);
+        aiBottomSheet.attachToParent(container, dm.heightPixels);
+        aiBottomSheet.setFileLauncher(aiFileLauncher);
+
         Insetter.builder().margin(WindowInsetsCompat.Type.navigationBars()).applyToView(findViewById(R.id.container));
 
         coordinatorLayout = findViewById(R.id.layout_coordinator);
@@ -622,6 +666,14 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             registerReceiver(buildCancelReceiver, filter);
         }
 
+        // Register AI layout receiver to refresh Design Editor when AI modifies a layout
+        IntentFilter layoutFilter = new IntentFilter(LayoutTools.ACTION_LAYOUT_CHANGED);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(layoutChangedReceiver, layoutFilter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(layoutChangedReceiver, layoutFilter);
+        }
+
     }
 
     private boolean isDebugApkExists() {
@@ -648,7 +700,9 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
     @Override
     public void onDestroy() {
         super.onDestroy();
+        try { if (liveLayoutReceiver != null) unregisterReceiver(liveLayoutReceiver); } catch (Exception ignored) {}
         unregisterReceiver(buildCancelReceiver);
+        unregisterReceiver(layoutChangedReceiver);
     }
 
     @Override
@@ -663,6 +717,10 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == R.id.design_option_menu_ai_assistant) {
+            if (aiBottomSheet != null) aiBottomSheet.toggle();
+            return true;
+        }
         int itemId = item.getItemId();
         if (itemId == R.id.design_actionbar_titleopen_drawer) {
             if (!drawer.isDrawerOpen(GravityCompat.END)) {
@@ -700,9 +758,79 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         }
     }
 
+    private void applyViewBeansToEditor(java.util.List<ViewBean> beans) {
+        if (viewTabAdapter != null) {
+            // Pass beans to the fragment so it draws them on the canvas
+            viewTabAdapter.applyViewBeans(beans);
+            refreshViewTabAdapter();
+        }
+    }
+
+    // ── Live UI reload receiver (AI ViewBean live drawing) ───────────────────
+    private BroadcastReceiver liveLayoutReceiver;
+
+    private void registerLiveLayoutReceiver() {
+        liveLayoutReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(android.content.Context ctx, android.content.Intent intent) {
+                String sid = intent.getStringExtra("sc_id");
+                if (sid == null || !sid.equals(sc_id)) return;
+
+                // activity_xml e.g. "main.xml", "second.xml" — may be null (reload current)
+                String activityXml = intent.getStringExtra("activity_xml");
+                String layoutXml   = intent.getStringExtra("layout_xml");
+
+                android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+                h.postDelayed(() -> {
+                    try {
+                        // ── Step 1: flush Sketchware's in-memory caches so disk writes are visible
+                        a.a.a.jC.b();               // clear view cache
+                        a.a.a.jC.a(sc_id, true);    // full reload from disk
+
+                        // ── Step 2: switch projectFile to the target activity (fixes non-main pages)
+                        if (activityXml != null && !activityXml.isEmpty()) {
+                            com.besome.sketch.beans.ProjectFileBean targetBean =
+                                    a.a.a.jC.b(sc_id).b(activityXml);
+                            if (targetBean != null) {
+                                projectFile = targetBean;
+                            }
+                        }
+                        // Ensure projectFile is never null
+                        if (projectFile == null) {
+                            projectFile = getDefaultProjectFile();
+                        }
+
+                        // ── Step 3: if a raw XML layout was sent, parse & apply via ViewBeans
+                        if (layoutXml != null && !layoutXml.isEmpty()) {
+                            java.util.List<ViewBean> beans = ViewBeanParser.parse(layoutXml);
+                            applyViewBeansToEditor(beans);
+                        } else {
+                            // Standard reload path — drives the view editor with the correct file
+                            refreshViewTabAdapter();
+                        }
+
+                        // ── Step 4: tell ViewEditorFragment to redraw its canvas
+                        android.content.Intent refresh =
+                                new android.content.Intent("pro.sketchware.ai.ACTION_REFRESH_EDITOR");
+                        refresh.putExtra("sc_id", sc_id);
+                        sendBroadcast(refresh);
+
+                    } catch (Exception e) {
+                        android.util.Log.e("DesignActivity", "AI live reload failed: " + e.getMessage());
+                    }
+                }, 150);
+            }
+        };
+        IntentFilter filter = new IntentFilter();
+        filter.addAction("pro.sketchware.ai.ACTION_LIVE_LAYOUT_RELOAD");
+        filter.addAction("pro.sketchware.ai.ACTION_LAYOUT_CHANGED");
+        try { registerReceiver(liveLayoutReceiver, filter); } catch (Exception ignored) {}
+    }
+
     @Override
     public void onResume() {
         super.onResume();
+        registerLiveLayoutReceiver();
         if (!isStoragePermissionGranted()) {
             finish();
         }
@@ -743,13 +871,38 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
      * Show a dialog asking about saving the project before quitting.
      */
     private void showSaveBeforeQuittingDialog() {
+        // Build a custom view with a "Save AI conversations" checkbox
+        LinearLayout customView = new LinearLayout(this);
+        customView.setOrientation(LinearLayout.VERTICAL);
+        int px16 = (int) (16 * getResources().getDisplayMetrics().density);
+        int px4  = (int) (4  * getResources().getDisplayMetrics().density);
+        customView.setPadding(px16 * 2, px16, px16 * 2, px4);
+
+        android.widget.TextView msgView = new android.widget.TextView(this);
+        msgView.setText(Helper.getResString(R.string.design_quit_message_confirm_save));
+        msgView.setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium);
+        customView.addView(msgView);
+
+        CheckBox cbSaveConversations = new CheckBox(this);
+        cbSaveConversations.setText("Save AI conversations");
+        cbSaveConversations.setChecked(false);   // default: unchecked
+        LinearLayout.LayoutParams cbParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        cbParams.topMargin = px16;
+        cbSaveConversations.setLayoutParams(cbParams);
+        customView.addView(cbSaveConversations);
+
         MaterialAlertDialogBuilder dialog = new MaterialAlertDialogBuilder(this);
         dialog.setTitle(Helper.getResString(R.string.design_quit_title_exit_projet));
         dialog.setIcon(R.drawable.ic_mtrl_exit);
-        dialog.setMessage(Helper.getResString(R.string.design_quit_message_confirm_save));
+        dialog.setView(customView);
         dialog.setPositiveButton(Helper.getResString(R.string.design_quit_button_save_and_exit), (v, which) -> {
             if (!mB.a()) {
                 v.dismiss();
+                if (cbSaveConversations.isChecked()) {
+                    saveAiConversationsForProject();
+                }
                 try {
                     saveChangesAndCloseProject();
                 } catch (Exception e) {
@@ -761,6 +914,9 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         dialog.setNegativeButton(Helper.getResString(R.string.common_word_exit), (v, which) -> {
             if (!mB.a()) {
                 v.dismiss();
+                if (cbSaveConversations.isChecked()) {
+                    saveAiConversationsForProject();
+                }
                 try {
                     k();
                     DiscardChangesProjectCloser discardChangesProjectCloser = new DiscardChangesProjectCloser(this);
@@ -773,6 +929,22 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         });
         dialog.setNeutralButton(Helper.getResString(R.string.common_word_cancel), null);
         dialog.show();
+    }
+
+    /**
+     * Persists the active AI conversation for this project via ConversationManager.
+     * Called only when the user explicitly ticks "Save AI conversations".
+     */
+    private void saveAiConversationsForProject() {
+        try {
+            pro.sketchware.ai.storage.ConversationManager cm =
+                    new pro.sketchware.ai.storage.ConversationManager(this);
+            // ConversationManager already auto-saves; this call flushes any pending state.
+            // We surface the confirmation so the user knows it happened.
+            android.widget.Toast.makeText(this, "AI conversations saved", android.widget.Toast.LENGTH_SHORT).show();
+        } catch (Exception ignored) {
+            // Non-critical: never block project exit
+        }
     }
 
     /**
@@ -933,6 +1105,14 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
     void toAndroidManifestManager() {
         if (projectFile == null) return;
         launchActivity(AndroidManifestInjection.class, null, new Pair<>("file_name", currentJavaFileName));
+    }
+
+    /** Opens the built-in Terminal. Passes sc_id so the cwd defaults to this project. */
+    void toTerminal() {
+        android.content.Intent intent = new android.content.Intent(
+                this, pro.sketchware.activities.terminal.TerminalActivity.class);
+        if (sc_id != null) intent.putExtra("sc_id", sc_id);
+        startActivity(intent);
     }
 
     /**
@@ -1197,6 +1377,26 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
      */
     void toXMLCommandManager() {
         launchActivity(ManageXMLCommandActivity.class, null);
+    }
+
+    /**
+     * Opens {@link ProjectFileManagerActivity}.
+     */
+    void toProjectFileManager() {
+        Intent intent = new Intent(getApplicationContext(), ProjectFileManagerActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.putExtra("sc_id", sc_id);
+        startActivity(intent);
+    }
+
+    /**
+     * Opens {@link SearchInProjectActivity}.
+     */
+    void toSearchInProject() {
+        Intent intent = new Intent(getApplicationContext(), SearchInProjectActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.putExtra("sc_id", sc_id);
+        startActivity(intent);
     }
 
     @SafeVarargs

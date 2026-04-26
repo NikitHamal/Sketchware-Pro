@@ -141,6 +141,15 @@ public class ChatMessage {
         return new ChatMessage(null, toolCallId, toolName, content, true);
     }
 
+    /**
+     * Creates a system-role message used for automatic feedback injection
+     * (e.g. auto-fix loop after a build failure).
+     */
+    public static ChatMessage systemMessage(String content) {
+        return new ChatMessage(UUID.randomUUID().toString(), null, "system", content,
+                null, null, null, System.currentTimeMillis());
+    }
+
     public void appendContent(String chunk) {
         if (chunk == null) return;
         if (this.content == null) {

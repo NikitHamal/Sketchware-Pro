@@ -618,4 +618,67 @@ public final class ProjectTools {
             }
         }
     }
+    
+    
+
+    public static class AddPermissionTool implements AgentTool {
+        @Override public String getName() { return "add_permission"; }
+        @Override public String getDescription() { return "Adds a permission to the project's AndroidManifest.xml (e.g., android.permission.INTERNET)."; }
+        @Override public JsonObject getParametersSchema() {
+            JsonObject props = new JsonObject();
+            JsonObject scId = new JsonObject(); scId.addProperty("type", "string"); scId.addProperty("description", "Project SC ID");
+            JsonObject perm = new JsonObject(); perm.addProperty("type", "string"); perm.addProperty("description", "Permission string");
+            props.add("sc_id", scId); props.add("permission", perm);
+            JsonArray req = new JsonArray(); req.add("sc_id"); req.add("permission");
+            JsonObject schema = new JsonObject(); schema.addProperty("type", "object"); schema.add("properties", props); schema.add("required", req);
+            return schema;
+        }
+        @Override
+        public ToolResult execute(JsonObject args, ToolContext context) {
+            String scId = args.get("sc_id").getAsString();
+            String perm = args.get("permission").getAsString();
+            if (!context.isProjectAllowed(scId)) return error("Access denied");
+            try {
+                java.io.File file = new java.io.File(context.getProjectDataDir(scId), "manifest" + java.io.File.separator + "raw_override.xml");
+                String content = pro.sketchware.utility.FileUtil.readFileIfExist(file.getAbsolutePath());
+                if (content.contains(perm)) return success("Permission already exists");
+                int idx = content.lastIndexOf("</manifest>");
+                if (idx == -1) return error("Manifest error");
+                String newContent = content.substring(0, idx) + "    <uses-permission android:name=\"" + perm + "\" />\n" + content.substring(idx);
+                pro.sketchware.utility.FileUtil.writeFile(file.getAbsolutePath(), newContent);
+                return success("Permission added: " + perm);
+            } catch (Exception e) { return error(e.getMessage()); }
+        }
+    }
+
+    public static class AddActivityTool implements AgentTool {
+        @Override public String getName() { return "add_activity"; }
+        @Override public String getDescription() { return "Adds a new activity to the project's AndroidManifest.xml."; }
+        @Override public JsonObject getParametersSchema() {
+            JsonObject props = new JsonObject();
+            JsonObject scId = new JsonObject(); scId.addProperty("type", "string");
+            JsonObject act = new JsonObject(); act.addProperty("type", "string");
+            props.add("sc_id", scId); props.add("activity_name", act);
+            JsonArray req = new JsonArray(); req.add("sc_id"); req.add("activity_name");
+            JsonObject schema = new JsonObject(); schema.addProperty("type", "object"); schema.add("properties", props); schema.add("required", req);
+            return schema;
+        }
+        @Override
+        public ToolResult execute(JsonObject args, ToolContext context) {
+            String scId = args.get("sc_id").getAsString();
+            String name = args.get("activity_name").getAsString();
+            if (!context.isProjectAllowed(scId)) return error("Access denied");
+            try {
+                java.io.File file = new java.io.File(context.getProjectDataDir(scId), "manifest" + java.io.File.separator + "raw_override.xml");
+                String content = pro.sketchware.utility.FileUtil.readFileIfExist(file.getAbsolutePath());
+                String tag = "    <activity android:name=\"" + name + "\" android:exported=\"false\" />\n";
+                int idx = content.lastIndexOf("</application>");
+                if (idx == -1) return error("Manifest error");
+                String newContent = content.substring(0, idx) + tag + content.substring(idx);
+                pro.sketchware.utility.FileUtil.writeFile(file.getAbsolutePath(), newContent);
+                return success("Activity added: " + name);
+            } catch (Exception e) { return error(e.getMessage()); }
+        }
+    }
+
 }

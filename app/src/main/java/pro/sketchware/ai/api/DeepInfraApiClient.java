@@ -133,15 +133,31 @@ public class DeepInfraApiClient extends AiApiClient {
                 }
                 if (id == null || id.isEmpty()) continue;
                 
-                // Skip embedding-only / non-chat models
+                // Skip non-coding / non-general useful models
                 String type = getString(model, "type");
                 if (type != null) {
                     String lowerType = type.toLowerCase(Locale.US);
-                    if (lowerType.contains("embedding") && !lowerType.contains("generation")) continue;
-                    if ("text-to-image".equalsIgnoreCase(type)) continue;
-                    if ("text-to-speech".equalsIgnoreCase(type)) continue;
-                    if ("image-to-text".equalsIgnoreCase(type)) continue;
+                    if (lowerType.contains("embedding") || lowerType.contains("image") || lowerType.contains("speech")) continue;
+                // Skip image/audio/embedding/non-chat models
+                    {
+                        String _lo = id == null ? "" : id.toLowerCase(java.util.Locale.ROOT);
+                        if (_lo.contains("whisper") || _lo.contains("tts") || _lo.contains("guard")
+                        || _lo.contains("audio") || _lo.contains("speech") || _lo.contains("embed")
+                        || _lo.contains("moderation") || _lo.contains("realtime")
+                        || _lo.contains("dall-e") || _lo.contains("stable-diff")
+                        || _lo.contains("sdxl") || _lo.contains("flux") || _lo.contains("imagen")
+                        || _lo.contains("image-gen") || _lo.contains("text-to-image")
+                        || _lo.contains("video") || _lo.contains("rerank")
+                        || _lo.contains("transcrib") || _lo.contains("midjourney")) continue;
+                    }
+
                 }
+                
+                // Only keep powerful, coding or Gemma models
+                String lowerId = id.toLowerCase(Locale.US);
+                boolean isGemma = lowerId.contains("gemma");
+                boolean isCoding = lowerId.contains("coder") || lowerId.contains("instruct") || lowerId.contains("deepseek-v3") || lowerId.contains("llama-3.3") || lowerId.contains("r1") || isGemma;
+                if (!isCoding && !lowerId.contains("70b") && !lowerId.contains("405b")) continue;
                 
                 // Parse metadata sub-object (DeepInfra /v1/openai/models format)
                 long contextLength = 0L;
@@ -177,6 +193,9 @@ public class DeepInfraApiClient extends AiApiClient {
                 }
             }
 
+            // Sort models alphabetically (A-Z)
+            java.util.Collections.sort(result);
+
             return result.isEmpty() ? fallbackModels() : result;
         }
     }
@@ -184,13 +203,26 @@ public class DeepInfraApiClient extends AiApiClient {
     @Override
     public void sendChatRequest(List<ChatMessage> messages, String modelId,
                                 String systemPrompt, StreamingResponseHandler handler) {
-        sendChatRequest(messages, modelId, systemPrompt, null, handler);
+        sendChatRequest(messages, modelId, systemPrompt, null, null, handler);
+    }
+
+    @Override
+    public void sendChatRequest(List<ChatMessage> messages, String modelId,
+                                String systemPrompt, Object tag, StreamingResponseHandler handler) {
+        sendChatRequest(messages, modelId, systemPrompt, null, tag, handler);
     }
 
     @Override
     public void sendChatRequest(List<ChatMessage> messages, String modelId,
                                 String systemPrompt, List<ToolDefinition> tools,
                                 StreamingResponseHandler handler) {
+        sendChatRequest(messages, modelId, systemPrompt, tools, null, handler);
+    }
+
+    @Override
+    public void sendChatRequest(List<ChatMessage> messages, String modelId,
+                                String systemPrompt, List<ToolDefinition> tools,
+                                Object tag, StreamingResponseHandler handler) {
         try {
             JsonObject requestBody = NvidiaApiClient.buildOpenAiRequestBody(
                     messages,
@@ -203,6 +235,7 @@ public class DeepInfraApiClient extends AiApiClient {
                     .url(CHAT_URL)
                     .post(RequestBody.create(requestBody.toString(), JSON));
             
+            if (tag != null) builder.tag(tag);
             applyRandomizedHeaders(builder);
 
             client.newCall(builder.build()).enqueue(new Callback() {
@@ -213,17 +246,11 @@ public class DeepInfraApiClient extends AiApiClient {
 
                 @Override
                 public void onResponse(Call call, Response response) {
-                    if (response.code() == 403) {
-                        // 403 means temporarily blocked; retry with fresh headers
-                        handler.onError("DeepInfra returned 403 (rate limited). Try again in a moment or switch provider.");
-                        response.close();
-                        return;
-                    }
-                    
                     if (!response.isSuccessful()) {
+                        int code = response.code();
                         String errorBody = readBodySafely(response);
-                        handler.onError("DeepInfra HTTP " + response.code() + ": " + errorBody);
                         response.close();
+                        handler.onError("DeepInfra: " + AiErrorHelper.getFriendlyMessage(code, errorBody));
                         return;
                     }
 
@@ -257,10 +284,12 @@ public class DeepInfraApiClient extends AiApiClient {
 
     private static List<ModelInfo> fallbackModels() {
         List<ModelInfo> fallback = new ArrayList<>();
-        fallback.add(new ModelInfo("deepseek-ai/DeepSeek-V3", "DeepInfra DeepSeek V3",
-                AiProvider.DEEPINFRA, 0L, "Fast default DeepInfra chat model"));
-        fallback.add(new ModelInfo("meta-llama/Llama-3.3-70B-Instruct", "DeepInfra Llama 3.3 70B",
-                AiProvider.DEEPINFRA, 0L, "General-purpose instruct model"));
+        fallback.add(new ModelInfo("deepseek-ai/DeepSeek-V3", "DeepSeek V3",
+                AiProvider.DEEPINFRA, 128000, "DeepInfra 🆓 — Best for code & general tasks"));
+        fallback.add(new ModelInfo("meta-llama/Llama-3.3-70B-Instruct", "Llama 3.3 70B",
+                AiProvider.DEEPINFRA, 128000, "DeepInfra 🆓 — Powerful instruct model"));
+        fallback.add(new ModelInfo("Qwen/Qwen2.5-Coder-32B-Instruct", "Qwen 2.5 Coder 32B",
+                AiProvider.DEEPINFRA, 128000, "DeepInfra 🆓 — Specialized coding model"));
         return fallback;
     }
 

@@ -11,6 +11,8 @@ import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -25,6 +27,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.besome.sketch.lib.base.BaseAppCompatActivity;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import pro.sketchware.ai.integration.AiProjectIntegrationHelper;
 import com.google.gson.Gson;
 
 import java.lang.ref.WeakReference;
@@ -54,6 +57,97 @@ public class ManageLocalLibraryActivity extends BaseAppCompatActivity {
     private BuildSettings buildSettings;
     private ManageLocallibrariesBinding binding;
     private String scId;
+
+    private static final int MENU_AI_LIBS    = 9001;
+    private static final int MENU_CONFLICTS  = 9002;
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        menu.add(Menu.NONE, MENU_CONFLICTS, 0, "Detect Conflicts")
+                .setIcon(androidx.appcompat.content.res.AppCompatResources.getDrawable(
+                        this, pro.sketchware.R.drawable.ic_mtrl_warning))
+                .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+        menu.add(Menu.NONE, MENU_AI_LIBS, 1, "AI Assistant")
+                .setIcon(androidx.appcompat.content.res.AppCompatResources.getDrawable(
+                        this, pro.sketchware.R.drawable.ic_agent))
+                .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(android.view.MenuItem item) {
+        int id = item.getItemId();
+        if (id == MENU_CONFLICTS) {
+            detectLibraryConflicts();
+            return true;
+        }
+        if (id == MENU_AI_LIBS) {
+            String scId = getIntent().getStringExtra("sc_id");
+            String projectName = AiProjectIntegrationHelper.resolveProjectName(scId, null);
+            AiProjectIntegrationHelper.openProjectChatWithContext(
+                    this, scId, projectName, "AI \u2022 Local Libraries",
+                    "Help me manage the local libraries in this project. "
+                    + "Check for duplicates, unused libraries, version conflicts, "
+                    + "and suggest improvements.",
+                    "libraries");
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    /** Detects duplicates and known incompatible library pairs among enabled libraries. */
+    private void detectLibraryConflicts() {
+        java.util.List<String> enabled = new java.util.ArrayList<>();
+        for (java.util.Map<String, Object> lib : projectUsedLibs) {
+            Object name = lib.get("name");
+            if (name != null) enabled.add(name.toString().toLowerCase(java.util.Locale.ROOT));
+        }
+        if (enabled.isEmpty()) {
+            com.google.android.material.snackbar.Snackbar.make(
+                    binding.getRoot(),
+                    "No libraries enabled in this project.",
+                    com.google.android.material.snackbar.Snackbar.LENGTH_SHORT).show();
+            return;
+        }
+        java.util.List<String> issues = new java.util.ArrayList<>();
+        // Duplicates
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (String n : enabled) { if (!seen.add(n)) issues.add("Duplicate: " + n); }
+        // Known conflicts
+        String[][] pairs = {
+            {"gson", "fastjson"}, {"okhttp", "okhttp3"},
+            {"volley", "retrofit"}, {"glide", "picasso"},
+        };
+        for (String[] pair : pairs) {
+            boolean a = enabled.stream().anyMatch(n -> n.contains(pair[0]));
+            boolean b = enabled.stream().anyMatch(n -> n.contains(pair[1]));
+            if (a && b) issues.add("Conflict: " + pair[0] + " vs " + pair[1]);
+        }
+        String title = issues.isEmpty()
+                ? "No conflicts detected"
+                : issues.size() + " issue(s) found";
+        String msg = issues.isEmpty()
+                ? "All " + enabled.size() + " enabled libraries look compatible."
+                : "\u2022 " + String.join("\n\u2022 ", issues);
+
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(title)
+                .setMessage(msg)
+                .setPositiveButton("Fix with AI", (d, w) -> {
+                    String scId = getIntent().getStringExtra("sc_id");
+                    AiProjectIntegrationHelper.openProjectChatWithContext(
+                            this, scId,
+                            AiProjectIntegrationHelper.resolveProjectName(scId, null),
+                            "Library Conflicts",
+                            "These library conflicts were detected: "
+                                    + String.join(", ", issues)
+                                    + ". Please help me resolve them.",
+                            "libraries");
+                })
+                .setNegativeButton("Close", null)
+                .show();
+    }
+
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -198,6 +292,13 @@ public class ManageLocalLibraryActivity extends BaseAppCompatActivity {
             fragment.setArguments(bundle);
             fragment.setOnLibraryDownloadedTask(this::runLoadLocalLibrariesTask);
             fragment.show(getSupportFragmentManager(), "library_downloader_dialog");
+        });
+
+        // Show ALL libraries immediately when search bar is opened
+        binding.searchView.addTransitionListener((searchView, previousState, newState) -> {
+            if (newState == com.google.android.material.search.SearchView.TransitionState.SHOWN) {
+                searchAdapter.filter(getAdapterLocalLibraries(), "");
+            }
         });
 
         binding.searchView.getEditText().addTextChangedListener(new TextWatcher() {
@@ -505,7 +606,9 @@ public class ManageLocalLibraryActivity extends BaseAppCompatActivity {
 
                 binding.materialSwitch.setOnClickListener(v -> {
                     onItemClicked(binding, library.getName());
-                    adapter.notifyItemChanged(position);
+                    // Sync both adapters so enabled-state is consistent
+                    adapter.notifyDataSetChanged();
+                    notifyDataSetChanged();
                 });
 
                 for (Map<String, Object> libraryMap : projectUsedLibs) {
@@ -565,11 +668,12 @@ public class ManageLocalLibraryActivity extends BaseAppCompatActivity {
                     }
                 }
             }
-            // Sorts the filtered search results to ensure enabled libraries still appear at the top.
+            // Sort: enabled first, then alphabetical
             filteredLocalLibraries.sort((lib1, lib2) -> {
                 boolean isEnabled1 = isUsedLibrary(lib1.getName());
                 boolean isEnabled2 = isUsedLibrary(lib2.getName());
-                return Boolean.compare(isEnabled2, isEnabled1);
+                if (isEnabled1 != isEnabled2) return Boolean.compare(isEnabled2, isEnabled1);
+                return lib1.getName().compareToIgnoreCase(lib2.getName());
             });
 
             notifyDataSetChanged();

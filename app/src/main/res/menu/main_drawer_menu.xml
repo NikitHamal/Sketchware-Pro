@@ -26,6 +26,11 @@
         android:title="Import Android Studio / GitHub project" />
 
     <item
+        android:id="@+id/ai_settings"
+        android:icon="@drawable/ic_mtrl_settings_applications"
+        android:title="AI Settings" />
+
+    <item
         android:id="@+id/app_settings"
         android:icon="@drawable/ic_mtrl_settings"
         android:title="Settings" />

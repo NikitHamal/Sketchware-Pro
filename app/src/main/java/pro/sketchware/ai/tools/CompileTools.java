@@ -20,7 +20,12 @@ public class CompileTools {
 
         @Override
         public String getDescription() {
-            return "Gets the last compilation logs for a project. Useful for debugging build errors.";
+            return "Gets the last compilation logs for a project. Useful for debugging build errors. "
+                    + "Common errors and fixes: "
+                    + "'resource not found @id/X' -> open the XML file with read_file and change @id/ to @+id/; "
+                    + "'cannot find symbol' -> check Java imports; "
+                    + "'missing resource' -> create the missing drawable/string/color resource. "
+                    + "For raw XML files (design.xml etc.), always use read_file + write_file, NOT describe_layout.";
         }
 
         @Override
@@ -59,11 +64,50 @@ public class CompileTools {
                 return new ToolResult("", false, null, "Failed to read compile logs");
             }
 
-            if (content.length() > 10000) {
-                content = "... (truncated)\n" + content.substring(content.length() - 10000);
+            // Summarize repeated errors to avoid overwhelming the AI
+            content = summarizeErrors(content);
+
+            if (content.length() > 15000) {
+                content = "... (truncated)\n" + content.substring(content.length() - 15000);
             }
 
             return new ToolResult("", true, content, null);
+        }
+
+        private String summarizeErrors(String log) {
+            if (log == null || log.isEmpty()) return log;
+            String[] lines = log.split("\n");
+            if (lines.length < 50) return log;
+
+            StringBuilder sb = new StringBuilder();
+            java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+            
+            for (String line : lines) {
+                String key = line.replaceAll(":[0-9]+:", ":line:"); // Normalize line numbers
+                key = key.replaceAll("@[0-9a-f]+", "@addr"); // Normalize addresses
+                counts.put(key, counts.getOrDefault(key, 0) + 1);
+            }
+
+            int totalLines = lines.length;
+            int uniqueLines = counts.size();
+            
+            if (uniqueLines > totalLines * 0.8) return log; // Not much repetition
+
+            sb.append("--- COMPILE LOG SUMMARY (Total lines: ").append(totalLines).append(") ---\n");
+            for (java.util.Map.Entry<String, Integer> entry : counts.entrySet()) {
+                if (entry.getValue() > 5) {
+                    sb.append("[Repeated ").append(entry.getValue()).append(" times]: ").append(entry.getKey()).append("\n");
+                } else {
+                    // Find original line for non-repeated or low-repeat
+                    for (String original : lines) {
+                        if (original.replaceAll(":[0-9]+:", ":line:").replaceAll("@[0-9a-f]+", "@addr").equals(entry.getKey())) {
+                            sb.append(original).append("\n");
+                            break;
+                        }
+                    }
+                }
+            }
+            return sb.toString();
         }
     }
 

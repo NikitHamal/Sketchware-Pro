@@ -191,7 +191,12 @@ public final class BuildTools {
 
         @Override
         public String getDescription() {
-            return "Builds a workspace project into a signed debug APK and returns its artifact path and compile log path.";
+            return "Builds a workspace project into a signed debug APK and returns its artifact path and compile log path. "
+                    + "If the build fails with 'Linking Resources' or 'resource not found' errors: "
+                    + "1) Check XML files for @id/ (should be @+id/) using read_file. "
+                    + "2) Verify all referenced drawables exist. "
+                    + "3) If errors persist after fixes, the build cache may need clearing — try building again. "
+                    + "Always call get_compile_logs after a failed build to diagnose the root cause.";
         }
 
         @Override

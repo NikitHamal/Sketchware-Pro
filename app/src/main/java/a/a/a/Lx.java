@@ -77,8 +77,8 @@ public class Lx {
                 .append("}\r\n")
                 .append("}\r\n")
                 .append("compileOptions {\r\n")
-                .append("sourceCompatibility JavaVersion.VERSION_1_8\r\n")
-                .append("targetCompatibility JavaVersion.VERSION_1_8\r\n")
+                .append("sourceCompatibility JavaVersion.VERSION_17\r\n")
+                .append("targetCompatibility JavaVersion.VERSION_17\r\n")
                 .append("}\r\n");
 
         if (isViewBindingEnabled) {
@@ -94,12 +94,12 @@ public class Lx {
         if (isLibraryNotExcluded(BuiltInLibraries.ANDROIDX_APPCOMPAT, excludedLibraries) && metadata.g) {
             content.append("""
                     implementation 'androidx.appcompat:appcompat:1.7.1'\r
-                    implementation 'com.google.android.material:material:1.12.0'\r
+                    implementation 'com.google.android.material:material:1.13.0'\r
                     """);
         }
 
         if (metadata.isFirebaseEnabled) {
-            content.append("implementation platform('com.google.firebase:firebase-bom:34.1.0')\r\n");
+            content.append("implementation platform('com.google.firebase:firebase-bom:34.9.0')\r\n");
         }
 
         if (isLibraryNotExcluded(BuiltInLibraries.FIREBASE_AUTH, excludedLibraries) && metadata.isFirebaseAuthUsed) {
@@ -119,19 +119,19 @@ public class Lx {
         }
 
         if (isLibraryNotExcluded(BuiltInLibraries.PLAY_SERVICES_MAPS, excludedLibraries) && metadata.isMapUsed) {
-            content.append("implementation 'com.google.android.gms:play-services-maps:17.0.1'\r\n");
+            content.append("implementation 'com.google.android.gms:play-services-maps:19.2.0'\r\n");
         }
 
         if (isLibraryNotExcluded(BuiltInLibraries.GLIDE, excludedLibraries) && metadata.isGlideUsed) {
-            content.append("implementation 'com.github.bumptech.glide:glide:4.16.0'\r\n");
+            content.append("implementation 'com.github.bumptech.glide:glide:5.0.4'\r\n");
         }
 
         if (isLibraryNotExcluded(BuiltInLibraries.GSON, excludedLibraries) && metadata.isGsonUsed) {
-            content.append("implementation 'com.google.code.gson:gson:2.11.0'\r\n");
+            content.append("implementation 'com.google.code.gson:gson:2.13.1'\r\n");
         }
 
         if (isLibraryNotExcluded(BuiltInLibraries.OKHTTP_ANDROID, excludedLibraries) && metadata.isHttp3Used) {
-            content.append("implementation 'com.squareup.okhttp3:okhttp:4.12.0'\r\n");
+            content.append("implementation 'com.squareup.okhttp3:okhttp:5.1.0'\r\n");
         }
 
         ConstVarComponent extraMetadata = metadata.x;
@@ -148,7 +148,7 @@ public class Lx {
         }
 
         if (isLibraryNotExcluded(BuiltInLibraries.LOTTIE, excludedLibraries) && extraMetadata.isLottieUsed) {
-            content.append("implementation 'com.airbnb.android:lottie:6.5.2'\r\n");
+            content.append("implementation 'com.airbnb.android:lottie:6.6.10'\r\n");
         }
 
         if (isLibraryNotExcluded(BuiltInLibraries.OTPVIEW, excludedLibraries) && extraMetadata.isOTPViewUsed) {
@@ -160,7 +160,7 @@ public class Lx {
         }
 
         if (isLibraryNotExcluded(BuiltInLibraries.PLAY_SERVICES_AUTH, excludedLibraries) && extraMetadata.isFBGoogleUsed) {
-            content.append("implementation 'com.google.android.gms:play-services-auth:19.0.0'");
+            content.append("implementation 'com.google.android.gms:play-services-auth:21.3.0'");
         }
 
         if (isLibraryNotExcluded(BuiltInLibraries.FIREBASE_MESSAGING, excludedLibraries) && extraMetadata.isFCMUsed) {

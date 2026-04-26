@@ -71,6 +71,7 @@ public class MainActivity extends BasePermissionAppCompatActivity {
     private ProjectsFragment projectsFragment;
     private AgentFragment agentFragment;
     private Fragment activeFragment;
+    private CountDownTimer updateReminderTimer; // Added to prevent memory leaks
     @IdRes
     private int currentNavItemId = R.id.item_projects;
 
@@ -83,7 +84,7 @@ public class MainActivity extends BasePermissionAppCompatActivity {
     }
 
     @Override
-    // onRequestPermissionsResult but for Storage access only, and only when granted
+    // This method handles Storage Permission results (Hook: 9501)
     public void g(int i) {
         if (i == 9501) {
             allFilesAccessCheck();
@@ -95,6 +96,7 @@ public class MainActivity extends BasePermissionAppCompatActivity {
     }
 
     @Override
+    // This method opens the Application Details Settings screen
     public void h(int i) {
         Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
         intent.setData(Uri.parse("package:" + getApplicationContext().getPackageName()));
@@ -109,6 +111,7 @@ public class MainActivity extends BasePermissionAppCompatActivity {
     public void m() {
     }
 
+    // This method refreshes the project list in ProjectsFragment
     public void n() {
         if (activeFragment instanceof ProjectsFragment) {
             projectsFragment.refreshProjectsList();
@@ -249,7 +252,7 @@ public class MainActivity extends BasePermissionAppCompatActivity {
             BottomSheetDialogView bottomSheetDialog = getBottomSheetDialogView();
             bottomSheetDialog.getPositiveButton().setEnabled(false);
 
-            CountDownTimer countDownTimer = new CountDownTimer(10000, 1000) {
+            updateReminderTimer = new CountDownTimer(10000, 1000) {
                 @Override
                 public void onTick(long millisUntilFinished) {
                     bottomSheetDialog.setPositiveButtonText(millisUntilFinished / 1000 + "");
@@ -261,7 +264,7 @@ public class MainActivity extends BasePermissionAppCompatActivity {
                     bottomSheetDialog.getPositiveButton().setEnabled(true);
                 }
             };
-            countDownTimer.start();
+            updateReminderTimer.start();
 
             if (!isFinishing()) bottomSheetDialog.show();
         }
@@ -293,6 +296,9 @@ public class MainActivity extends BasePermissionAppCompatActivity {
         }
 
         navigateToProjectsFragment();
+
+        // ✅ ADDED: Quick AI Access Initialization
+        setupQuickAiAccess();
     }
 
     private Fragment getFragmentForNavId(int navItemId) {
@@ -471,4 +477,95 @@ public class MainActivity extends BasePermissionAppCompatActivity {
         }
     }
 
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (updateReminderTimer != null) {
+            updateReminderTimer.cancel();
+        }
+    }
+
+    // ── Quick AI Hub ──────────────────────────────────────────────────────────
+    /**
+     * Sets up quick AI access. Called from onCreate().
+     * Long-pressing the "Agent" nav item opens the Quick AI Hub.
+     */
+    private void setupQuickAiAccess() {
+        // Long-press on the Agent tab label to open the Quick AI Hub
+        View agentNavView = binding.bottomNav.findViewById(R.id.item_agent);
+        if (agentNavView != null) {
+            agentNavView.setOnLongClickListener(v -> {
+                showQuickAiHub();
+                return true;
+            });
+        }
+    }
+
+    private void showQuickAiHub() {
+        String[] options = {"Open AI Chat", "Download Light Models (Offline)", "AI Settings"};
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("🚀 Quick AI Hub")
+                .setItems(options, (dialog, which) -> {
+                    switch (which) {
+                        case 0:
+                            startActivity(new Intent(this, pro.sketchware.ai.activities.ChatActivity.class));
+                            break;
+                        case 1:
+                            showOfflineModelStore();
+                            break;
+                        case 2:
+                            startActivity(new Intent(this, pro.sketchware.ai.activities.AiSettingsActivity.class));
+                            break;
+                    }
+                })
+                .show();
+    }
+
+    private void showOfflineModelStore() {
+        android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        layout.setPadding(48, 24, 48, 24);
+
+        addModelOption(layout, "Qwen2.5-Coder-0.5B", "Super Light & Fast",
+            "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
+            "qwen2.5-coder-0.5b");
+        addModelOption(layout, "Gemma-2B-IT", "Balanced & Smart",
+            "https://huggingface.co/google/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-q4_k_m.gguf",
+            "gemma-2b-it");
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("📦 Lightweight AI Store")
+                .setMessage("Download coding-specialized models. Works 100% offline.")
+                .setView(layout)
+                .setPositiveButton("Close", null)
+                .show();
+    }
+
+    private void addModelOption(android.widget.LinearLayout layout, String name, String desc,
+                                 String url, String id) {
+        android.widget.LinearLayout item = new android.widget.LinearLayout(this);
+        item.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        item.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        item.setPadding(0, 12, 0, 12);
+
+        android.widget.TextView tv = new android.widget.TextView(this);
+        tv.setText(name + "\n" + desc);
+        tv.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+                0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        android.widget.Button btn = new android.widget.Button(this);
+        btn.setText("Download");
+        btn.setOnClickListener(v -> {
+            Intent intent = new Intent(this, pro.sketchware.ai.activities.AiSettingsActivity.class);
+            intent.putExtra("ACTION", "DOWNLOAD_MODEL");
+            intent.putExtra("URL", url);
+            intent.putExtra("NAME", name);
+            intent.putExtra("ID", id);
+            startActivity(intent);
+        });
+
+        item.addView(tv);
+        item.addView(btn);
+        layout.addView(item);
+    }
 }

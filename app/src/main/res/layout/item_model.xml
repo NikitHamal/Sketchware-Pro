@@ -6,12 +6,9 @@
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="8dp"
     android:layout_marginVertical="2dp"
-    android:checkable="true"
     android:clickable="true"
     android:focusable="true"
-    app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
-    app:checkedIcon="@drawable/ic_mtrl_check"
-    app:checkedIconTint="?attr/colorPrimary">
+    app:cardBackgroundColor="?attr/colorSurfaceContainerLow">
 
     <LinearLayout
         android:layout_width="match_parent"

@@ -10,7 +10,6 @@ class ViewBindingBuilder(
     private val packageName: String = "dev.pranav.viewbinding"
 ) {
     fun generateBindings() {
-        outputDir.mkdirs()
         inputFiles.forEach { generateBindingForLayoutAndWrite(it) }
     }
 
@@ -19,7 +18,8 @@ class ViewBindingBuilder(
         val name = generateFileNameForLayout(layoutFile.nameWithoutExtension)
         val rootView = getTopLevelView(layoutFile)
         val parsed = parseViews(layoutFile)
-        val views = if (parsed.isNotEmpty() && parsed.first() == rootView) parsed.drop(1) else parsed
+        val views =
+            if (parsed.isNotEmpty() && parsed.first() == rootView) parsed.drop(1) else parsed
 
         val content = """
 // Generated file. Do not modify.
@@ -32,7 +32,9 @@ public final class $name {
 ${views.joinToString("\n") { "    public final ${it.type} ${it.name};" }}
 
     private $name(${rootView.type} ${rootView.name}${
-            if (views.isNotEmpty()) views.joinToString(prefix = ", ") { "${it.type} ${it.name}" } else ""
+            if (views.isNotEmpty()) views.joinToString(
+                prefix = ", "
+            ) { "${it.type} ${it.name}" } else ""
         }) {
         this.${rootView.name} = ${rootView.name};
 ${views.joinToString("\n") { "        this.${it.name} = ${it.name};" }}
@@ -48,13 +50,28 @@ ${views.joinToString("\n") { "        this.${it.name} = ${it.name};" }}
 
     public static $name inflate(LayoutInflater inflater, ViewGroup parent, boolean attachToParent) {
         View root = inflater.inflate(R.layout.${layoutFile.nameWithoutExtension}, parent, false);
-        if (attachToParent && parent != null) parent.addView(root);
+        if (attachToParent) parent.addView(root);
         return bind(root);
     }
 
     public static $name bind(View view) {
         ${rootView.type} ${rootView.name} = (${rootView.type}) view;
-${generateBindStatements(views)}
+${
+            if (views.isNotEmpty()) {
+                """${
+                    views.filterNot { it.isInclude }
+                        .joinToString("\n") { "        ${it.type} ${it.name} = (${it.type}) view.findViewById(R.id.${it.id});" }
+                }
+${
+                    views.filter { it.isInclude }
+                        .joinToString("\n") { "        ${it.type} ${it.name} = ${it.fullType}.bind(view.findViewById(R.id.${it.id}));" }
+                }
+        if (${views.joinToString(" || ") { "${it.name} == null" }}) {
+             throw new IllegalStateException("Required views are missing");
+        }"""
+            } else ""
+        }
+
         return new $name(${rootView.name}${if (views.isNotEmpty()) ", " + views.joinToString { it.name } else ""});
     }
 }
@@ -71,28 +88,9 @@ ${generateBindStatements(views)}
         file.writeText(content)
     }
 
-    private fun generateBindStatements(views: List<View>): String {
-        if (views.isEmpty()) {
-            return ""
-        }
-
-        val statements = mutableListOf<String>()
-        views.filterNot { it.isInclude }.forEach {
-            statements.add("        ${it.type} ${it.name} = (${it.type}) view.findViewById(R.id.${it.id});")
-        }
-        views.filter { it.isInclude }.forEach {
-            statements.add("        View ${it.name}Root = view.findViewById(R.id.${it.id});")
-            statements.add("        ${it.type} ${it.name} = ${it.name}Root != null ? ${it.fullType}.bind(${it.name}Root) : null;")
-        }
-        statements.add("        if (${views.joinToString(" || ") { "${it.name} == null" }}) {")
-        statements.add("             throw new IllegalStateException(\"Required views are missing\");")
-        statements.add("        }")
-        return statements.joinToString("\n")
-    }
-
     private fun generateImports(views: List<View>, rootView: View): String {
         val copy = views.toMutableSet().filterNot {
-            it.fullType == "android.view.View" || it.fullType == "android.view.ViewGroup"
+            it.type == "View" || it.type == "ViewGroup"
         }.distinctBy { it.fullType }
         val parentPackage = packageName.substringBeforeLast(".")
         val imports = mutableSetOf(
@@ -104,7 +102,11 @@ ${generateBindStatements(views)}
         )
 
         copy.forEach {
-            imports.add("import ${it.fullType};")
+            if (it.fullType == "android.widget.WebView") {
+                imports.add("import android.webkit.WebView;")
+            } else {
+                imports.add("import ${it.fullType};")
+            }
         }
 
         return imports.sorted().joinToString("\n")
@@ -113,9 +115,11 @@ ${generateBindStatements(views)}
     private fun getTopLevelView(layoutFile: File): View {
         val document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(layoutFile)
         val element = document.documentElement
-        return createViewForNode(
-            element,
-            element.attributes?.getNamedItem("android:id")?.nodeValue?.substringAfter("/") ?: "rootView"
+        return View(
+            element.nodeName.substringAfterLast("."),
+            if (element.nodeName.contains(".")) element.nodeName else "android.widget.${element.nodeName}",
+            element.attributes?.getNamedItem("android:id")?.nodeValue?.substringAfter("/")
+                ?: "rootView"
         )
     }
 
@@ -131,19 +135,29 @@ ${generateBindStatements(views)}
             val id = node.attributes?.getNamedItem("android:id")
             if (id != null) {
                 if (node.nodeName == "include") {
-                    val layout = node.attributes?.getNamedItem("layout")?.nodeValue?.substringAfter("/")
+                    val layout =
+                        node.attributes?.getNamedItem("layout")?.nodeValue?.substringAfter("/")
                     if (layout != null) {
-                        views.add(
-                            View(
-                                generateFileNameForLayout(layout),
-                                packageName + "." + generateFileNameForLayout(layout),
-                                id.nodeValue.substringAfter("/"),
-                                true
+                        val id = node.attributes?.getNamedItem("android:id")
+                        if (id != null) {
+                            views.add(
+                                View(
+                                    generateFileNameForLayout(layout),
+                                    packageName + "." + generateFileNameForLayout(layout),
+                                    id.nodeValue.substringAfter("/"),
+                                    true
+                                )
                             )
-                        )
+                        }
                     }
                 } else {
-                    views.add(createViewForNode(node, id.nodeValue.substringAfter("/")))
+                    views.add(
+                        View(
+                            node.nodeName.substringAfterLast("."),
+                            if (node.nodeName.contains(".")) node.nodeName else "android.widget.${node.nodeName}",
+                            id.nodeValue.substringAfter("/")
+                        )
+                    )
                 }
             }
             for (i in 0 until node.childNodes.length) {
@@ -151,48 +165,6 @@ ${generateBindStatements(views)}
             }
         }
     }
-
-    private fun createViewForNode(node: Node, id: String): View {
-        val resolved = resolveType(node)
-        return View(resolved.type, resolved.fullType, id)
-    }
-
-    private fun resolveType(node: Node): ResolvedType {
-        val rawName = node.nodeName
-        val explicitClass = node.attributes?.getNamedItem("class")?.nodeValue
-            ?: node.attributes?.getNamedItem("android:name")?.nodeValue
-
-        val fullType = when {
-            rawName == "view" && !explicitClass.isNullOrBlank() -> explicitClass
-            rawName == "fragment" -> "android.view.View"
-            rawName == "merge" -> "android.view.View"
-            rawName.contains('.') -> rawName
-            else -> resolvePlatformViewClass(rawName)
-        }
-
-        return ResolvedType(fullType.substringAfterLast('.'), fullType)
-    }
-
-    private fun resolvePlatformViewClass(rawName: String): String {
-        val candidates = listOf(
-            "android.widget.$rawName",
-            "android.view.$rawName",
-            "android.webkit.$rawName"
-        )
-        for (candidate in candidates) {
-            try {
-                Class.forName(candidate)
-                return candidate
-            } catch (_: Throwable) {
-            }
-        }
-        return "android.view.View"
-    }
-
-    private data class ResolvedType(
-        val type: String,
-        val fullType: String
-    )
 
     data class View(
         val type: String,

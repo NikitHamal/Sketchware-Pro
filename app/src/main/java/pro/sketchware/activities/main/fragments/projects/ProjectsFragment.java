@@ -29,7 +29,6 @@ import com.besome.sketch.editor.manage.library.ProjectComparator;
 import com.besome.sketch.projects.MyProjectSettingActivity;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
-import com.google.android.material.transition.MaterialFadeThrough;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -76,10 +75,9 @@ public class ProjectsFragment extends DA {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setEnterTransition(new MaterialFadeThrough());
-        setReturnTransition(new MaterialFadeThrough());
-        setExitTransition(new MaterialFadeThrough());
-        setReenterTransition(new MaterialFadeThrough());
+        // Transitions are handled by the host Activity's FragmentTransaction
+        // (android.R.anim.fade_in / fade_out). Setting them here for show/hide
+        // transactions has no effect and only adds overhead.
     }
 
     @Override
