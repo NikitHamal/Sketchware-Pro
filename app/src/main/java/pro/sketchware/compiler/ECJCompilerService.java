@@ -52,6 +52,9 @@ public class ECJCompilerService extends Service {
         }
     }
 
+    /** Compilation timeout in milliseconds — 3 minutes for large projects. */
+    private static final long COMPILE_TIMEOUT_MS = 3 * 60 * 1000L;
+
     private static void compile(String[] userArgs, Messenger replyTo) {
         sendProgress(replyTo, "Starting isolated Java compiler…");
         Runtime.getRuntime().gc();
@@ -68,23 +71,75 @@ public class ECJCompilerService extends Service {
 
         StringWriter outWriter = new StringWriter();
         StringWriter errWriter = new StringWriter();
-        try {
-            boolean success = new Main(new PrintWriter(outWriter), new PrintWriter(errWriter), false, null, null)
-                    .compile(args.toArray(new String[0]));
-            if (success) {
-                Bundle bundle = new Bundle();
-                bundle.putString(KEY_OUTPUT, outWriter.toString());
-                send(replyTo, MSG_COMPILE_OK, bundle);
-            } else {
-                sendError(replyTo, errWriter.toString().isEmpty() ? outWriter.toString() : errWriter.toString(), outWriter.toString());
+
+        // Run ECJ on a dedicated thread so we can enforce a hard timeout.
+        // Without a timeout the service can hang indefinitely on very large
+        // source trees, causing an ANR or a silent "timeout for isolated Java
+        // compilation" error on the client side.
+        final String[] finalArgs = args.toArray(new String[0]);
+        final boolean[] done = {false};
+
+        Thread compileThread = new Thread(() -> {
+            try {
+                boolean success = new Main(
+                        new PrintWriter(outWriter),
+                        new PrintWriter(errWriter),
+                        false, null, null)
+                        .compile(finalArgs);
+                synchronized (done) {
+                    if (!done[0]) {
+                        done[0] = true;
+                        if (success) {
+                            Bundle bundle = new Bundle();
+                            bundle.putString(KEY_OUTPUT, outWriter.toString());
+                            send(replyTo, MSG_COMPILE_OK, bundle);
+                        } else {
+                            sendError(replyTo,
+                                    errWriter.toString().isEmpty() ? outWriter.toString() : errWriter.toString(),
+                                    outWriter.toString());
+                        }
+                    }
+                }
+            } catch (OutOfMemoryError oom) {
+                synchronized (done) {
+                    if (!done[0]) {
+                        done[0] = true;
+                        Bundle bundle = new Bundle();
+                        bundle.putString(KEY_ERRORS, "Java compilation ran out of memory in the isolated compiler process.");
+                        send(replyTo, MSG_OOM, bundle);
+                    }
+                }
+            } catch (Throwable throwable) {
+                synchronized (done) {
+                    if (!done[0]) {
+                        done[0] = true;
+                        Log.e(TAG, "Compilation failed", throwable);
+                        sendError(replyTo,
+                                throwable.getMessage() != null ? throwable.getMessage() : throwable.toString(),
+                                outWriter.toString());
+                    }
+                }
             }
-        } catch (OutOfMemoryError oom) {
-            Bundle bundle = new Bundle();
-            bundle.putString(KEY_ERRORS, "Java compilation ran out of memory in the isolated compiler process.");
-            send(replyTo, MSG_OOM, bundle);
-        } catch (Throwable throwable) {
-            Log.e(TAG, "Compilation failed", throwable);
-            sendError(replyTo, throwable.getMessage() != null ? throwable.getMessage() : throwable.toString(), outWriter.toString());
+        }, "ecj-compiler");
+
+        compileThread.setDaemon(true);
+        compileThread.start();
+
+        try {
+            compileThread.join(COMPILE_TIMEOUT_MS);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
+
+        synchronized (done) {
+            if (!done[0]) {
+                done[0] = true;
+                compileThread.interrupt(); // best-effort; ECJ may not honour interruption
+                sendError(replyTo,
+                        "Compilation timed out after " + (COMPILE_TIMEOUT_MS / 1000) + " seconds.\n"
+                        + "Tip: split large Java files or enable Parallel ECJ in Build Settings.",
+                        outWriter.toString());
+            }
         }
     }
 

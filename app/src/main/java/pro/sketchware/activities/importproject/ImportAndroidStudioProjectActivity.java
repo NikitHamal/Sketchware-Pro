@@ -1,5 +1,7 @@
 package pro.sketchware.activities.importproject;
 
+import java.io.File;
+import androidx.core.content.FileProvider;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -28,6 +30,9 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
     private static final int REQUEST_PICK_ZIP = 9101;
     private static final String PREFS_IMPORTER = "import_android_studio_project";
     private static final String KEY_GITHUB_TOKEN = "github_token";
+
+    /** Extra key: absolute path to a pre-exported ZIP (set by ExportToAndroidStudioTool) */
+    public static final String EXTRA_PRELOADED_ZIP_PATH = "preloaded_zip_path";
 
 
     private Uri selectedZipUri;
@@ -94,6 +99,9 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
             persistGithubToken();
             new ImportTask(ImportTask.MODE_GITHUB).execute();
         });
+
+        // Handle pre-exported ZIP from AI agent (ExportToAndroidStudioTool)
+        handlePreloadedZip();
     }
 
     private void restoreSavedGithubToken() {
@@ -110,6 +118,37 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
                 .edit()
                 .putString(KEY_GITHUB_TOKEN, token)
                 .apply();
+    }
+
+    /**
+     * If the activity was launched by ExportToAndroidStudioTool, a ZIP path is
+     * passed as an extra. We pre-select it and show a confirmation dialog so
+     * the user can tap "Import" with one tap.
+     */
+    private void handlePreloadedZip() {
+        String zipPath = getIntent().getStringExtra(EXTRA_PRELOADED_ZIP_PATH);
+        if (TextUtils.isEmpty(zipPath)) return;
+
+        File zipFile = new File(zipPath);
+        if (!zipFile.exists()) return;
+
+        // Convert File → content URI via FileProvider so ImportTask can read it
+        try {
+            Uri zipUri = FileProvider.getUriForFile(
+                    this,
+                    getPackageName() + ".provider",
+                    zipFile);
+            selectedZipUri = zipUri;
+            selectedZipText.setText(zipFile.getName()
+                    + " (" + (zipFile.length() / 1024) + " KB) — ready to import");
+            statusText.setText("AI-generated Android Studio project loaded. Tap 'Import ZIP' to add it to Sketchware.");
+        } catch (Exception e) {
+            // FileProvider may not be configured; fall back to file URI
+            selectedZipUri = Uri.fromFile(zipFile);
+            selectedZipText.setText(zipFile.getName()
+                    + " (" + (zipFile.length() / 1024) + " KB) — ready to import");
+            statusText.setText("AI-generated Android Studio project loaded. Tap 'Import ZIP' to add it to Sketchware.");
+        }
     }
 
     private void pickZip() {
@@ -256,7 +295,7 @@ public class ImportAndroidStudioProjectActivity extends BaseAppCompatActivity {
                     result = importer.importFromZipUri(selectedZipUri);
                 } else if (mode == MODE_FOLDER) {
                     result = importer.importFromFolder(
-                            new java.io.File(Helper.getText(folderPathInput).trim()),
+                            new File(Helper.getText(folderPathInput).trim()),
                             "folder",
                             null
                     );

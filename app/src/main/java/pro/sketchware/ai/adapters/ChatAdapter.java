@@ -1,10 +1,15 @@
 package pro.sketchware.ai.adapters;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.Intent;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
 
 import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
@@ -12,6 +17,7 @@ import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -28,6 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import android.util.Base64;
 import io.noties.markwon.Markwon;
 import pro.sketchware.R;
 import pro.sketchware.ai.models.ChatMessage;
@@ -90,6 +97,8 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         final int type;
         @Nullable ChatMessage message;
         @NonNull final List<ToolUiState> toolStates;
+        /** Whether this message is expanded (show full text) or collapsed (max 8 lines) */
+        boolean messageExpanded = false;
 
         private ChatItem(int type, @Nullable ChatMessage message) {
             this.type = type;
@@ -686,6 +695,42 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             case "download_dependency":
                 title = phase == ToolPhase.SUCCESS ? "Downloaded Dependency" : phase == ToolPhase.FAILED ? "Downloading Dependency Failed" : "Downloading Dependency";
                 break;
+            case "set_build_compiler":
+                title = phase == ToolPhase.SUCCESS ? "Build Compiler Configured" : phase == ToolPhase.FAILED ? "Configuring Build Compiler Failed" : "Configuring Build Compiler";
+                break;
+            case "build_with_r8":
+                title = phase == ToolPhase.SUCCESS ? "R8 Build Completed" : phase == ToolPhase.FAILED ? "R8 Build Failed" : "Building with R8";
+                break;
+            case "run_shell_command":
+                title = phase == ToolPhase.SUCCESS ? "Shell Command Executed" : phase == ToolPhase.FAILED ? "Shell Command Failed" : "Running Shell Command";
+                break;
+            case "decrypt_project_file":
+                title = phase == ToolPhase.SUCCESS ? "File Decrypted" : phase == ToolPhase.FAILED ? "Decryption Failed" : "Decrypting File";
+                break;
+            case "encrypt_project_file":
+                title = phase == ToolPhase.SUCCESS ? "File Encrypted" : phase == ToolPhase.FAILED ? "Encryption Failed" : "Encrypting File";
+                break;
+            case "generate_layout_from_description":
+                title = phase == ToolPhase.SUCCESS ? "Layout Generated" : phase == ToolPhase.FAILED ? "Layout Generation Failed" : "Generating Layout";
+                break;
+            case "describe_layout_live":
+                title = phase == ToolPhase.SUCCESS ? "Layout Described" : phase == ToolPhase.FAILED ? "Layout Read Failed" : "Reading Layout";
+                break;
+            case "add_view_live":
+                title = phase == ToolPhase.SUCCESS ? "View Added (Live)" : phase == ToolPhase.FAILED ? "Adding View Failed" : "Adding View (Live)";
+                break;
+            case "modify_view_live":
+                title = phase == ToolPhase.SUCCESS ? "View Updated (Live)" : phase == ToolPhase.FAILED ? "Updating View Failed" : "Updating View (Live)";
+                break;
+            case "remove_view_live":
+                title = phase == ToolPhase.SUCCESS ? "View Removed (Live)" : phase == ToolPhase.FAILED ? "Removing View Failed" : "Removing View (Live)";
+                break;
+            case "github_search":
+                title = phase == ToolPhase.SUCCESS ? "GitHub Search Completed" : phase == ToolPhase.FAILED ? "GitHub Search Failed" : "Searching GitHub";
+                break;
+            case "github_compare":
+                title = phase == ToolPhase.SUCCESS ? "GitHub Compare Completed" : phase == ToolPhase.FAILED ? "GitHub Compare Failed" : "Comparing on GitHub";
+                break;
             default:
                 String fallback = humanizeSnakeCase(toolName);
                 title = phase == ToolPhase.SUCCESS ? fallback : phase == ToolPhase.FAILED ? fallback + " Failed" : fallback;
@@ -792,6 +837,24 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 return R.drawable.ic_mtrl_download;
             case "validate_libraries":
                 return R.drawable.ic_mtrl_verified_user;
+            case "set_build_compiler":
+            case "build_with_r8":
+                return R.drawable.ic_mtrl_deployed_code;
+            case "run_shell_command":
+            case "execute_shell":
+                return R.drawable.ic_mtrl_terminal;
+            case "decrypt_project_file":
+            case "encrypt_project_file":
+                return R.drawable.ic_mtrl_shield_lock;
+            case "generate_layout_from_description":
+            case "describe_layout_live":
+            case "add_view_live":
+            case "modify_view_live":
+            case "remove_view_live":
+                return R.drawable.ic_mtrl_design;
+            case "github_search":
+            case "github_compare":
+                return R.drawable.ic_mtrl_code;
             default:
                 return R.drawable.ic_tool_call;
         }
@@ -882,6 +945,67 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+
+    /**
+     * Decodes Base64-encoded text that sometimes arrives from AI API responses.
+     * Returns the original text unchanged if it is not valid Base64.
+     */
+    private static String decodeIfBase64(@Nullable String text) {
+        if (text == null || text.length() < 8) return text != null ? text : "";
+        // Quick heuristic: if the string is long, has no spaces/newlines and looks
+        // like Base64 alphabet, attempt to decode it.
+        String trimmed = text.trim();
+        boolean looksBase64 = trimmed.length() > 20
+                && trimmed.matches("[A-Za-z0-9+/=]+")
+                && !trimmed.contains(" ")
+                && !trimmed.contains("\n");
+        if (!looksBase64) return text;
+        try {
+            byte[] decoded = Base64.decode(trimmed, Base64.DEFAULT);
+            String decodedStr = new String(decoded, java.nio.charset.StandardCharsets.UTF_8).trim();
+            // Only use decoded result if it looks like human-readable text
+            if (decodedStr.length() > 2 && isPrintable(decodedStr)) {
+                return decodedStr;
+            }
+        } catch (Exception ignored) {}
+        return text;
+    }
+
+    private static boolean isPrintable(String s) {
+        int printable = 0;
+        for (int i = 0; i < Math.min(s.length(), 100); i++) {
+            char c = s.charAt(i);
+            if (c >= 32 || c == '\n' || c == '\r' || c == '\t') printable++;
+        }
+        return (double) printable / Math.min(s.length(), 100) > 0.85;
+    }
+
+    // ── Message action helpers ────────────────────────────────────────────
+
+    private static void copyToClipboard(@NonNull Context context, @NonNull String text) {
+        ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (cm != null) {
+            cm.setPrimaryClip(ClipData.newPlainText("AI Message", text));
+            Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private static void shareText(@NonNull Context context, @NonNull String text) {
+        Intent intent = new Intent(Intent.ACTION_SEND);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_TEXT, text);
+        context.startActivity(Intent.createChooser(intent, "Share message"));
+    }
+
+    private static void showMessageOptions(@NonNull Context context, @NonNull String text) {
+        new MaterialAlertDialogBuilder(context)
+                .setItems(new String[]{"Copy", "Share"}, (d, i) -> {
+                    if (i == 0) copyToClipboard(context, text);
+                    else shareText(context, text);
+                })
+                .show();
+    }
+
     static class UserViewHolder extends RecyclerView.ViewHolder {
         private final ItemChatMessageUserBinding binding;
 
@@ -892,8 +1016,18 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
         void bind(@NonNull ChatItem item) {
             String content = item.message != null ? item.message.getContent() : "";
-            binding.messageContent.setText(content != null ? content : "");
+            String text = content != null ? content : "";
+            binding.messageContent.setText(text);
             binding.messageMeta.setText(item.message != null ? formatTimestamp(item.message.getTimestamp()) : "");
+
+            // Copy button
+            binding.btnCopyMessage.setOnClickListener(v -> copyToClipboard(v.getContext(), text));
+
+            // Long-press → options dialog
+            binding.messageContent.setOnLongClickListener(v -> {
+                showMessageOptions(v.getContext(), text);
+                return true;
+            });
         }
     }
 
@@ -922,8 +1056,57 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
             boolean hasMessageContent = !TextUtils.isEmpty(content) && item.toolStates.isEmpty();
             binding.messageContent.setVisibility(hasMessageContent ? View.VISIBLE : View.GONE);
+            binding.messageContent.setTextIsSelectable(true);
+
             if (hasMessageContent) {
-                markwon.setMarkdown(binding.messageContent, content);
+                boolean isCurrentlyStreaming = message != null && message.isStreaming();
+                // Decode Base64-encoded content that sometimes arrives from the AI API
+                String displayContent = decodeIfBase64(content);
+                if (isCurrentlyStreaming) {
+                    // Plain text during streaming — avoids garbled/encoded output
+                    binding.messageContent.setMaxLines(Integer.MAX_VALUE);
+                    binding.messageContent.setEllipsize(null);
+                    binding.messageContent.setText(displayContent);
+                    binding.btnExpandMessage.setVisibility(View.GONE);
+                } else {
+                    // Full Markwon rendering after streaming completes
+                    markwon.setMarkdown(binding.messageContent, displayContent);
+                    // Collapsible: start at 8 lines, expand on tap
+                    if (!item.messageExpanded) {
+                        binding.messageContent.setMaxLines(8);
+                        binding.messageContent.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    } else {
+                        binding.messageContent.setMaxLines(Integer.MAX_VALUE);
+                        binding.messageContent.setEllipsize(null);
+                    }
+                    // Show expand button when text is long enough to be truncated
+                    binding.messageContent.post(() -> {
+                        android.text.Layout layout = binding.messageContent.getLayout();
+                        if (layout != null && layout.getLineCount() >= 8 && !item.messageExpanded) {
+                            binding.btnExpandMessage.setVisibility(View.VISIBLE);
+                            binding.btnExpandMessage.setText("Show more ▾");
+                        } else if (item.messageExpanded) {
+                            binding.btnExpandMessage.setVisibility(View.VISIBLE);
+                            binding.btnExpandMessage.setText("Show less ▴");
+                        } else {
+                            binding.btnExpandMessage.setVisibility(View.GONE);
+                        }
+                    });
+                    binding.btnExpandMessage.setOnClickListener(v -> {
+                        item.messageExpanded = !item.messageExpanded;
+                        if (item.messageExpanded) {
+                            binding.messageContent.setMaxLines(Integer.MAX_VALUE);
+                            binding.messageContent.setEllipsize(null);
+                            binding.btnExpandMessage.setText("Show less ▴");
+                        } else {
+                            binding.messageContent.setMaxLines(8);
+                            binding.messageContent.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                            binding.btnExpandMessage.setText("Show more ▾");
+                        }
+                    });
+                }
+            } else {
+                binding.btnExpandMessage.setVisibility(View.GONE);
             }
 
             binding.toolsContainer.removeAllViews();
@@ -946,6 +1129,21 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 binding.toolsContainer.addView(toolView);
             }
             binding.toolsContainer.setVisibility(item.toolStates.isEmpty() ? View.GONE : View.VISIBLE);
+
+            // Show action row only when there is visible text content
+            boolean showActions = hasMessageContent && (message == null || !message.isStreaming());
+            binding.messageActionsRow.setVisibility(showActions ? View.VISIBLE : View.GONE);
+            if (showActions) {
+                String finalContent = decodeIfBase64(content);
+                binding.btnCopyMessage.setOnClickListener(v ->
+                        copyToClipboard(v.getContext(), finalContent));
+                binding.btnShareMessage.setOnClickListener(v ->
+                        shareText(v.getContext(), finalContent));
+                binding.messageContent.setOnLongClickListener(v -> {
+                    showMessageOptions(v.getContext(), finalContent);
+                    return true;
+                });
+            }
         }
 
         @Nullable

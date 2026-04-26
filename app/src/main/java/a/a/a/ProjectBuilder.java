@@ -26,7 +26,6 @@ import com.github.megatronking.stringfog.plugin.StringFogMappingPrinter;
 import com.iyxan23.zipalignjava.InvalidZipException;
 import com.iyxan23.zipalignjava.ZipAlign;
 
-import com.besome.sketch.beans.ProjectFileBean;
 import org.xml.sax.SAXException;
 
 import java.io.File;
@@ -208,131 +207,25 @@ public class ProjectBuilder {
     }
 
     public void generateViewBinding() throws IOException, SAXException {
-        File outputDirectory = new File(yq.javaFilesPath + File.separator + yq.packageName.replace(".", File.separator) + File.separator + "databinding");
-        if (outputDirectory.exists()) {
-            FileUtil.deleteFile(outputDirectory.getAbsolutePath());
-        }
-
         if (settings.getValue(ProjectSettings.SETTING_ENABLE_VIEWBINDING, ProjectSettings.SETTING_GENERIC_VALUE_FALSE)
                 .equals(ProjectSettings.SETTING_GENERIC_VALUE_FALSE)) {
             return;
         }
 
         pruneGeneratedSourceConflicts();
+
+        File outputDirectory = new File(yq.javaFilesPath + File.separator + yq.packageName.replace(".", File.separator) + File.separator + "databinding");
+        if (outputDirectory.exists()) {
+            FileUtil.deleteFile(outputDirectory.getAbsolutePath());
+        }
         outputDirectory.mkdirs();
 
-        List<File> layouts = collectViewBindingLayouts();
-        if (layouts.isEmpty()) {
-            LogUtil.w(TAG, "View binding is enabled but no eligible layout XML files were found");
-            return;
-        }
+        List<File> layouts = FileUtil.listFiles(yq.layoutFilesPath, "xml").stream()
+                .map(File::new)
+                .collect(Collectors.toList());
 
         ViewBindingBuilder builder = new ViewBindingBuilder(layouts, outputDirectory, yq.packageName + ".databinding");
         builder.generateBindings();
-    }
-
-    private List<File> collectViewBindingLayouts() {
-        HashMap<String, File> layoutByName = new HashMap<>();
-        collectViewBindingLayouts(new File(yq.resDirectoryPath), layoutByName);
-        collectViewBindingLayouts(new File(fpu.getPathResource(yq.sc_id)), layoutByName);
-        synthesizeMissingViewBindingLayouts(layoutByName);
-
-        ArrayList<String> layoutNames = new ArrayList<>(layoutByName.keySet());
-        Collections.sort(layoutNames);
-
-        ArrayList<File> layouts = new ArrayList<>(layoutNames.size());
-        for (String layoutName : layoutNames) {
-            File layout = layoutByName.get(layoutName);
-            if (layout != null && layout.exists() && layout.isFile()) {
-                layouts.add(layout);
-            }
-        }
-        return layouts;
-    }
-
-    private void synthesizeMissingViewBindingLayouts(HashMap<String, File> layoutByName) {
-        hC projectFileManager = jC.b(yq.sc_id);
-        eC projectDataManager = jC.a(yq.sc_id);
-        iC projectLibraryManager = jC.c(yq.sc_id);
-        if (projectFileManager == null || projectDataManager == null || projectLibraryManager == null) {
-            return;
-        }
-
-        File fallbackRoot = new File(yq.binDirectoryPath, "viewbinding_layout_inputs");
-        if (fallbackRoot.exists()) {
-            FileUtil.deleteFile(fallbackRoot.getAbsolutePath());
-        }
-        fallbackRoot.mkdirs();
-
-        ArrayList<ProjectFileBean> projectFiles = new ArrayList<>();
-        projectFiles.addAll(projectFileManager.b());
-        projectFiles.addAll(projectFileManager.c());
-
-        for (ProjectFileBean projectFile : projectFiles) {
-            if (projectFile == null) {
-                continue;
-            }
-
-            String xmlName = projectFile.getXmlName();
-            if (layoutByName.containsKey(xmlName)) {
-                continue;
-            }
-
-            String xmlSource = yq.getFileSrc(xmlName, projectFileManager, projectDataManager, projectLibraryManager);
-            if (TextUtils.isEmpty(xmlSource)) {
-                continue;
-            }
-
-            File synthesizedLayout = new File(fallbackRoot, xmlName);
-            FileUtil.writeFile(synthesizedLayout.getAbsolutePath(), xmlSource);
-            layoutByName.put(xmlName, synthesizedLayout);
-            LogUtil.d(TAG, "Synthesized missing layout for view binding: " + xmlName);
-        }
-    }
-
-    private void collectViewBindingLayouts(File resourceRoot, HashMap<String, File> layoutByName) {
-        if (resourceRoot == null || !resourceRoot.exists() || !resourceRoot.isDirectory()) {
-            return;
-        }
-
-        File[] resourceDirectories = resourceRoot.listFiles();
-        if (resourceDirectories == null) {
-            return;
-        }
-
-        Arrays.sort(resourceDirectories, (left, right) -> Integer.compare(getLayoutDirectoryPreference(left), getLayoutDirectoryPreference(right)));
-        for (File resourceDirectory : resourceDirectories) {
-            if (resourceDirectory == null || !resourceDirectory.isDirectory()) {
-                continue;
-            }
-
-            String directoryName = resourceDirectory.getName();
-            if (!directoryName.startsWith("layout")) {
-                continue;
-            }
-
-            File[] layoutFiles = resourceDirectory.listFiles();
-            if (layoutFiles == null) {
-                continue;
-            }
-            Arrays.sort(layoutFiles, (left, right) -> left.getName().compareTo(right.getName()));
-            for (File layoutFile : layoutFiles) {
-                if (layoutFile.isFile() && layoutFile.getName().endsWith(".xml")) {
-                    layoutByName.put(layoutFile.getName(), layoutFile);
-                }
-            }
-        }
-    }
-
-    private int getLayoutDirectoryPreference(File directory) {
-        if (directory == null) {
-            return Integer.MAX_VALUE;
-        }
-        String name = directory.getName();
-        if ("layout".equals(name)) {
-            return 1;
-        }
-        return name.startsWith("layout") ? 0 : Integer.MAX_VALUE;
     }
 
     private void pruneGeneratedSourceConflicts() {
@@ -542,10 +435,11 @@ public class ProjectBuilder {
         appendProjectClassOutput(classpath, yq.compiledJavaClassesPath);
         appendProjectClassOutput(classpath, yq.compiledKotlinClassesPath);
 
-        /* Add android.jar */
         if (classpath.length() > 0) {
             classpath.append(':');
         }
+
+        /* Add android.jar */
         classpath.append(androidJarPath);
 
         /* Add HTTP legacy files if wanted */
@@ -592,6 +486,10 @@ public class ProjectBuilder {
 
     private void appendProjectClassOutput(StringBuilder classpath, String outputPath) {
         if (!TextUtils.isEmpty(outputPath) && FileUtil.isExistFile(outputPath)) {
+            // Ensure each path entry is separated by ":" so the classpath is valid.
+            // Without this, compiledJavaClassesPath and compiledKotlinClassesPath
+            // would be concatenated into a single malformed path, causing D8/R8 to
+            // report "Unsupported source file type" when both directories exist.
             if (classpath.length() > 0) {
                 classpath.append(':');
             }
@@ -935,8 +833,16 @@ public class ProjectBuilder {
 
     private ArrayList<String> buildEcjArguments(List<String> sourceInputs, String outputDirectory) {
         ArrayList<String> args = new ArrayList<>();
-        args.add("-" + build_settings.getValue(BuildSettings.SETTING_JAVA_VERSION,
-                BuildSettings.SETTING_JAVA_VERSION_1_8));
+        // Enforce a minimum effective Java compliance of 1.8.
+        // Sketchware-generated code always uses lambda expressions for event listeners,
+        // which require Java 8+. Allowing 1.7 here causes "Syntax error on token" failures
+        // on ALL projects regardless of the user's choice in Build Settings.
+        String javaVersion = build_settings.getValue(BuildSettings.SETTING_JAVA_VERSION,
+                BuildSettings.SETTING_JAVA_VERSION_1_8);
+        if (BuildSettings.SETTING_JAVA_VERSION_1_7.equals(javaVersion)) {
+            javaVersion = BuildSettings.SETTING_JAVA_VERSION_1_8;
+        }
+        args.add("-" + javaVersion);
         args.add("-nowarn");
         if (!build_settings.getValue(BuildSettings.SETTING_NO_WARNINGS,
                 BuildSettings.SETTING_GENERIC_VALUE_TRUE).equals(BuildSettings.SETTING_GENERIC_VALUE_TRUE)) {

@@ -103,6 +103,10 @@ public class ToolContext {
         currentToolCallId = toolCallId;
     }
 
+    public String getCurrentToolCallId() {
+        return currentToolCallId;
+    }
+
     public void endToolCall() {
         currentToolCallId = null;
     }

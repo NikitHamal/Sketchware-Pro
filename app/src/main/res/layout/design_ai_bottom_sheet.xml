@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AI Assistant Bottom Sheet — same visual style as the Chat screen.
+  • Light purple background (#F0EFF8-ish via colorSurfaceContainerLowest)
+  • Robot empty state in middle
+  • White pill input bar at bottom: attach | "Ask the agent..." | mic | purple send circle
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/ai_bottom_sheet"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/colorSurfaceContainerLowest"
+    android:elevation="8dp"
+    android:orientation="vertical">
+
+    <!-- ── Header row ────────────────────────────────────────────────── -->
+    <LinearLayout
+        android:id="@+id/ai_sheet_handle_row"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="?attr/colorSurface"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="4dp">
+
+        <!-- Drag pill -->
+        <View
+            android:layout_width="32dp"
+            android:layout_height="4dp"
+            android:layout_gravity="center_vertical"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/ai_sheet_drag_handle" />
+
+        <!-- Title / subtitle -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/ai_sheet_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="AI Assistant"
+                android:textAppearance="?attr/textAppearanceTitleSmall"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface" />
+
+            <TextView
+                android:id="@+id/ai_sheet_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Working on current project"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+        </LinearLayout>
+
+        <!-- Model chip: purple pill with dropdown arrow -->
+        <LinearLayout
+            android:id="@+id/ai_sheet_model_selector"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:background="@drawable/bg_model_chip"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="4dp"
+            android:layout_marginEnd="4dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:id="@+id/ai_sheet_model_chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:maxWidth="120dp"
+                android:text="Select model"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textColor="?attr/colorPrimary" />
+
+            <ImageView
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:layout_marginStart="4dp"
+                app:srcCompat="@drawable/ic_mtrl_arrow_down"
+                app:tint="?attr/colorPrimary" />
+        </LinearLayout>
+
+        <!-- Settings button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/ai_sheet_btn_settings"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:contentDescription="AI Settings"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            app:icon="@drawable/ic_mtrl_settings"
+            app:iconSize="18dp" />
+
+        <!-- Collapse / close button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/ai_sheet_btn_close"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:contentDescription="Collapse"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            app:icon="@drawable/ic_mtrl_arrow_down"
+            app:iconSize="20dp" />
+    </LinearLayout>
+
+    <com.google.android.material.divider.MaterialDivider
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:dividerColor="?attr/colorSurfaceContainerHighest" />
+
+    <!-- ── Messages area (weight=1 fills all remaining space) ────────── -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- Messages RecyclerView -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/ai_sheet_messages"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:overScrollMode="ifContentScrolls"
+            android:paddingHorizontal="8dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            app:stackFromEnd="true" />
+
+        <!-- Empty state — centred, same style as full chat screen -->
+        <LinearLayout
+            android:id="@+id/ai_sheet_empty"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:paddingHorizontal="32dp"
+            android:visibility="gone">
+
+            <!-- Robot icon in purple circle -->
+            <FrameLayout
+                android:layout_width="96dp"
+                android:layout_height="96dp">
+
+                <View
+                    android:layout_width="96dp"
+                    android:layout_height="96dp"
+                    android:background="@drawable/bg_empty_state_circle" />
+
+                <ImageView
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="AI robot"
+                    app:srcCompat="@drawable/ic_ai_robot" />
+            </FrameLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:text="Ask the agent"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center"
+                android:text="I can edit layouts, fix code, add features, and create entire apps."
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+        </LinearLayout>
+
+    </RelativeLayout>
+
+    <!-- ── Input area — always at bottom ─────────────────────────────── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/colorSurfaceContainerLowest"
+        android:orientation="vertical"
+        android:paddingHorizontal="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="12dp"
+        android:elevation="4dp">
+
+        <!-- Typing indicator -->
+        <LinearLayout
+            android:id="@+id/ai_sheet_typing_indicator"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="4dp"
+            android:paddingBottom="6dp"
+            android:visibility="gone">
+
+            <com.google.android.material.progressindicator.CircularProgressIndicator
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:indeterminate="true"
+                app:indicatorSize="14dp"
+                app:trackThickness="2dp" />
+
+            <TextView
+                android:id="@+id/ai_sheet_typing_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Agent is thinking..."
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+        </LinearLayout>
+
+        <!-- White pill input: attach | text | mic | send circle -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_chat_input_pill"
+            android:elevation="2dp"
+            android:gravity="center_vertical"
+            android:minHeight="52dp"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingEnd="8dp"
+            android:paddingVertical="6dp">
+
+            <!-- Attach icon -->
+            <ImageView
+                android:id="@+id/ai_sheet_btn_attach"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:contentDescription="Attach file"
+                android:focusable="true"
+                android:scaleType="fitCenter"
+                app:srcCompat="@drawable/ic_mtrl_attachment"
+                app:tint="?attr/colorOnSurfaceVariant" />
+
+            <!-- Text input -->
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/ai_sheet_input"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginHorizontal="8dp"
+                android:background="@android:color/transparent"
+                android:hint="Ask the agent..."
+                android:inputType="textMultiLine|textCapSentences"
+                android:maxLines="4"
+                android:minHeight="40dp"
+                android:paddingHorizontal="0dp"
+                android:paddingVertical="4dp"
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+
+            <!-- Mic icon -->
+            <ImageView
+                android:id="@+id/ai_sheet_btn_mic"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:contentDescription="Voice input"
+                android:focusable="true"
+                android:scaleType="fitCenter"
+                app:srcCompat="@drawable/ic_mtrl_mic"
+                app:tint="?attr/colorOnSurfaceVariant" />
+
+            <!-- Purple circle send button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/ai_sheet_btn_send"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:contentDescription="Send"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                app:cornerRadius="22dp"
+                app:icon="@drawable/ic_send"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:iconSize="20dp"
+                app:iconTint="?attr/colorOnPrimary" />
+
+        </LinearLayout>
+
+        <!-- Hidden buttons — used programmatically by AiProjectBottomSheet -->
+        <View
+            android:id="@+id/ai_sheet_btn_clear"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+    <!-- end input area -->
+
+</LinearLayout>

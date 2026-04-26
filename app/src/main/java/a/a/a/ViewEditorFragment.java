@@ -43,6 +43,7 @@ public class ViewEditorFragment extends qA {
     private boolean isPropertyViewVisible;
     private boolean isDragging = false;
     private String sc_id;
+    private android.content.BroadcastReceiver liveRefreshReceiver;
 
     private WidgetsCreatorManager widgetsCreatorManager;
 
@@ -130,6 +131,64 @@ public class ViewEditorFragment extends qA {
         });
         viewEditor.setOnHistoryChangeListener(this::invalidateOptionsMenu);
         viewEditor.setFavoriteData(Rp.h().f());
+
+        liveRefreshReceiver = new android.content.BroadcastReceiver() {
+            @Override
+            public void onReceive(android.content.Context ctx, android.content.Intent intent) {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> n());
+                }
+            }
+        };
+        android.content.IntentFilter filter = new android.content.IntentFilter("pro.sketchware.ai.ACTION_REFRESH_EDITOR");
+        requireContext().registerReceiver(liveRefreshReceiver, filter);
+    }
+
+    public void applyViewBeans(java.util.List<pro.sketchware.ai.ui.ViewBean> aiBeans) {
+        if (aiBeans == null || aiBeans.isEmpty()) return;
+
+        java.util.ArrayList<com.besome.sketch.beans.ViewBean> skBeans = new java.util.ArrayList<>();
+        for (pro.sketchware.ai.ui.ViewBean aiBean : aiBeans) {
+            com.besome.sketch.beans.ViewBean skBean = new com.besome.sketch.beans.ViewBean();
+            
+            // 1. Core properties
+            skBean.id = aiBean.id;
+            skBean.parent = aiBean.parentId;
+            skBean.type = com.besome.sketch.beans.ViewBean.getViewTypeByTypeName(aiBean.type);
+            
+            // 2. Layout settings (LayoutBean)
+            if (skBean.layout == null) skBean.layout = new com.besome.sketch.beans.LayoutBean();
+            skBean.layout.width = aiBean.width;
+            skBean.layout.height = aiBean.height;
+            
+            try {
+                if (aiBean.backgroundColor != null && !aiBean.backgroundColor.isEmpty()) {
+                    skBean.layout.backgroundColor = android.graphics.Color.parseColor(aiBean.backgroundColor);
+                    skBean.layout.hasBackgroundColor = true;
+                }
+            } catch (Exception ignored) {}
+
+            // 3. Text settings (TextBean)
+            if (skBean.text == null) skBean.text = new com.besome.sketch.beans.TextBean();
+            skBean.text.text = aiBean.text;
+            skBean.text.textSize = aiBean.textSize;
+            
+            try {
+                if (aiBean.textColor != null && !aiBean.textColor.isEmpty()) {
+                    skBean.text.textColor = android.graphics.Color.parseColor(aiBean.textColor);
+                    skBean.text.hasTextColor = true;
+                }
+            } catch (Exception ignored) {}
+
+            skBeans.add(skBean);
+        }
+
+        // تنفيذ الرسم على الـ Canvas
+        viewEditor.h(); // مسح الواجهة
+        viewEditor.a(skBeans, false); // رسم العناصر
+        
+        n(); // Refresh properties panel
+        invalidateOptionsMenu();
     }
 
     public void initialize(ProjectFileBean projectFileBean) {
@@ -518,6 +577,11 @@ public class ViewEditorFragment extends qA {
     @Override
     public void onStop() {
         super.onStop();
+        try {
+            if (liveRefreshReceiver != null) {
+                requireContext().unregisterReceiver(liveRefreshReceiver);
+            }
+        } catch (Exception ignored) {}
         if (viewProperty != null) {
             viewProperty.d();
         }

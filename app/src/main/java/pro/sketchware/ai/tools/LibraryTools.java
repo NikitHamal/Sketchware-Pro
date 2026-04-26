@@ -107,7 +107,9 @@ public class LibraryTools {
 
         @Override
         public String getDescription() {
-            return "Lists built-in libraries, attached local libraries, and downloaded local libraries available to a project.";
+            return "Lists built-in libraries, attached local libraries, and downloaded local libraries available to a project. "
+                 + "Use compact=true to get a concise name-only summary (saves tokens). "
+                 + "Use compact=false (default) for full details including sizes and enabled status.";
         }
 
         @Override
@@ -119,6 +121,14 @@ public class LibraryTools {
             scId.addProperty("type", "string");
             scId.addProperty("description", "The project SC ID");
             props.add("sc_id", scId);
+            // Compact mode — returns only names/versions to save tokens
+            JsonObject compact = new JsonObject();
+            compact.addProperty("type", "boolean");
+            compact.addProperty("description",
+                "If true, returns a concise summary (names only, no sizes). "
+              + "If false (default), returns full details. "
+              + "Use compact=true when you only need to know what libraries are attached.");
+            props.add("compact", compact);
             schema.add("properties", props);
             JsonArray req = new JsonArray();
             req.add("sc_id");
@@ -132,6 +142,55 @@ public class LibraryTools {
             ToolResult validation = validateProject(scId, context);
             if (validation != null) return validation;
 
+            boolean compact = arguments.has("compact") && arguments.get("compact").getAsBoolean();
+
+            // ── COMPACT MODE: return a concise name-only summary ──────────────────
+            if (compact) {
+                JsonObject summary = new JsonObject();
+                summary.addProperty("sc_id", scId);
+                summary.addProperty("mode", "compact");
+
+                // Built-in library enabled flags (compat/firebase/admob/maps)
+                File libraryFile = new File(context.getSketchwareDir(), "data/" + scId + "/library");
+                JsonArray builtInNames = new JsonArray();
+                if (libraryFile.exists()) {
+                    String content = readFile(libraryFile);
+                    if (content != null && !content.trim().isEmpty()) {
+                        try {
+                            JsonArray arr = JsonParser.parseString(content).getAsJsonArray();
+                            for (JsonElement el : arr) {
+                                if (el.isJsonObject()) {
+                                    JsonObject lib = el.getAsJsonObject();
+                                    String name = lib.has("name") ? lib.get("name").getAsString() : "?";
+                                    String useYn = lib.has("useYn") ? lib.get("useYn").getAsString() : "N";
+                                    builtInNames.add(name + ":" + useYn);
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+                summary.add("built_in", builtInNames);
+
+                // Manually enabled built-ins
+                JsonArray manualNames = new JsonArray();
+                for (BuiltInLibraries.BuiltInLibrary library : EnableBuiltInLibrariesActivity.getEnabledLibraries(scId)) {
+                    manualNames.add(library.getName());
+                }
+                summary.add("manually_enabled", manualNames);
+
+                // Attached local libraries — names only
+                JsonArray attachedNames = new JsonArray();
+                for (HashMap<String, Object> entry : getAttachedLocalLibraries(scId)) {
+                    Object name = entry.get("name");
+                    if (name != null) attachedNames.add(name.toString());
+                }
+                summary.add("attached_local", attachedNames);
+
+                summary.addProperty("tip", "Use compact=false for full details including sizes.");
+                return success(summary.toString());
+            }
+
+            // ── FULL MODE: return complete details ────────────────────────────────
             JsonObject result = new JsonObject();
             result.addProperty("sc_id", scId);
 
@@ -483,6 +542,67 @@ public class LibraryTools {
                 return error("dependency must be in group:artifact:version format");
             }
 
+            // ── Check if already downloaded ────────────────────────────────
+            // The artifact folder name follows the pattern: group.artifact-version
+            // We normalise it the same way DependencyResolver does.
+            String artifactFolderName = parts[0].replace(".", "_") + "_" + parts[1] + "-" + parts[2];
+            File existingLibDir = new File(context.getSketchwareDir(),
+                    "libs/local_libs/" + artifactFolderName);
+
+            ArrayList<HashMap<String, Object>> alreadyAttached = getAttachedLocalLibraries(scId);
+
+            if (existingLibDir.exists() && existingLibDir.isDirectory()) {
+                // Library already downloaded — just attach if not yet attached
+                boolean wasAttached = hasAttachedLibrary(alreadyAttached, artifactFolderName);
+                if (!wasAttached) {
+                    alreadyAttached.add(LocalLibrariesUtil.createLibraryMap(artifactFolderName, dependency));
+                    saveAttachedLocalLibraries(scId, alreadyAttached);
+                }
+                JsonObject result = new JsonObject();
+                result.addProperty("dependency", dependency);
+                result.addProperty("library_name", artifactFolderName);
+                result.addProperty("status", wasAttached ? "already_attached" : "found_locally_and_attached");
+                result.addProperty("message",
+                        wasAttached
+                        ? "Library already downloaded and attached. No download needed."
+                        : "Library found in local storage and attached without re-downloading.");
+                return success(result.toString());
+            }
+
+            // Also check by iterating all local libraries for a name-only match (version-agnostic)
+            // FIX (Suggested.txt): Verify that the matched library's artifact ID actually matches
+            // the requested artifact to avoid false-positive name matches (e.g. 'preference' matching
+            // 'datastore-preferences-core' which has a completely different API surface).
+            String artifactId = parts[1];
+            for (LocalLibrary lib : LocalLibrariesUtil.getAllLocalLibraries()) {
+                String libName = lib.getName();
+                if (libName == null) continue;
+                // Strict match: the local library name must start with or equal the artifact ID
+                // (after normalising separators), not just contain it as a substring.
+                String normLibName  = libName.toLowerCase().replace("-", "_").replace(".", "_");
+                String normArtifact = artifactId.toLowerCase().replace("-", "_").replace(".", "_");
+                boolean strictMatch = normLibName.startsWith(normArtifact + "-")
+                        || normLibName.startsWith(normArtifact + "_")
+                        || normLibName.equals(normArtifact)
+                        || normLibName.startsWith(parts[0].replace(".", "_") + "_" + normArtifact);
+                if (!strictMatch) continue;
+                boolean wasAttached = hasAttachedLibrary(alreadyAttached, libName);
+                if (!wasAttached) {
+                    alreadyAttached.add(LocalLibrariesUtil.createLibraryMap(libName, dependency));
+                    saveAttachedLocalLibraries(scId, alreadyAttached);
+                }
+                JsonObject result = new JsonObject();
+                result.addProperty("dependency", dependency);
+                result.addProperty("library_name", libName);
+                result.addProperty("matched_artifact_id", artifactId);
+                result.addProperty("status", wasAttached ? "already_attached" : "found_locally_and_attached");
+                result.addProperty("message",
+                        "Compatible local library '" + libName + "' already exists. " +
+                        (wasAttached ? "Already attached." : "Attached without re-downloading."));
+                return success(result.toString());
+            }
+
+            // Not found locally — proceed with download
             Set<String> resolvedLibraries = new LinkedHashSet<>();
             BuildSettings buildSettings = new BuildSettings(scId);
             context.reportProgress("Resolving dependency…", 5);
@@ -553,7 +673,10 @@ public class LibraryTools {
 
         @Override
         public String getDescription() {
-            return "Validates the project's built-in and local library configuration and returns dependency health details.";
+            return "Validates the project's built-in and local library configuration and returns dependency health details. "
+                 + "Now includes granular error diagnosis: each error is cross-referenced with the library that caused it "
+                 + "and a suggested fix action (e.g. 'enable compat', 'download_dependency ...'). "
+                 + "Run this after build failures to get actionable remediation steps.";
         }
 
         @Override
@@ -565,6 +688,13 @@ public class LibraryTools {
             scId.addProperty("type", "string");
             scId.addProperty("description", "The project SC ID");
             props.add("sc_id", scId);
+            // Optional: pass a build error message to get targeted diagnosis
+            JsonObject buildError = new JsonObject();
+            buildError.addProperty("type", "string");
+            buildError.addProperty("description",
+                "Optional: paste the build error message here to get targeted library diagnosis. "
+              + "The tool will cross-reference the error with attached libraries and suggest fixes.");
+            props.add("build_error", buildError);
             schema.add("properties", props);
             JsonArray required = new JsonArray();
             required.add("sc_id");
@@ -578,23 +708,121 @@ public class LibraryTools {
             ToolResult validation = validateProject(scId, context);
             if (validation != null) return validation;
 
+            String buildError = arguments.has("build_error") && !arguments.get("build_error").isJsonNull()
+                    ? arguments.get("build_error").getAsString() : null;
+
             BuiltInLibraryCompatibilityMatrix.ValidationResult validationResult =
                     BuiltInLibraryCompatibilityMatrix.validate(scId);
             JsonObject result = new JsonObject();
             result.addProperty("sc_id", scId);
             result.addProperty("valid", validationResult.isValid());
-            JsonArray errors = new JsonArray();
-            for (String error : validationResult.getErrors()) {
-                errors.add(error);
+
+            // ── Granular error diagnosis (Suggested.txt improvement) ──────────────
+            // Each error is enriched with a 'fix' suggestion so the AI agent knows
+            // exactly which tool call to make next without guessing.
+            JsonArray enrichedErrors = new JsonArray();
+            for (String errorMsg : validationResult.getErrors()) {
+                JsonObject errObj = new JsonObject();
+                errObj.addProperty("error", errorMsg);
+                // Derive a fix suggestion based on the error text
+                String fix = deriveFixSuggestion(errorMsg);
+                if (fix != null) errObj.addProperty("suggested_fix", fix);
+                enrichedErrors.add(errObj);
             }
-            result.add("errors", errors);
+            result.add("errors", enrichedErrors);
+
             JsonArray requiredLibraries = new JsonArray();
             for (String library : validationResult.getRequiredLibraries()) {
                 requiredLibraries.add(library);
             }
             result.add("required_libraries", requiredLibraries);
             result.addProperty("attached_local_library_count", getAttachedLocalLibraries(scId).size());
+
+            // ── Build error cross-reference (if provided) ─────────────────────────
+            if (buildError != null && !buildError.trim().isEmpty()) {
+                JsonObject diagnosis = diagnoseBuildError(buildError, scId, context);
+                result.add("build_error_diagnosis", diagnosis);
+            }
+
             return success(result.toString());
+        }
+
+        /**
+         * Maps a known validation error message to a concrete fix action.
+         * Returns null if no specific fix is known.
+         */
+        private static String deriveFixSuggestion(String errorMsg) {
+            if (errorMsg == null) return null;
+            String lower = errorMsg.toLowerCase();
+            if (lower.contains("firebase") && lower.contains("appcompat"))
+                return "Call add_library with library_name='compat' to enable AppCompat/Design.";
+            if (lower.contains("material 3") && lower.contains("appcompat"))
+                return "Call add_library with library_name='compat' to enable AppCompat/Design.";
+            if (lower.contains("excluded") && lower.contains("required"))
+                return "Remove the conflicting library from the exclusion list via ExcludeBuiltInLibrariesActivity, or disable the feature that requires it.";
+            if (lower.contains("admob") || lower.contains("play_services_ads"))
+                return "Call add_library with library_name='admob' to enable AdMob.";
+            if (lower.contains("maps") || lower.contains("play_services_maps"))
+                return "Call add_library with library_name='googlemap' to enable Google Maps.";
+            return null;
+        }
+
+        /**
+         * Cross-references a build error message with the project's attached libraries
+         * to identify which library is likely missing or misconfigured.
+         */
+        private static JsonObject diagnoseBuildError(String buildError, String scId, ToolContext context) {
+            JsonObject diag = new JsonObject();
+            diag.addProperty("build_error_snippet",
+                    buildError.length() > 300 ? buildError.substring(0, 300) + "..." : buildError);
+
+            String lower = buildError.toLowerCase();
+            List<String> suspects = new ArrayList<>();
+            List<String> fixes    = new ArrayList<>();
+
+            // Common build error patterns → library mapping
+            if (lower.contains("cannot find symbol") || lower.contains("package does not exist")) {
+                suspects.add("A required library class is missing from the classpath.");
+                fixes.add("Run scan_dependencies to identify missing imports, then use download_dependency.");
+            }
+            if (lower.contains("duplicate class")) {
+                suspects.add("Two attached libraries contain the same class (version conflict).");
+                fixes.add("Use remove_library or detach_local_library to remove the duplicate, then re-attach the correct version.");
+            }
+            if (lower.contains("resource not found") || lower.contains("no resource identifier found")) {
+                suspects.add("A resource (layout/drawable/string) referenced in code is missing.");
+                fixes.add("Check that AppCompat/Design (compat) is enabled if using Material/AppCompat resources.");
+            }
+            if (lower.contains("minsdkversion") || lower.contains("minsdk")) {
+                suspects.add("A library requires a higher minSdkVersion than the project.");
+                fixes.add("Update minSdkVersion in build settings, or use a lower version of the library.");
+            }
+            if (lower.contains("multidex")) {
+                suspects.add("Too many methods — MultiDex is required.");
+                fixes.add("Enable MultiDex in build settings.");
+            }
+
+            // Cross-reference with attached libraries
+            ArrayList<HashMap<String, Object>> attached = getAttachedLocalLibraries(scId);
+            JsonArray attachedNames = new JsonArray();
+            for (HashMap<String, Object> lib : attached) {
+                Object name = lib.get("name");
+                if (name != null) attachedNames.add(name.toString());
+            }
+            diag.add("currently_attached_libraries", attachedNames);
+
+            JsonArray suspectsArr = new JsonArray();
+            for (String s : suspects) suspectsArr.add(s);
+            diag.add("suspected_causes", suspectsArr);
+
+            JsonArray fixesArr = new JsonArray();
+            for (String f : fixes) fixesArr.add(f);
+            diag.add("suggested_fixes", fixesArr);
+
+            if (suspects.isEmpty())
+                diag.addProperty("note", "No known pattern matched. Review the full build log with get_compile_logs.");
+
+            return diag;
         }
     }
 

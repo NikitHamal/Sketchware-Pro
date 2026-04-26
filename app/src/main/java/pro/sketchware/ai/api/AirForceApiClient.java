@@ -126,6 +126,26 @@ public class AirForceApiClient extends AiApiClient {
                 String id = getString(model, "id");
                 if (id == null || id.isEmpty()) continue;
                 
+                // Filter non-coding / non-general useful models
+                String lowerId = id.toLowerCase(Locale.US);
+                // Skip image/audio/embedding/non-chat models
+                {
+                    String _lo = id == null ? "" : id.toLowerCase(java.util.Locale.ROOT);
+                    if (_lo.contains("whisper") || _lo.contains("tts") || _lo.contains("guard")
+                        || _lo.contains("audio") || _lo.contains("speech") || _lo.contains("embed")
+                        || _lo.contains("moderation") || _lo.contains("realtime")
+                        || _lo.contains("dall-e") || _lo.contains("stable-diff")
+                        || _lo.contains("sdxl") || _lo.contains("flux") || _lo.contains("imagen")
+                        || _lo.contains("image-gen") || _lo.contains("text-to-image")
+                        || _lo.contains("video") || _lo.contains("rerank")
+                        || _lo.contains("transcrib") || _lo.contains("midjourney")) continue;
+                }
+                
+                // Only keep powerful, coding or Gemma models
+                boolean isGemma = lowerId.contains("gemma");
+                boolean isCoding = lowerId.contains("coder") || lowerId.contains("instruct") || lowerId.contains("deepseek-v3") || lowerId.contains("llama-3.3") || lowerId.contains("r1") || lowerId.contains("gpt-4") || isGemma;
+                if (!isCoding && !lowerId.contains("70b") && !lowerId.contains("large")) continue;
+
                 // Only include chat models
                 Boolean supportsChat = model.has("supports_chat") ? model.get("supports_chat").getAsBoolean() : null;
                 if (supportsChat != null && !supportsChat) continue;
@@ -173,6 +193,9 @@ public class AirForceApiClient extends AiApiClient {
                 result.add(baseInfo.withMetadata(maxTokens, supportsStreaming, supportsNonStreaming, status));
             }
 
+            // Sort models alphabetically (A-Z)
+            java.util.Collections.sort(result);
+
             return result.isEmpty() ? fallbackModels() : result;
         }
     }
@@ -180,13 +203,26 @@ public class AirForceApiClient extends AiApiClient {
     @Override
     public void sendChatRequest(List<ChatMessage> messages, String modelId,
                                 String systemPrompt, StreamingResponseHandler handler) {
-        sendChatRequest(messages, modelId, systemPrompt, null, handler);
+        sendChatRequest(messages, modelId, systemPrompt, null, null, handler);
+    }
+
+    @Override
+    public void sendChatRequest(List<ChatMessage> messages, String modelId,
+                                String systemPrompt, Object tag, StreamingResponseHandler handler) {
+        sendChatRequest(messages, modelId, systemPrompt, null, tag, handler);
     }
 
     @Override
     public void sendChatRequest(List<ChatMessage> messages, String modelId,
                                 String systemPrompt, List<ToolDefinition> tools,
                                 StreamingResponseHandler handler) {
+        sendChatRequest(messages, modelId, systemPrompt, tools, null, handler);
+    }
+
+    @Override
+    public void sendChatRequest(List<ChatMessage> messages, String modelId,
+                                String systemPrompt, List<ToolDefinition> tools,
+                                Object tag, StreamingResponseHandler handler) {
         try {
             JsonObject requestBody = NvidiaApiClient.buildOpenAiRequestBody(
                     messages,
@@ -199,6 +235,7 @@ public class AirForceApiClient extends AiApiClient {
                     .url(CHAT_URL)
                     .post(RequestBody.create(requestBody.toString(), JSON));
             
+            if (tag != null) builder.tag(tag);
             applyHeaders(builder);
 
             client.newCall(builder.build()).enqueue(new Callback() {
@@ -209,22 +246,11 @@ public class AirForceApiClient extends AiApiClient {
 
                 @Override
                 public void onResponse(Call call, Response response) {
-                    if (response.code() == 429) {
-                        handler.onError("AirForce rate limited. Please wait and try again.");
-                        response.close();
-                        return;
-                    }
-                    
-                    if (response.code() == 403) {
-                        handler.onError("AirForce returned 403. Try again in a moment.");
-                        response.close();
-                        return;
-                    }
-                    
                     if (!response.isSuccessful()) {
+                        int code = response.code();
                         String errorBody = readBodySafely(response);
-                        handler.onError("AirForce HTTP " + response.code() + ": " + errorBody);
                         response.close();
+                        handler.onError("AirForce: " + AiErrorHelper.getFriendlyMessage(code, errorBody));
                         return;
                     }
 
@@ -258,14 +284,14 @@ public class AirForceApiClient extends AiApiClient {
 
     private static List<ModelInfo> fallbackModels() {
         List<ModelInfo> fallback = new ArrayList<>();
-        fallback.add(new ModelInfo("roleplay:free", "AirForce Roleplay Free",
-                AiProvider.AIRFORCE, 4096, "Free roleplay model"));
-        fallback.add(new ModelInfo("lana", "AirForce Lana",
-                AiProvider.AIRFORCE, 4096, "Free Lana model"));
-        fallback.add(new ModelInfo("grok-4.1-mini:free", "AirForce Grok 4.1 Mini Free",
-                AiProvider.AIRFORCE, 4096, "Free Grok model"));
-        fallback.add(new ModelInfo("deepseek-v3:free", "AirForce DeepSeek V3 Free",
-                AiProvider.AIRFORCE, 4096, "Free DeepSeek model"));
+        fallback.add(new ModelInfo("deepseek-v3:free", "DeepSeek V3",
+                AiProvider.AIRFORCE, 128000, "AirForce 🆓 — Best for code & general tasks"));
+        fallback.add(new ModelInfo("llama-3.3-70b:free", "Llama 3.3 70B",
+                AiProvider.AIRFORCE, 128000, "AirForce 🆓 — Powerful instruct model"));
+        fallback.add(new ModelInfo("qwen-2.5-coder-32b:free", "Qwen 2.5 Coder 32B",
+                AiProvider.AIRFORCE, 128000, "AirForce 🆓 — Specialized coding model"));
+        fallback.add(new ModelInfo("gpt-4o:free", "GPT-4o",
+                AiProvider.AIRFORCE, 128000, "AirForce 🆓 — OpenAI flagship model"));
         return fallback;
     }
 

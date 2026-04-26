@@ -24,6 +24,7 @@ import mod.jbk.diagnostic.CompileErrorSaver;
 import mod.jbk.util.AddMarginOnApplyWindowInsetsListener;
 import pro.sketchware.databinding.CompileLogBinding;
 import pro.sketchware.utility.SketchwareUtil;
+import pro.sketchware.ai.integration.AiProjectIntegrationHelper;
 
 public class CompileLogActivity extends BaseAppCompatActivity {
 
@@ -63,6 +64,26 @@ public class CompileLogActivity extends BaseAppCompatActivity {
         }
 
         compileErrorSaver = new CompileErrorSaver(sc_id);
+
+        // Add "Fix with AI" menu item in toolbar
+        binding.topAppBar.getMenu().clear();
+        binding.topAppBar.inflateMenu(pro.sketchware.R.menu.compile_log_menu);
+        binding.topAppBar.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == pro.sketchware.R.id.action_ai_fix) {
+                String errorText = getIntent().getStringExtra("error");
+                if (errorText == null) errorText = compileErrorSaver.getLogsFromFile();
+                if (errorText == null || errorText.trim().isEmpty()) {
+                    SketchwareUtil.toast("No compile errors found to analyse.");
+                    return true;
+                }
+                String prompt = "Fix these compile errors:\n" + errorText;
+                AiProjectIntegrationHelper.openProjectChatWithContext(
+                        this, sc_id, null,
+                        "AI \u2022 Fix Errors", prompt, "errors");
+                return true;
+            }
+            return false;
+        });
 
         if (compileErrorSaver.logFileExists()) {
             binding.clearButton.setOnClickListener(v -> {

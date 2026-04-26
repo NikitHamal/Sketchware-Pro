@@ -23,13 +23,23 @@ public class ModelSelectorAdapter extends RecyclerView.Adapter<ModelSelectorAdap
         void onModelSelected(ModelInfo model);
     }
 
+    public interface OnModelLongClickListener {
+        boolean onModelLongClick(ModelInfo model);
+    }
+
     private final List<ModelInfo> models = new ArrayList<>();
     private final OnModelSelectedListener listener;
     @Nullable
     private String selectedModelId;
+    @Nullable
+    private OnModelLongClickListener longClickListener;
 
     public ModelSelectorAdapter(@NonNull OnModelSelectedListener listener) {
         this.listener = listener;
+    }
+
+    public void setOnModelLongClickListener(@Nullable OnModelLongClickListener l) {
+        this.longClickListener = l;
     }
 
     @NonNull
@@ -93,6 +103,13 @@ public class ModelSelectorAdapter extends RecyclerView.Adapter<ModelSelectorAdap
                     notifyDataSetChanged();
                 }
                 listener.onModelSelected(model);
+            });
+
+            binding.getRoot().setOnLongClickListener(v -> {
+                if (longClickListener != null) {
+                    return longClickListener.onModelLongClick(model);
+                }
+                return false;
             });
         }
     }

@@ -70,6 +70,30 @@ public final class AiProjectIntegrationHelper {
         Intent intent = new Intent(activity, ChatActivity.class);
         intent.putExtra(ChatActivity.EXTRA_WORKSPACE_ID, workspace.getId());
         intent.putExtra(ChatActivity.EXTRA_CONVERSATION_ID, conversation.getId());
+        // ✅ Fix: pass EXTRA_PROJECT_ID so ChatActivity uses SCOPE_PROJECT instead of SCOPE_GLOBAL
+        intent.putExtra(ChatActivity.EXTRA_PROJECT_ID, scId);
+        if (initialPrompt != null && !initialPrompt.trim().isEmpty()) {
+            intent.putExtra(ChatActivity.EXTRA_INITIAL_PROMPT, initialPrompt.trim());
+        }
+        activity.startActivity(intent);
+    }
+
+    /**
+     * Opens the project chat with a specific page context (e.g. "errors", "blocks").
+     * The pageContext is appended to the initial prompt so the model knows where it was launched from.
+     */
+    public static void openProjectChatWithContext(@NonNull Activity activity, @NonNull String scId,
+                                                   @Nullable String projectName, @NonNull String title,
+                                                   @Nullable String initialPrompt, @Nullable String pageContext) {
+        Workspace workspace = ensureProjectWorkspace(activity, scId, projectName);
+        Conversation conversation = createConversation(activity, workspace, title);
+        Intent intent = new Intent(activity, ChatActivity.class);
+        intent.putExtra(ChatActivity.EXTRA_WORKSPACE_ID, workspace.getId());
+        intent.putExtra(ChatActivity.EXTRA_CONVERSATION_ID, conversation.getId());
+        intent.putExtra(ChatActivity.EXTRA_PROJECT_ID, scId);
+        if (pageContext != null && !pageContext.trim().isEmpty()) {
+            intent.putExtra(ChatActivity.EXTRA_PAGE_CONTEXT, pageContext.trim());
+        }
         if (initialPrompt != null && !initialPrompt.trim().isEmpty()) {
             intent.putExtra(ChatActivity.EXTRA_INITIAL_PROMPT, initialPrompt.trim());
         }

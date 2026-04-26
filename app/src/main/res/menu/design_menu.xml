@@ -16,6 +16,17 @@
         android:title="@string/design_option_menu_title_save_project"
         app:showAsAction="always" />
 
+    <!--
+      AI Assistant toggle — cycles through HIDDEN → HALF → EXPANDED → HIDDEN.
+      Icon tint changes when the sheet is visible (handled in DesignActivity).
+    -->
+    <item
+        android:id="@+id/design_option_menu_ai_assistant"
+        android:icon="@drawable/ic_agent"
+        android:orderInCategory="108"
+        android:title="AI Assistant"
+        app:showAsAction="always" />
+
     <item
         android:id="@+id/design_actionbar_titleopen_drawer"
         android:icon="@drawable/selector_ic_more_tinted_24"

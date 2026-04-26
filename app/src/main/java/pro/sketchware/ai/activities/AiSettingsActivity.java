@@ -1,271 +1,641 @@
 package pro.sketchware.ai.activities;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.View;
+import android.widget.EditText;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.view.WindowCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
 
+import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.textfield.TextInputEditText;
+
+import java.io.FileWriter;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import org.json.JSONObject;
+
+import pro.sketchware.R;
+import pro.sketchware.ai.adapters.AiProviderAdapter;
 import pro.sketchware.ai.api.AiApiClient;
-import pro.sketchware.ai.api.AirForceApiClient;
-import pro.sketchware.ai.api.DeepInfraApiClient;
-import pro.sketchware.ai.api.GeminiApiClient;
-import pro.sketchware.ai.api.NvidiaApiClient;
-import pro.sketchware.ai.api.OpenRouterApiClient;
-import pro.sketchware.ai.api.PaxsenixApiClient;
+import pro.sketchware.ai.api.AiClientFactory;
 import pro.sketchware.ai.models.AiProvider;
 import pro.sketchware.ai.models.ModelInfo;
 import pro.sketchware.ai.storage.AiPreferences;
 import pro.sketchware.databinding.ActivityAiSettingsBinding;
 
+import android.os.CountDownTimer;
+
 public class AiSettingsActivity extends AppCompatActivity {
 
+    // ── API Key URLs ──────────────────────────────────────────────────────────
+    private static final String URL_GEMINI           = "https://aistudio.google.com/app/apikey";
+    private static final String URL_OPENAI           = "https://platform.openai.com/api-keys";
+    private static final String URL_ANTHROPIC        = "https://console.anthropic.com/settings/keys";
+    private static final String URL_DEEPSEEK         = "https://platform.deepseek.com/api_keys";
+    private static final String URL_XAI              = "https://console.x.ai/";
+    private static final String URL_NVIDIA           = "https://build.nvidia.com/explore/discover";
+    private static final String URL_OPENROUTER       = "https://openrouter.ai/keys";
+    private static final String URL_DEEPINFRA        = "https://deepinfra.com/dash/api_keys";
+    private static final String URL_PAXSENIX         = "https://api.paxsenix.org";
+    private static final String URL_AIRFORCE         = "https://api.airforce";
+    private static final String URL_GROQ             = "https://console.groq.com/keys";
+    private static final String URL_MANUS            = "https://manus.im/settings/api";
+    private static final String URL_TOGETHER         = "https://api.together.ai/settings/api-keys";
+    private static final String URL_HUGGINGFACE      = "https://huggingface.co/settings/tokens";
+    private static final String URL_CEREBRAS         = "https://cloud.cerebras.ai/platform";
+    private static final String URL_GOOGLE_AI_STUDIO = "https://aistudio.google.com/app/apikey";
+
+    private static final String PREF_ENABLED     = "provider_enabled_";
+    private static final String PREF_LOCAL_URL   = "ai_local_llm_url";
+    private static final String PREF_LOCAL_MODEL = "ai_local_llm_model";
+    private static final String PREF_AI_PROFILE  = "ai_profile";
+    private static final String PROFILE_QUICK    = "QUICK";
+    private static final String PROFILE_DEEP     = "DEEP";
+
+    private static final float QUICK_TEMPERATURE = 0.8f;
+    private static final int   QUICK_MAX_TOKENS  = 2048;
+    private static final float DEEP_TEMPERATURE  = 0.3f;
+    private static final int   DEEP_MAX_TOKENS   = 8192;
+
+    private static final int REQUEST_EXPORT = 9001;
+    private static final int REQUEST_IMPORT = 9002;
+
     private ActivityAiSettingsBinding binding;
-    private AiPreferences preferences;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private String defaultSystemPrompt;
+    private AiPreferences             preferences;
+    private AiProviderAdapter         providerAdapter;
+    private String                    defaultSystemPrompt;
+    private final ExecutorService     executor = Executors.newCachedThreadPool();
+
+    /** Active failover countdown timer */
+    private CountDownTimer failoverCountdown;
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
         binding = ActivityAiSettingsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        preferences = AiPreferences.getInstance(this);
+        preferences         = AiPreferences.getInstance(this);
         defaultSystemPrompt = preferences.getSystemPrompt();
 
         binding.toolbar.setNavigationOnClickListener(v -> finish());
 
-        loadApiKeys();
-        setupSaveListeners();
-        setupRefreshButtons();
+        setupProvidersRecyclerView();
+        setupLocalLlm();
+        setupAiProfiles();
+        setupFailoverBanner();
         setupSystemPrompt();
-        updateModelCounts();
+        handleIncomingIntent();
     }
 
-    private void loadApiKeys() {
-        String geminiKey = preferences.getApiKey(AiProvider.GEMINI);
-        String nvidiaKey = preferences.getApiKey(AiProvider.NVIDIA);
-        String openrouterKey = preferences.getApiKey(AiProvider.OPENROUTER);
-        String paxsenixKey = preferences.getApiKey(AiProvider.PAXSENIX);
+    // ── RecyclerView providers ────────────────────────────────────────────────
 
-        if (geminiKey != null) binding.inputGeminiKey.setText(geminiKey);
-        if (nvidiaKey != null) binding.inputNvidiaKey.setText(nvidiaKey);
-        if (openrouterKey != null) binding.inputOpenrouterKey.setText(openrouterKey);
-        if (paxsenixKey != null) binding.inputPaxsenixKey.setText(paxsenixKey);
-        
-        // No-API-key providers
-        binding.inputDeepinfraKey.setEnabled(false);
-        binding.inputDeepinfraKey.setText("No API key required");
-        binding.inputAirforceKey.setEnabled(false);
-        binding.inputAirforceKey.setText("No API key required");
-    }
-
-    private void setupSaveListeners() {
-        binding.inputGeminiKey.setOnFocusChangeListener((v, hasFocus) -> {
-            if (!hasFocus) saveApiKey(AiProvider.GEMINI, getInputText(binding.inputGeminiKey));
-        });
-        binding.inputNvidiaKey.setOnFocusChangeListener((v, hasFocus) -> {
-            if (!hasFocus) saveApiKey(AiProvider.NVIDIA, getInputText(binding.inputNvidiaKey));
-        });
-        binding.inputOpenrouterKey.setOnFocusChangeListener((v, hasFocus) -> {
-            if (!hasFocus) saveApiKey(AiProvider.OPENROUTER, getInputText(binding.inputOpenrouterKey));
-        });
-        binding.inputPaxsenixKey.setOnFocusChangeListener((v, hasFocus) -> {
-            if (!hasFocus) saveApiKey(AiProvider.PAXSENIX, getInputText(binding.inputPaxsenixKey));
-        });
-    }
-
-    private void saveApiKey(AiProvider provider, String key) {
-        if (!provider.requiresApiKey()) {
-            return;
+    private void setupProvidersRecyclerView() {
+        // Build state list for every provider (except LOCAL_LLM — handled separately)
+        List<AiProviderAdapter.ProviderState> states = new ArrayList<>();
+        for (AiProvider p : AiProvider.values()) {
+            if (p == AiProvider.LOCAL_LLM) continue;
+            boolean enabled = preferences.prefs().getBoolean(PREF_ENABLED + p.name(),
+                    p == AiProvider.DEEPINFRA || p == AiProvider.AIRFORCE);
+            String  key     = p.requiresApiKey() ? preferences.getApiKey(p) : "";
+            String  count   = buildModelCountText(p);
+            states.add(new AiProviderAdapter.ProviderState(p, enabled, key, count));
         }
 
-        String existing = preferences.getApiKey(provider);
-        if (key.equals(existing != null ? existing : "")) return;
+        providerAdapter = new AiProviderAdapter(new AiProviderAdapter.ProviderCallback() {
 
-        if (key.isEmpty()) {
-            preferences.clearApiKey(provider);
-            preferences.clearCachedModels(provider);
-            updateModelCounts();
-        } else {
-            preferences.setApiKey(provider, key);
-            fetchModels(provider);
-        }
+            @Override
+            public void onToggle(AiProvider provider, boolean enabled) {
+                preferences.prefs().edit()
+                        .putBoolean(PREF_ENABLED + provider.name(), enabled).apply();
+                // Manus special case
+                if (enabled && provider == AiProvider.MANUS) {
+                    // revert and show dialog
+                    providerAdapter.setEnabled(provider, false);
+                    new MaterialAlertDialogBuilder(AiSettingsActivity.this)
+                            .setTitle("Manus AI — Agent API")
+                            .setMessage("Manus uses a task-based async API (not compatible with standard chat).\n\n"
+                                    + "Use Manus directly at manus.im — it cannot be integrated as a "
+                                    + "standard chat provider in the current version.")
+                            .setPositiveButton("Open manus.im",
+                                    (d, w) -> openUrl("https://manus.im"))
+                            .setNegativeButton("Cancel", null)
+                            .show();
+                }
+            }
+
+            @Override
+            public void onKeyChanged(AiProvider provider, String key) {
+                saveKey(provider, key);
+            }
+
+            @Override
+            public void onGetKey(AiProvider provider) {
+                openUrl(getUrlFor(provider));
+            }
+
+            @Override
+            public void onRefresh(AiProvider provider) {
+                fetchModels(provider);
+            }
+        });
+
+        binding.providersRecycler.setLayoutManager(
+                new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false));
+        binding.providersRecycler.setAdapter(providerAdapter);
+        binding.providersRecycler.setHasFixedSize(false);
+        binding.providersRecycler.setNestedScrollingEnabled(false);
+
+        providerAdapter.setStates(states);
     }
 
-    private String getInputText(com.google.android.material.textfield.TextInputEditText editText) {
-        return editText.getText() != null ? editText.getText().toString().trim() : "";
+    private String buildModelCountText(AiProvider p) {
+        List<ModelInfo> cached = preferences.getCachedModels(p);
+        if (cached != null && !cached.isEmpty())
+            return cached.size() + " models loaded";
+        if (p.requiresApiKey())
+            return preferences.hasApiKey(p) ? "No models — tap \u21bb" : "Enter API key";
+        return "Free — tap \u21bb to load models";
     }
 
-    private void setupRefreshButtons() {
-        binding.btnRefreshGemini.setOnClickListener(v -> {
-            saveApiKey(AiProvider.GEMINI, getInputText(binding.inputGeminiKey));
-            fetchModels(AiProvider.GEMINI);
-        });
-        binding.btnRefreshNvidia.setOnClickListener(v -> {
-            saveApiKey(AiProvider.NVIDIA, getInputText(binding.inputNvidiaKey));
-            fetchModels(AiProvider.NVIDIA);
-        });
-        binding.btnRefreshOpenrouter.setOnClickListener(v -> {
-            saveApiKey(AiProvider.OPENROUTER, getInputText(binding.inputOpenrouterKey));
-            fetchModels(AiProvider.OPENROUTER);
-        });
-        binding.btnRefreshDeepinfra.setOnClickListener(v -> fetchModels(AiProvider.DEEPINFRA));
-        binding.btnRefreshPaxsenix.setOnClickListener(v -> {
-            saveApiKey(AiProvider.PAXSENIX, getInputText(binding.inputPaxsenixKey));
-            fetchModels(AiProvider.PAXSENIX);
-        });
-        binding.btnRefreshAirforce.setOnClickListener(v -> fetchModels(AiProvider.AIRFORCE));
-    }
+    // ── Fetch models ──────────────────────────────────────────────────────────
 
     private void fetchModels(AiProvider provider) {
+        if (provider == AiProvider.LOCAL_LLM) {
+            testLocalLlmConnection();
+            return;
+        }
         if (provider.requiresApiKey()) {
-            String apiKey = preferences.getApiKey(provider);
-            if (apiKey == null || apiKey.isEmpty()) {
-                Toast.makeText(this,
-                        "Set an API key for " + provider.getDisplayName() + " first",
-                        Toast.LENGTH_SHORT).show();
+            String key = preferences.getApiKey(provider);
+            if (key == null || key.isEmpty()) {
+                providerAdapter.setModelCount(provider, "\u26a0\ufe0f Enter API key first");
                 return;
             }
         }
-
-        setModelCountText(provider, "Fetching models...");
-
+        providerAdapter.setModelCount(provider, "Fetching models\u2026");
         executor.execute(() -> {
             try {
-                AiApiClient client = createClient(provider, preferences.getApiKey(provider));
+                AiApiClient client = AiClientFactory.createClient(this, provider,
+                        preferences.getApiKey(provider));
                 if (client == null) return;
-
-                List<ModelInfo> models = client.fetchModels();
-                preferences.setCachedModels(provider, models);
+                List<ModelInfo> all = client.fetchModels();
+                // Validate models — ping each to confirm it works with the API key
+                List<ModelInfo> valid = validateModels(client, provider, all);
+                preferences.setCachedModels(provider, valid);
                 client.shutdown();
+                int total = all.size(), ok = valid.size();
+                String label = ok == total
+                        ? ok + " models \u2705"
+                        : ok + "/" + total + " working \u2705";
+                runOnUiThread(() -> providerAdapter.setModelCount(provider, label));
+            } catch (Exception e) {
+                String msg = e.getMessage() != null ? e.getMessage() : "Unknown error";
+                runOnUiThread(() -> providerAdapter.setModelCount(provider, "\u274c " + msg));
+            }
+        });
+    }
 
+    /**
+     * Pings each model with a minimal request to verify it works with the API key.
+     * Drops models returning 401/403/404 (bad key / unavailable).
+     * Keeps models returning 429/5xx (working but rate-limited).
+     * Skips large providers to avoid UI slowness.
+     */
+    private List<ModelInfo> validateModels(AiApiClient client, AiProvider provider,
+                                           List<ModelInfo> all) {
+        // Skip ping for large providers — too many models to test individually
+        if (all.size() > 25
+                || provider == AiProvider.OPENROUTER
+                || provider == AiProvider.DEEPINFRA
+                || provider == AiProvider.AIRFORCE
+                || provider == AiProvider.TOGETHER
+                || provider == AiProvider.HUGGINGFACE) {
+            return all;
+        }
+
+        List<ModelInfo> valid = new java.util.ArrayList<>();
+        // Use the factory method — correct API for creating a user message
+        List<pro.sketchware.ai.models.ChatMessage> ping =
+                java.util.Collections.singletonList(
+                        pro.sketchware.ai.models.ChatMessage.userMessage(null, "hi"));
+
+        for (ModelInfo model : all) {
+            try {
+                final boolean[] ok = {false};
+                final java.util.concurrent.CountDownLatch latch =
+                        new java.util.concurrent.CountDownLatch(1);
+
+                // sendChatRequest(messages, modelId, systemPrompt, tag, handler)
+                client.sendChatRequest(ping, model.getId(), "Say ok", (Object) null,
+                        new pro.sketchware.ai.api.StreamingResponseHandler() {
+                            @Override
+                            public void onChunk(String textDelta) {
+                                ok[0] = true; // got a chunk — model is working
+                            }
+                            @Override
+                            public void onToolCall(
+                                    pro.sketchware.ai.models.ToolCall toolCall) {
+                                ok[0] = true;
+                            }
+                            @Override
+                            public void onComplete(String fullResponse) {
+                                latch.countDown();
+                            }
+                            @Override
+                            public void onError(String error) {
+                                // 429/5xx = model exists but rate-limited — keep it
+                                String lo = error.toLowerCase(java.util.Locale.ROOT);
+                                if (lo.contains("429") || lo.contains("rate")
+                                        || lo.contains("500") || lo.contains("502")
+                                        || lo.contains("503") || lo.contains("overload")
+                                        || lo.contains("timed out")
+                                        || lo.contains("timeout")) {
+                                    ok[0] = true;
+                                }
+                                latch.countDown();
+                            }
+                        });
+
+                latch.await(12, java.util.concurrent.TimeUnit.SECONDS);
+                if (ok[0]) valid.add(model);
+
+            } catch (Exception ignored) {
+                valid.add(model); // keep if untestable
+            }
+        }
+        return valid.isEmpty() ? all : valid;
+    }
+
+    // ── API Key helpers ───────────────────────────────────────────────────────
+
+    private void saveKey(AiProvider p, String key) {
+        if (!p.requiresApiKey()) return;
+        String ex = preferences.getApiKey(p);
+        if (key.equals(ex != null ? ex : "")) return;
+        if (key.isEmpty()) {
+            preferences.clearApiKey(p);
+            preferences.clearCachedModels(p);
+            providerAdapter.setModelCount(p, buildModelCountText(p));
+        } else {
+            preferences.setApiKey(p, key);
+            fetchModels(p);
+        }
+    }
+
+    private String getUrlFor(AiProvider p) {
+        switch (p) {
+            case GEMINI:           return URL_GEMINI;
+            case OPENAI:           return URL_OPENAI;
+            case ANTHROPIC:        return URL_ANTHROPIC;
+            case DEEPSEEK:         return URL_DEEPSEEK;
+            case XAI_GROK:         return URL_XAI;
+            case NVIDIA:           return URL_NVIDIA;
+            case OPENROUTER:       return URL_OPENROUTER;
+            case DEEPINFRA:        return URL_DEEPINFRA;
+            case PAXSENIX:         return URL_PAXSENIX;
+            case AIRFORCE:         return URL_AIRFORCE;
+            case GROQ:             return URL_GROQ;
+            case MANUS:            return URL_MANUS;
+            case TOGETHER:         return URL_TOGETHER;
+            case HUGGINGFACE:      return URL_HUGGINGFACE;
+            case CEREBRAS:         return URL_CEREBRAS;
+            case GOOGLE_AI_STUDIO: return URL_GOOGLE_AI_STUDIO;
+            default:               return "";
+        }
+    }
+
+    private void openUrl(String url) {
+        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+        catch (Exception ignored) {}
+    }
+
+    // ── Local LLM ─────────────────────────────────────────────────────────────
+
+    private void setupLocalLlm() {
+        String savedUrl   = preferences.prefs().getString(PREF_LOCAL_URL,   "http://localhost:1234");
+        String savedModel = preferences.prefs().getString(PREF_LOCAL_MODEL, "gemma4");
+        binding.inputLocalLlmUrl.setText(savedUrl);
+        binding.inputLocalLlmModel.setText(savedModel);
+
+        boolean enabled = preferences.prefs()
+                .getBoolean(PREF_ENABLED + AiProvider.LOCAL_LLM.name(), false);
+        binding.switchLocalLlm.setChecked(enabled);
+        binding.layoutLocalLlmConfig.setVisibility(enabled ? View.VISIBLE : View.GONE);
+
+        binding.switchLocalLlm.setOnCheckedChangeListener((btn, checked) -> {
+            preferences.prefs().edit()
+                    .putBoolean(PREF_ENABLED + AiProvider.LOCAL_LLM.name(), checked).apply();
+            binding.layoutLocalLlmConfig.setVisibility(checked ? View.VISIBLE : View.GONE);
+            if (checked) saveLocalLlmConfig();
+        });
+
+        binding.inputLocalLlmUrl.setOnFocusChangeListener((v, f) -> { if (!f) saveLocalLlmConfig(); });
+        binding.inputLocalLlmModel.setOnFocusChangeListener((v, f) -> { if (!f) saveLocalLlmConfig(); });
+
+        binding.btnTestLocalLlm.setOnClickListener(v -> testLocalLlmConnection());
+        binding.btnRefreshLocalLlm.setOnClickListener(v -> {
+            saveLocalLlmConfig();
+            fetchModels(AiProvider.LOCAL_LLM);
+        });
+
+        binding.btnDownloadMlcchatApp.setOnClickListener(v ->
+                openUrl("https://github.com/mlc-ai/mlc-llm/releases"));
+
+        binding.btnSetupOllama.setOnClickListener(v -> {
+            autoConfigLocalLlm(AiPreferences.DEFAULT_OLLAMA_URL, AiPreferences.DEFAULT_OLLAMA_MODEL);
+            Toast.makeText(this, "\u2705 Ollama Configured!", Toast.LENGTH_LONG).show();
+        });
+    }
+
+    private void autoConfigLocalLlm(String url, String model) {
+        binding.inputLocalLlmUrl.setText(url);
+        binding.inputLocalLlmModel.setText(model);
+        binding.switchLocalLlm.setChecked(true);
+        saveLocalLlmConfig();
+        preferences.prefs().edit()
+                .putString("selected_provider", AiProvider.LOCAL_LLM.name()).apply();
+    }
+
+    private void saveLocalLlmConfig() {
+        String url   = t(binding.inputLocalLlmUrl);
+        String model = t(binding.inputLocalLlmModel);
+        if (url.isEmpty())   url   = "http://localhost:1234";
+        if (model.isEmpty()) model = "gemma4";
+        preferences.prefs().edit()
+                .putString(PREF_LOCAL_URL,   url)
+                .putString(PREF_LOCAL_MODEL, model)
+                .apply();
+    }
+
+    private void testLocalLlmConnection() {
+        saveLocalLlmConfig();
+        String url   = preferences.prefs().getString(PREF_LOCAL_URL,   "http://localhost:1234");
+        String model = preferences.prefs().getString(PREF_LOCAL_MODEL, "gemma4");
+        binding.localLlmStatus.setText("Testing connection\u2026");
+        binding.btnTestLocalLlm.setEnabled(false);
+        executor.execute(() -> {
+            try {
+                pro.sketchware.ai.api.LocalLlmApiClient client =
+                        new pro.sketchware.ai.api.LocalLlmApiClient(url, model);
+                List<ModelInfo> models = client.fetchModels();
+                client.shutdown();
                 runOnUiThread(() -> {
-                    setModelCountText(provider, models.size() + " models available");
-                    Toast.makeText(this,
-                            "Loaded " + models.size() + " models from "
-                                    + provider.getDisplayName(),
-                            Toast.LENGTH_SHORT).show();
+                    binding.btnTestLocalLlm.setEnabled(true);
+                    if (models != null && !models.isEmpty()) {
+                        binding.localLlmStatus.setText(
+                                "\u2705 Connected \u2014 " + models.size() + " model(s) available");
+                        preferences.setCachedModels(AiProvider.LOCAL_LLM, models);
+                    } else {
+                        binding.localLlmStatus.setText("\u26a0\ufe0f Connected but no models found");
+                    }
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
-                    setModelCountText(provider, provider.requiresApiKey()
-                            ? "Failed to fetch models"
-                            : "Using fallback models");
-                    Toast.makeText(this,
-                            "Error: " + e.getMessage(),
-                            Toast.LENGTH_LONG).show();
+                    binding.btnTestLocalLlm.setEnabled(true);
+                    binding.localLlmStatus.setText("\u274c " +
+                            (e.getMessage() != null ? e.getMessage() : "Unknown error"));
                 });
             }
         });
     }
 
-    private AiApiClient createClient(AiProvider provider, String apiKey) {
-        switch (provider) {
-            case GEMINI:
-                return new GeminiApiClient(apiKey);
-            case NVIDIA:
-                return new NvidiaApiClient(apiKey);
-            case OPENROUTER:
-                return new OpenRouterApiClient(apiKey);
-            case DEEPINFRA:
-                return new DeepInfraApiClient(apiKey);
-            case PAXSENIX:
-                return new PaxsenixApiClient(apiKey);
-            case AIRFORCE:
-                return new AirForceApiClient(apiKey);
-            default:
-                return null;
+    // ── AI Performance Profiles ───────────────────────────────────────────────
+
+    private void setupAiProfiles() {
+        String saved = preferences.prefs().getString(PREF_AI_PROFILE, PROFILE_QUICK);
+        if (PROFILE_DEEP.equals(saved)) {
+            binding.profileToggleGroup.check(R.id.btn_profile_deep);
+            binding.profileDescription.setText(
+                    "Deep mode for thorough analysis and higher quality responses");
+        } else {
+            binding.profileToggleGroup.check(R.id.btn_profile_quick);
+            binding.profileDescription.setText(
+                    "Quick mode for faster responses and lower resource usage");
         }
+
+        binding.profileToggleGroup.addOnButtonCheckedListener(
+                (group, checkedId, isChecked) -> {
+                    if (!isChecked) return;
+                    if (checkedId == R.id.btn_profile_deep) {
+                        preferences.prefs().edit()
+                                .putString(PREF_AI_PROFILE, PROFILE_DEEP)
+                                .putFloat("ai_temperature", DEEP_TEMPERATURE)
+                                .putInt("ai_max_tokens", DEEP_MAX_TOKENS)
+                                .apply();
+                        binding.profileDescription.setText(
+                                "Deep mode for thorough analysis and higher quality responses");
+                    } else {
+                        preferences.prefs().edit()
+                                .putString(PREF_AI_PROFILE, PROFILE_QUICK)
+                                .putFloat("ai_temperature", QUICK_TEMPERATURE)
+                                .putInt("ai_max_tokens", QUICK_MAX_TOKENS)
+                                .apply();
+                        binding.profileDescription.setText(
+                                "Quick mode for faster responses and lower resource usage");
+                    }
+                });
+
+        binding.btnProfileQuick.setOnLongClickListener(v -> {
+            showConfigureProfileDialog(PROFILE_QUICK);
+            return true;
+        });
+        binding.btnProfileDeep.setOnLongClickListener(v -> {
+            showConfigureProfileDialog(PROFILE_DEEP);
+            return true;
+        });
     }
 
-    private void updateModelCounts() {
-        for (AiProvider provider : AiProvider.values()) {
-            List<ModelInfo> cached = preferences.getCachedModels(provider);
-            if (cached != null && !cached.isEmpty()) {
-                setModelCountText(provider, cached.size() + " models available");
-            } else if (provider.requiresApiKey()) {
-                if (preferences.hasApiKey(provider)) {
-                    setModelCountText(provider, "No models loaded - tap refresh");
-                } else {
-                    setModelCountText(provider, "No API key set");
+    private void showConfigureProfileDialog(String profile) {
+        boolean isQuick = PROFILE_QUICK.equals(profile);
+        String title    = isQuick ? "Configure Quick Profile" : "Configure Deep Profile";
+
+        float   curTemp   = preferences.prefs().getFloat("ai_temperature",
+                isQuick ? QUICK_TEMPERATURE : DEEP_TEMPERATURE);
+        int     curTokens = preferences.prefs().getInt("ai_max_tokens",
+                isQuick ? QUICK_MAX_TOKENS : DEEP_MAX_TOKENS);
+
+        android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int pad = (int)(16 * getResources().getDisplayMetrics().density);
+        layout.setPadding(pad, pad, pad, pad);
+
+        android.widget.EditText tempInput = new android.widget.EditText(this);
+        tempInput.setHint("Temperature (0.0 – 1.0)");
+        tempInput.setText(String.valueOf(curTemp));
+        tempInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        layout.addView(tempInput);
+
+        android.widget.EditText tokensInput = new android.widget.EditText(this);
+        tokensInput.setHint("Max tokens");
+        tokensInput.setText(String.valueOf(curTokens));
+        tokensInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        layout.addView(tokensInput);
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(title)
+                .setView(layout)
+                .setPositiveButton("Save", (d, w) -> {
+                    try {
+                        float t = Float.parseFloat(tempInput.getText().toString().trim());
+                        int   k = Integer.parseInt(tokensInput.getText().toString().trim());
+                        preferences.prefs().edit()
+                                .putFloat("ai_temperature", t)
+                                .putInt("ai_max_tokens", k)
+                                .apply();
+                        Toast.makeText(this, "Profile saved", Toast.LENGTH_SHORT).show();
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(this, "Invalid value", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    // ── Failover Banner ───────────────────────────────────────────────────────
+
+    private void setupFailoverBanner() {
+        binding.failoverBanner.setVisibility(View.GONE);
+        binding.btnCancelFailover.setOnClickListener(v -> dismissFailoverBanner());
+    }
+
+    public void showFailoverBanner(String fromProvider, String toProvider, int countdownSecs) {
+        runOnUiThread(() -> {
+            binding.failoverBanner.setVisibility(View.VISIBLE);
+            if (failoverCountdown != null) failoverCountdown.cancel();
+            failoverCountdown = new CountDownTimer(countdownSecs * 1000L, 1000) {
+                @Override public void onTick(long ms) {
+                    binding.failoverText.setText(
+                            "\u26a0\ufe0f Failing over from " + fromProvider +
+                            " \u2192 " + toProvider + " in " + (ms / 1000) + "s");
                 }
-            } else {
-                setModelCountText(provider, "No API key required - tap refresh");
-            }
-        }
+                @Override public void onFinish() {
+                    binding.failoverText.setText(
+                            "\u2705 Switched to " + toProvider);
+                }
+            };
+            failoverCountdown.start();
+        });
     }
 
-    private void setModelCountText(AiProvider provider, String text) {
-        switch (provider) {
-            case GEMINI:
-                binding.geminiModelsCount.setText(text);
-                break;
-            case NVIDIA:
-                binding.nvidiaModelsCount.setText(text);
-                break;
-            case OPENROUTER:
-                binding.openrouterModelsCount.setText(text);
-                break;
-            case DEEPINFRA:
-                binding.deepinfraModelsCount.setText(text);
-                break;
-            case PAXSENIX:
-                binding.paxsenixModelsCount.setText(text);
-                break;
-            case AIRFORCE:
-                binding.airforceModelsCount.setText(text);
-                break;
-        }
+    private void dismissFailoverBanner() {
+        if (failoverCountdown != null) { failoverCountdown.cancel(); failoverCountdown = null; }
+        binding.failoverBanner.setVisibility(View.GONE);
     }
+
+    // ── System Prompt ─────────────────────────────────────────────────────────
 
     private void setupSystemPrompt() {
-        String systemPrompt = preferences.getSystemPrompt();
-        if (!systemPrompt.equals(defaultSystemPrompt)) {
-            binding.inputSystemPrompt.setText(systemPrompt);
-        }
-
-        binding.inputSystemPrompt.setOnFocusChangeListener((v, hasFocus) -> {
-            if (!hasFocus) {
-                saveSystemPrompt();
-            }
-        });
-
+        String cur = preferences.getSystemPrompt();
+        if (!cur.equals(defaultSystemPrompt)) binding.inputSystemPrompt.setText(cur);
+        binding.inputSystemPrompt.setOnFocusChangeListener((v, f) -> { if (!f) saveSystemPrompt(); });
         binding.btnResetSystemPrompt.setOnClickListener(v -> {
             preferences.setSystemPrompt(defaultSystemPrompt);
             binding.inputSystemPrompt.setText("");
-            Toast.makeText(this, "System prompt reset to default", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "System prompt reset to Sketchware default",
+                    Toast.LENGTH_SHORT).show();
         });
     }
 
     private void saveSystemPrompt() {
         String text = binding.inputSystemPrompt.getText() != null
                 ? binding.inputSystemPrompt.getText().toString().trim() : "";
-        if (!text.isEmpty()) {
-            preferences.setSystemPrompt(text);
+        if (!text.isEmpty()) preferences.setSystemPrompt(text);
+    }
+
+    // ── Intent Handling ───────────────────────────────────────────────────────
+
+    private void handleIncomingIntent() {
+        Intent intent = getIntent();
+        if (intent == null) return;
+        String action = intent.getStringExtra("ACTION");
+        if ("DOWNLOAD_MODEL".equals(action)) {
+            String url  = intent.getStringExtra("URL");
+            String name = intent.getStringExtra("NAME");
+            String id   = intent.getStringExtra("ID");
+            if (url != null && name != null && id != null) {
+                binding.getRoot().post(() -> startModelDownload(url, name, id));
+            }
         }
     }
 
+    // ── Download ──────────────────────────────────────────────────────────────
+
+    private void startModelDownload(String url, String modelName, String modelId) {
+        binding.globalDownloadProgress.setVisibility(View.VISIBLE);
+        binding.globalDownloadProgress.setProgressCompat(0, false);
+
+        pro.sketchware.util.LlmDownloader.downloadModel(
+                this, url, modelName + ".bin",
+                new pro.sketchware.util.LlmDownloader.DownloadListener() {
+                    @Override
+                    public void onProgress(int progress) {
+                        runOnUiThread(() ->
+                                binding.globalDownloadProgress.setProgressCompat(progress, true));
+                    }
+                    @Override
+                    public void onSuccess(java.io.File file) {
+                        runOnUiThread(() -> {
+                            binding.globalDownloadProgress.setVisibility(View.GONE);
+                            Toast.makeText(AiSettingsActivity.this,
+                                    "\u2705 Download complete: " + modelName,
+                                    Toast.LENGTH_LONG).show();
+                            preferences.prefs().edit()
+                                    .putString(PREF_LOCAL_MODEL, modelId).apply();
+                            preferences.setSelectedProvider(AiProvider.LOCAL_LLM);
+                            preferences.setSelectedModel(AiProvider.LOCAL_LLM, modelId);
+                        });
+                    }
+                    @Override
+                    public void onError(String error) {
+                        runOnUiThread(() -> {
+                            binding.globalDownloadProgress.setVisibility(View.GONE);
+                            Toast.makeText(AiSettingsActivity.this,
+                                    "\u274c Download failed: " + error,
+                                    Toast.LENGTH_LONG).show();
+                        });
+                    }
+                });
+    }
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
     @Override
-    public void onPause() {
+    protected void onPause() {
         super.onPause();
-        saveApiKey(AiProvider.GEMINI, getInputText(binding.inputGeminiKey));
-        saveApiKey(AiProvider.NVIDIA, getInputText(binding.inputNvidiaKey));
-        saveApiKey(AiProvider.OPENROUTER, getInputText(binding.inputOpenrouterKey));
-        saveApiKey(AiProvider.PAXSENIX, getInputText(binding.inputPaxsenixKey));
+        saveLocalLlmConfig();
         saveSystemPrompt();
+        // Keys are saved immediately via AiProviderAdapter.onKeyChanged callbacks
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        dismissFailoverBanner();
         executor.shutdownNow();
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private String t(TextInputEditText et) {
+        return et.getText() != null ? et.getText().toString().trim() : "";
     }
 }

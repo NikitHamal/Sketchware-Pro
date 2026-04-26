@@ -9,13 +9,17 @@ import com.google.gson.JsonSyntaxException;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 import a.a.a.jC;
 import a.a.a.yq;
+import pro.sketchware.activities.projecttools.ProjectToolPaths;
 import pro.sketchware.ai.models.ToolResult;
 
 public final class ActivityTools {
@@ -31,14 +35,24 @@ public final class ActivityTools {
         return new ToolResult(null, false, null, message);
     }
 
+    /**
+     * Raw File API: reads a file as UTF-8 text without format assumptions.
+     * Handles BOM, XML comments, and any encoding issues gracefully.
+     */
     private static String readFileContent(File file) throws IOException {
+        if (!file.exists()) return "";
         StringBuilder sb = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            char[] buffer = new char[4096];
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
+            char[] buffer = new char[8192];
             int read;
             while ((read = reader.read(buffer)) != -1) {
                 sb.append(buffer, 0, read);
             }
+        }
+        // Strip BOM if present
+        if (sb.length() > 0 && sb.charAt(0) == '\uFEFF') {
+            sb.deleteCharAt(0);
         }
         return sb.toString();
     }
@@ -53,19 +67,45 @@ public final class ActivityTools {
         }
     }
 
-    private static JsonArray readActivityArray(File fileFile) throws IOException, JsonSyntaxException {
+    /**
+     * Reads the Sketchware activity/file data file using Raw File API.
+     * Step 1: Read as raw text (no format assumption).
+     * Step 2: Try JSON parse.
+     * Step 3: Fallback to empty array on failure (never throws on content format).
+     *
+     * <p>This fixes the MalformedJsonException that occurred when the file contained
+     * XML comments or non-JSON content.
+     */
+    private static JsonArray readActivityArray(File fileFile) throws IOException {
         if (!fileFile.exists()) {
             return new JsonArray();
         }
+        // Step 1: Raw read
         String content = readFileContent(fileFile);
         if (content.trim().isEmpty()) {
             return new JsonArray();
         }
-        JsonElement element = JsonParser.parseString(content);
-        if (element.isJsonArray()) {
-            return element.getAsJsonArray();
+        // Step 2: Try JSON parse
+        try {
+            JsonElement element = JsonParser.parseString(content);
+            if (element.isJsonArray()) {
+                return element.getAsJsonArray();
+            }
+        } catch (JsonSyntaxException e) {
+            // Step 3: Fallback – content is not JSON, return empty
+            android.util.Log.w("ActivityTools",
+                    "readActivityArray: file is not valid JSON, returning empty. File: "
+                            + fileFile.getAbsolutePath() + ", error: " + e.getMessage());
         }
         return new JsonArray();
+    }
+
+    /**
+     * Resolves the editable file data path via ProjectToolPaths.
+     * Uses the Low-level File API path: .sketchware/data/{scId}/file
+     */
+    private static File getActivityDataFile(ToolContext context, String scId) {
+        return new File(ProjectToolPaths.getProjectDataDir(scId), "file");
     }
 
     private static int calculateOptions(boolean hasToolbar, boolean fullscreen, boolean hasFab, boolean hasDrawer) {

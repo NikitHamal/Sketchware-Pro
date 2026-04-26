@@ -75,8 +75,18 @@ public class GeminiApiClient extends AiApiClient {
                 long inputTokenLimit = model.has("inputTokenLimit")
                         ? model.get("inputTokenLimit").getAsLong() : 0L;
 
+                // Skip image/audio/embedding/non-chat Gemini models
+                {
+                    String _lo = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
+                    if (_lo.contains("embed") || _lo.contains("tts") || _lo.contains("speech")
+                        || _lo.contains("audio") || _lo.contains("vision-gen")
+                        || _lo.contains("image") || _lo.contains("aqa")) continue;
+                }
                 result.add(new ModelInfo(name, displayName, AiProvider.GEMINI, inputTokenLimit, description));
             }
+
+            // Sort models alphabetically (A-Z)
+            java.util.Collections.sort(result);
 
             return result;
         }
@@ -98,21 +108,36 @@ public class GeminiApiClient extends AiApiClient {
     @Override
     public void sendChatRequest(List<ChatMessage> messages, String modelId,
                                 String systemPrompt, StreamingResponseHandler handler) {
-        sendChatRequest(messages, modelId, systemPrompt, null, handler);
+        sendChatRequest(messages, modelId, systemPrompt, null, null, handler);
+    }
+
+    @Override
+    public void sendChatRequest(List<ChatMessage> messages, String modelId,
+                                String systemPrompt, Object tag, StreamingResponseHandler handler) {
+        sendChatRequest(messages, modelId, systemPrompt, null, tag, handler);
     }
 
     @Override
     public void sendChatRequest(List<ChatMessage> messages, String modelId,
                                 String systemPrompt, List<ToolDefinition> tools,
                                 StreamingResponseHandler handler) {
+        sendChatRequest(messages, modelId, systemPrompt, tools, null, handler);
+    }
+
+    @Override
+    public void sendChatRequest(List<ChatMessage> messages, String modelId,
+                                String systemPrompt, List<ToolDefinition> tools,
+                                Object tag, StreamingResponseHandler handler) {
         try {
             String url = BASE_URL + "/v1beta/" + modelId + ":streamGenerateContent?alt=sse&key=" + apiKey;
             JsonObject requestBody = buildRequestBody(messages, systemPrompt, tools);
 
-            Request request = new Request.Builder()
+            Request.Builder builder = new Request.Builder()
                     .url(url)
-                    .post(RequestBody.create(requestBody.toString(), JSON))
-                    .build();
+                    .post(RequestBody.create(requestBody.toString(), JSON));
+            
+            if (tag != null) builder.tag(tag);
+            Request request = builder.build();
 
             client.newCall(request).enqueue(new Callback() {
                 @Override
@@ -123,9 +148,10 @@ public class GeminiApiClient extends AiApiClient {
                 @Override
                 public void onResponse(Call call, Response response) {
                     if (!response.isSuccessful()) {
+                        int code = response.code();
                         String errorBody = readBodySafely(response);
-                        handler.onError("Gemini HTTP " + response.code() + ": " + errorBody);
                         response.close();
+                        handler.onError("Gemini: " + AiErrorHelper.getFriendlyMessage(code, errorBody));
                         return;
                     }
 
@@ -160,17 +186,24 @@ public class GeminiApiClient extends AiApiClient {
 
         JsonArray contents = new JsonArray();
         for (ChatMessage message : messages) {
-            if ("system".equals(message.getRole())) {
-                continue;
+            String role = message.getRole();
+            String msgContent = message.getContent();
+
+            // ✅ FIX: Gemini does not support 'system' role in contents array.
+            // Map system feedback messages (e.g. auto-fix build errors) to 'user' role
+            // with a [SYSTEM NOTE] prefix so they reach the model and are not silently dropped.
+            if ("system".equals(role)) {
+                role = "user";
+                msgContent = "[SYSTEM NOTE]: " + (msgContent != null ? msgContent : "");
             }
 
             JsonObject content = new JsonObject();
-            content.addProperty("role", mapRoleToGemini(message.getRole()));
+            content.addProperty("role", mapRoleToGemini(role));
             JsonArray parts = new JsonArray();
 
-            if (message.getContent() != null && !message.getContent().isEmpty()) {
+            if (msgContent != null && !msgContent.isEmpty()) {
                 JsonObject textPart = new JsonObject();
-                textPart.addProperty("text", message.getContent());
+                textPart.addProperty("text", msgContent);
                 parts.add(textPart);
             }
 
@@ -279,7 +312,16 @@ public class GeminiApiClient extends AiApiClient {
 
             handler.onComplete(fullResponse.toString());
         } catch (IOException e) {
-            handler.onError("Error reading Gemini stream: " + e.getMessage());
+            String msg = e.getMessage();
+            if (msg != null && (msg.contains("Software caused connection abort") || msg.contains("Socket closed"))) {
+                if (fullResponse.length() > 0) {
+                    handler.onComplete(fullResponse.toString());
+                } else {
+                    handler.onError("Connection lost. Please try again.");
+                }
+            } else {
+                handler.onError("Error reading Gemini stream: " + (msg != null ? msg : "Unknown error"));
+            }
         }
     }
 

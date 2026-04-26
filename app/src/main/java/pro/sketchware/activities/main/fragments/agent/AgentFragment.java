@@ -11,7 +11,6 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.android.material.transition.MaterialFadeThrough;
 
 import java.util.List;
 
@@ -35,10 +34,9 @@ public class AgentFragment extends Fragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setEnterTransition(new MaterialFadeThrough());
-        setReturnTransition(new MaterialFadeThrough());
-        setExitTransition(new MaterialFadeThrough());
-        setReenterTransition(new MaterialFadeThrough());
+        // Transitions are handled by the host Activity's FragmentTransaction
+        // (android.R.anim.fade_in / fade_out). Setting them here for show/hide
+        // transactions has no effect and only adds overhead.
     }
 
     @Nullable
@@ -66,6 +64,10 @@ public class AgentFragment extends Fragment {
 
         binding.iconSettings.setOnClickListener(v ->
                 startActivity(new Intent(requireContext(), AiSettingsActivity.class)));
+
+        // "+" button in title bar — quick shortcut to create a workspace
+        // mirrors the FAB so the action is reachable without scrolling down
+        binding.iconAddWorkspace.setOnClickListener(v -> showCreateWorkspaceDialog());
 
         binding.fabCreateWorkspace.setOnClickListener(v -> showCreateWorkspaceDialog());
         binding.btnCreateWorkspaceEmpty.setOnClickListener(v -> showCreateWorkspaceDialog());

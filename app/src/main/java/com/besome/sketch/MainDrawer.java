@@ -20,6 +20,7 @@ import androidx.core.view.WindowInsetsCompat;
 import com.besome.sketch.help.ProgramInfoActivity;
 import com.besome.sketch.tools.NewKeyStoreActivity;
 import pro.sketchware.activities.importproject.ImportAndroidStudioProjectActivity;
+import pro.sketchware.ai.activities.AiSettingsActivity;
 import com.google.android.material.navigation.NavigationView;
 
 import a.a.a.mB;
@@ -110,6 +111,10 @@ public class MainDrawer extends NavigationView {
             activity.startActivity(intent);
         } else if (id == R.id.import_android_studio_project) {
             Intent intent = new Intent(activity, ImportAndroidStudioProjectActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            activity.startActivity(intent);
+        } else if (id == R.id.ai_settings) {
+            Intent intent = new Intent(activity, AiSettingsActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
             activity.startActivity(intent);
         }

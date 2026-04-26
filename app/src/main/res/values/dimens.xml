@@ -52,6 +52,9 @@
     <dimen name="collapsing_toolbar_large_size">132dp</dimen>
     <dimen name="logcat_bottom_sheet_peek_height">90dp</dimen>
     <dimen name="recycler_view_item_spacing">6dp</dimen>
-    
+
     <dimen name="dialog_action_size">100dp</dimen>
+
+    <!-- AI Chat input bar: base bottom padding (nav bar inset added on top in code) -->
+    <dimen name="ai_input_bar_padding_bottom">8dp</dimen>
 </resources>

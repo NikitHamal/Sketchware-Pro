@@ -113,7 +113,7 @@
         <activity
             android:name="com.besome.sketch.design.DesignActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard"
-            android:windowSoftInputMode="stateHidden"
+            android:windowSoftInputMode="adjustResize|stateHidden"
             android:theme="@style/Theme.SketchwarePro.SmallToolbar" />
         <activity
             android:name="pro.sketchware.activities.main.activities.MainActivity"
@@ -326,6 +326,7 @@
         <activity
             android:name="pro.sketchware.ai.activities.AiSettingsActivity"
             android:configChanges="orientation|screenSize"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.SketchwarePro" />
 
         <activity android:name="pro.sketchware.activities.resourceseditor.ResourcesEditorActivity" />
@@ -375,6 +376,14 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+        <service android:name="pro.sketchware.ai.engine.AiBackgroundService" android:exported="false" />
+        <activity
+            android:name="pro.sketchware.activities.terminal.TerminalActivity"
+            android:label="Terminal"
+            android:theme="@style/Theme.SketchwarePro"
+            android:windowSoftInputMode="adjustResize|stateVisible"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
     </application>
 
 </manifest>

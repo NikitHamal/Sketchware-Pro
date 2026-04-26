@@ -83,8 +83,23 @@ public class OpenRouterApiClient extends AiApiClient {
                     description = description.isEmpty() ? pricingInfo : description + " | " + pricingInfo;
                 }
 
+                // Skip image/audio/embedding/non-chat models
+                {
+                    String _lo = id == null ? "" : id.toLowerCase(java.util.Locale.ROOT);
+                    if (_lo.contains("whisper") || _lo.contains("tts") || _lo.contains("guard")
+                        || _lo.contains("audio") || _lo.contains("speech") || _lo.contains("embed")
+                        || _lo.contains("moderation") || _lo.contains("realtime")
+                        || _lo.contains("dall-e") || _lo.contains("stable-diff")
+                        || _lo.contains("sdxl") || _lo.contains("flux") || _lo.contains("imagen")
+                        || _lo.contains("image-gen") || _lo.contains("text-to-image")
+                        || _lo.contains("video") || _lo.contains("rerank")
+                        || _lo.contains("transcrib") || _lo.contains("midjourney")) continue;
+                }
                 result.add(new ModelInfo(id, name, AiProvider.OPENROUTER, contextLength, description));
             }
+
+            // Sort models alphabetically (A-Z)
+            java.util.Collections.sort(result);
 
             return result;
         }
@@ -123,26 +138,41 @@ public class OpenRouterApiClient extends AiApiClient {
     @Override
     public void sendChatRequest(List<ChatMessage> messages, String modelId,
                                 String systemPrompt, StreamingResponseHandler handler) {
-        sendChatRequest(messages, modelId, systemPrompt, null, handler);
+        sendChatRequest(messages, modelId, systemPrompt, null, null, handler);
+    }
+
+    @Override
+    public void sendChatRequest(List<ChatMessage> messages, String modelId,
+                                String systemPrompt, Object tag, StreamingResponseHandler handler) {
+        sendChatRequest(messages, modelId, systemPrompt, null, tag, handler);
     }
 
     @Override
     public void sendChatRequest(List<ChatMessage> messages, String modelId,
                                 String systemPrompt, List<ToolDefinition> tools,
                                 StreamingResponseHandler handler) {
+        sendChatRequest(messages, modelId, systemPrompt, tools, null, handler);
+    }
+
+    @Override
+    public void sendChatRequest(List<ChatMessage> messages, String modelId,
+                                String systemPrompt, List<ToolDefinition> tools,
+                                Object tag, StreamingResponseHandler handler) {
         try {
             String url = BASE_URL + "/api/v1/chat/completions";
 
             JsonObject requestBody = NvidiaApiClient.buildOpenAiRequestBody(
                     messages, modelId, systemPrompt, tools);
 
-            Request request = addBearerAuth(new Request.Builder())
+            Request.Builder builder = addBearerAuth(new Request.Builder())
                     .url(url)
                     .post(RequestBody.create(requestBody.toString(), JSON))
                     .header("Content-Type", "application/json")
                     .header("HTTP-Referer", HTTP_REFERER)
-                    .header("X-Title", X_TITLE)
-                    .build();
+                    .header("X-Title", X_TITLE);
+            
+            if (tag != null) builder.tag(tag);
+            Request request = builder.build();
 
             client.newCall(request).enqueue(new Callback() {
                 @Override
@@ -153,9 +183,10 @@ public class OpenRouterApiClient extends AiApiClient {
                 @Override
                 public void onResponse(Call call, Response response) {
                     if (!response.isSuccessful()) {
-                        String errorBody = readBodySafely(response);
-                        handler.onError("OpenRouter HTTP " + response.code() + ": " + errorBody);
+                        int code = response.code();
+                        String errorBody = AiErrorHelper.readBodySafely(response);
                         response.close();
+                        handler.onError("OpenRouter: " + AiErrorHelper.getFriendlyMessage(code, errorBody));
                         return;
                     }
 

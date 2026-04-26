@@ -780,13 +780,13 @@ public class Jx {
                 if (isViewBindingEnabled) {
                     initializeMethodCode.add(
                             "ActionBarDrawerToggle _toggle = new ActionBarDrawerToggle(" +
-                                    projectFileBean.getActivityName() + ".this, binding.Drawer, " +
+                                    projectFileBean.getActivityName() + ".this, binding.drawer, " +
 
                                     (projectFileBean.hasActivityOption(ProjectFileBean.OPTION_ACTIVITY_TOOLBAR) ?
                                             "binding.Toolbar, " : "") +
 
                                     "R.string.app_name, R.string.app_name);" + EOL +
-                                    "binding.Drawer.addDrawerListener(_toggle);" + EOL +
+                                    "binding.drawer.addDrawerListener(_toggle);" + EOL +
                                     "_toggle.syncState();" + EOL
                     );
                 } else {

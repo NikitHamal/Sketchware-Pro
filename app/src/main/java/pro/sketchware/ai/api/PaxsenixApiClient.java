@@ -58,10 +58,34 @@ public class PaxsenixApiClient extends AiApiClient {
                 JsonObject model = elem.getAsJsonObject();
                 String id = getStringOrDefault(model, "id", "");
                 if (id.isEmpty()) continue;
+                
+                // Show Gemma models as requested
+                String lowerId = id.toLowerCase();
+                boolean isGemma = lowerId.contains("gemma");
+
+                // Only keep powerful/coding models
+                if (!lowerId.contains("gpt-4") && !lowerId.contains("claude-3") && !lowerId.contains("gemini-1.5") && !lowerId.contains("deepseek") && !isGemma) continue;
+
                 String display = getStringOrDefault(model, "name", id);
-                String description = getStringOrDefault(model, "description", "Paxsenix model");
+                String description = getStringOrDefault(model, "description", "Paxsenix 🆓 — " + display);
+                // Skip image/audio/embedding/non-chat models
+                {
+                    String _lo = id == null ? "" : id.toLowerCase(java.util.Locale.ROOT);
+                    if (_lo.contains("whisper") || _lo.contains("tts") || _lo.contains("guard")
+                        || _lo.contains("audio") || _lo.contains("speech") || _lo.contains("embed")
+                        || _lo.contains("moderation") || _lo.contains("realtime")
+                        || _lo.contains("dall-e") || _lo.contains("stable-diff")
+                        || _lo.contains("sdxl") || _lo.contains("flux") || _lo.contains("imagen")
+                        || _lo.contains("image-gen") || _lo.contains("text-to-image")
+                        || _lo.contains("video") || _lo.contains("rerank")
+                        || _lo.contains("transcrib") || _lo.contains("midjourney")) continue;
+                }
                 result.add(new ModelInfo(id, display, AiProvider.PAXSENIX, 0L, description));
             }
+
+            // Sort models alphabetically (A-Z)
+            java.util.Collections.sort(result);
+
             return result.isEmpty() ? fallbackModels() : result;
         }
     }
@@ -69,13 +93,26 @@ public class PaxsenixApiClient extends AiApiClient {
     @Override
     public void sendChatRequest(List<ChatMessage> messages, String modelId,
                                 String systemPrompt, StreamingResponseHandler handler) {
-        sendChatRequest(messages, modelId, systemPrompt, null, handler);
+        sendChatRequest(messages, modelId, systemPrompt, null, null, handler);
+    }
+
+    @Override
+    public void sendChatRequest(List<ChatMessage> messages, String modelId,
+                                String systemPrompt, Object tag, StreamingResponseHandler handler) {
+        sendChatRequest(messages, modelId, systemPrompt, null, tag, handler);
     }
 
     @Override
     public void sendChatRequest(List<ChatMessage> messages, String modelId,
                                 String systemPrompt, List<ToolDefinition> tools,
                                 StreamingResponseHandler handler) {
+        sendChatRequest(messages, modelId, systemPrompt, tools, null, handler);
+    }
+
+    @Override
+    public void sendChatRequest(List<ChatMessage> messages, String modelId,
+                                String systemPrompt, List<ToolDefinition> tools,
+                                Object tag, StreamingResponseHandler handler) {
         try {
             JsonObject requestBody = NvidiaApiClient.buildOpenAiRequestBody(
                     messages,
@@ -84,11 +121,13 @@ public class PaxsenixApiClient extends AiApiClient {
                     tools
             );
 
-            Request request = addBearerAuth(new Request.Builder())
+            Request.Builder builder = addBearerAuth(new Request.Builder())
                     .url(BASE_URL + "/v1/chat/completions")
                     .post(RequestBody.create(requestBody.toString(), JSON))
-                    .header("Content-Type", "application/json")
-                    .build();
+                    .header("Content-Type", "application/json");
+            
+            if (tag != null) builder.tag(tag);
+            Request request = builder.build();
 
             client.newCall(request).enqueue(new Callback() {
                 @Override
@@ -99,9 +138,10 @@ public class PaxsenixApiClient extends AiApiClient {
                 @Override
                 public void onResponse(Call call, Response response) {
                     if (!response.isSuccessful()) {
-                        String errorBody = readBodySafely(response);
-                        handler.onError("Paxsenix HTTP " + response.code() + ": " + errorBody);
+                        int code = response.code();
+                        String errorBody = AiErrorHelper.readBodySafely(response);
                         response.close();
+                        handler.onError("Paxsenix: " + AiErrorHelper.getFriendlyMessage(code, errorBody));
                         return;
                     }
 
