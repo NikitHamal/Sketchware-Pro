@@ -284,7 +284,13 @@ public class DebugInfoDecoder {
                 le = new LocalEntry(0, true, curReg, -1, 0, 0);
             } else {
                 // TODO: Final 0 should be idx of paramType.getDescriptor().
-                le = new LocalEntry(0, true, curReg, nameIdx, 0, 0);
+                int descIdx = 0;
+                try {
+                    descIdx = file.getStringIds().indexOf(new CstString(paramType.getDescriptor()));
+                } catch (IllegalArgumentException ex) {
+                    /* tolerate not finding string */
+                }
+                le = new LocalEntry(0, true, curReg, nameIdx, descIdx, 0);
             }
 
             locals.add(le);
