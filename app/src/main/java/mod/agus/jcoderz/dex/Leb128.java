@@ -35,17 +35,7 @@ public final class Leb128 {
      * @return its write size, in bytes
      */
     public static int unsignedLeb128Size(int value) {
-        // TODO: This could be much cleverer.
-
-        int remaining = value >> 7;
-        int count = 0;
-
-        while (remaining != 0) {
-            remaining >>= 7;
-            count++;
-        }
-
-        return count + 1;
+        return (31 - Integer.numberOfLeadingZeros(value)) / 7 + 1;
     }
 
     /**
