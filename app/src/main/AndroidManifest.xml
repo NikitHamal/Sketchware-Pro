@@ -97,6 +97,27 @@
             android:name="pro.sketchware.activities.projecttools.ProjectFileManagerActivity"
             android:configChanges="orientation|screenSize" />
         <activity
+            android:name="pro.sketchware.activities.projecttools.ProjectToolsHubActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.GitWorkflowActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.ProjectLifecycleActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.ImportConversionActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.BuildDiagnosticsActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.AdvancedProjectSettingsActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name="pro.sketchware.activities.projecttools.DeveloperToolsActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
             android:name="pro.sketchware.activities.projecttools.SearchInProjectActivity"
             android:configChanges="orientation|screenSize" />
         <activity

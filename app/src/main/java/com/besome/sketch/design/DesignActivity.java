@@ -136,6 +136,7 @@ import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
 import pro.sketchware.utility.ThemeUtils;
 import pro.sketchware.activities.projecttools.ProjectFileManagerActivity;
+import pro.sketchware.activities.projecttools.ProjectToolsHubActivity;
 import pro.sketchware.activities.projecttools.SearchInProjectActivity;
 import pro.sketchware.utility.CrashlyticsBridge;
 import pro.sketchware.utility.apk.ApkSignatures;
@@ -599,6 +600,10 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         });
         bottomMenu.add(Menu.NONE, 13, Menu.NONE, "Ask AI about this screen").setOnMenuItemClickListener(item -> {
             openAiForCurrentScreen();
+            return true;
+        });
+        bottomMenu.add(Menu.NONE, 14, Menu.NONE, "Project tools").setOnMenuItemClickListener(item -> {
+            openProjectToolsHub();
             return true;
         });
         bottomPopupMenu.setOnDismissListener(menu -> btnOptions.setChecked(false));
@@ -1226,6 +1231,13 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
     }
 
 
+
+    private void openProjectToolsHub() {
+        Intent intent = new Intent(getApplicationContext(), ProjectToolsHubActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.putExtra("sc_id", sc_id);
+        startActivity(intent);
+    }
 
     private void openAiForCurrentScreen() {
         if (projectFile == null) {

@@ -17,6 +17,22 @@ public final class ProjectToolPaths {
         return new File(getSketchwareDir(), "data" + File.separator + scId);
     }
 
+    public static File getProjectGitMirrorDir(String scId) {
+        return new File(getSketchwareDir(), "git" + File.separator + scId);
+    }
+
+    public static File getProjectBackupDir(String scId) {
+        return new File(getSketchwareDir(), "backups" + File.separator + scId);
+    }
+
+    public static File getProjectExportDir(String scId) {
+        return new File(getSketchwareDir(), "exports" + File.separator + scId);
+    }
+
+    public static File getProjectLibDexCacheDir(String scId) {
+        return new File(getProjectDataDir(scId), "cache" + File.separator + "lib-dex");
+    }
+
     public static File getProjectEditableRoot(String scId) {
         return new File(getProjectDataDir(scId), "files");
     }

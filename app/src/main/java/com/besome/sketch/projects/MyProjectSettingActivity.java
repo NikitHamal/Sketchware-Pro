@@ -52,6 +52,7 @@ import pro.sketchware.activities.iconcreator.IconCreatorActivity;
 import pro.sketchware.activities.projecttools.GradleInjectionActivity;
 import pro.sketchware.activities.projecttools.ProjectFileManagerActivity;
 import pro.sketchware.activities.projecttools.ProjectLibraryDiagnosticsActivity;
+import pro.sketchware.activities.projecttools.ProjectToolsHubActivity;
 import pro.sketchware.activities.projecttools.SearchInProjectActivity;
 import pro.sketchware.control.VersionDialog;
 import pro.sketchware.databinding.MyprojectSettingBinding;
@@ -102,6 +103,7 @@ public class MyProjectSettingActivity extends BaseAppCompatActivity implements V
 
         sc_id = getIntent().getStringExtra("sc_id");
         updatingExistingProject = getIntent().getBooleanExtra("is_update", false);
+        configureToolbarProjectToolsMenu();
 
         binding.verCode.setSelected(true);
         binding.verName.setSelected(true);
@@ -601,8 +603,28 @@ public class MyProjectSettingActivity extends BaseAppCompatActivity implements V
 
     }
 
+    private void configureToolbarProjectToolsMenu() {
+        android.view.Menu menu = binding.toolbar.getMenu();
+        if (menu.findItem(1000) == null) {
+            menu.add(android.view.Menu.NONE, 1000, android.view.Menu.NONE, "Project tools")
+                    .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_NEVER);
+        }
+        binding.toolbar.setOnMenuItemClickListener(this::handleProjectToolMenuItem);
+    }
+
+    private boolean handleProjectToolMenuItem(android.view.MenuItem item) {
+        if (item.getItemId() == 1000) {
+            startActivity(new Intent(this, ProjectToolsHubActivity.class).putExtra("sc_id", sc_id));
+            return true;
+        }
+        return false;
+    }
+
     @Override
     public boolean onCreateOptionsMenu(android.view.Menu menu) {
+        if (menu.findItem(1000) == null) {
+            menu.add(android.view.Menu.NONE, 1000, android.view.Menu.NONE, "Project tools");
+        }
         menu.add(android.view.Menu.NONE, 1001, android.view.Menu.NONE, "File manager");
         menu.add(android.view.Menu.NONE, 1002, android.view.Menu.NONE, "Search in project");
         menu.add(android.view.Menu.NONE, 1003, android.view.Menu.NONE, "Gradle injection");
@@ -613,6 +635,10 @@ public class MyProjectSettingActivity extends BaseAppCompatActivity implements V
     @Override
     public boolean onOptionsItemSelected(android.view.MenuItem item) {
         int itemId = item.getItemId();
+        if (itemId == 1000) {
+            startActivity(new Intent(this, ProjectToolsHubActivity.class).putExtra("sc_id", sc_id));
+            return true;
+        }
         if (itemId == 1001) {
             startActivity(new Intent(this, ProjectFileManagerActivity.class).putExtra("sc_id", sc_id));
             return true;
