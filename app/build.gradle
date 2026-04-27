@@ -184,7 +184,7 @@ dependencies {
 
     coreLibraryDesugaring "com.android.tools:desugar_jdk_libs_nio:2.1.5"
 
-    // New dependencies from Daydream
+    // Additional project workflow dependencies
     implementation "net.lingala.zip4j:zip4j:2.11.5"
     implementation "org.eclipse.jgit:org.eclipse.jgit:7.3.0.202506031305-r"
 

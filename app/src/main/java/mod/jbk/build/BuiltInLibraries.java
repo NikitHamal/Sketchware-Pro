@@ -733,7 +733,7 @@ public class BuiltInLibraries {
         }
     }
 
-    // Compatibility helpers. These keep library lookups
+    // Compatibility helpers keep library lookups
     // tolerant of logical/base names and provide a lightweight health check for
     // extracted compile assets.
 
