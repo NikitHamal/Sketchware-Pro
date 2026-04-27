@@ -732,4 +732,67 @@ public class BuiltInLibraries {
             dest.writeInt(hasResources ? 1 : 0);
         }
     }
+
+    // Compatibility helpers. These keep library lookups
+    // tolerant of logical/base names and provide a lightweight health check for
+    // extracted compile assets.
+
+    /**
+     * Maps base logical library name -> full versioned folder name.
+     * e.g. "firebase-common" -> "firebase-common-22.0.1".
+     */
+    public static final java.util.HashMap<String, String> BUNDLED_VERSIONS;
+
+    static {
+        BUNDLED_VERSIONS = new java.util.HashMap<>();
+        for (BuiltInLibrary lib : KNOWN_BUILT_IN_LIBRARIES) {
+            String name = lib.getName();
+            String base = stripVersion(name);
+            BUNDLED_VERSIONS.put(base, name);
+            BUNDLED_VERSIONS.put(name, name);
+        }
+    }
+
+    /**
+     * Strips trailing numeric version suffixes from a library folder name.
+     * Examples: "firebase-common-22.0.1" -> "firebase-common" and
+     * "appcompat-1.7.1" -> "appcompat".
+     */
+    private static String stripVersion(String folderName) {
+        if (folderName == null) {
+            return "";
+        }
+        return folderName.replaceAll("-\\d+(\\.\\d+)*(-[a-zA-Z0-9]+)*$", "");
+    }
+
+    /**
+     * Resolves a logical/base library id to its full versioned folder name.
+     * Returns the original input if no bundled match exists.
+     */
+    public static String resolveFolderName(String logicalId) {
+        if (logicalId == null) {
+            return "";
+        }
+        String full = BUNDLED_VERSIONS.get(logicalId);
+        return full != null ? full : logicalId;
+    }
+
+    /**
+     * Converts a disk folder name to its logical/base library id.
+     */
+    public static String diskFolderToLogicalId(String folderName) {
+        return stripVersion(folderName);
+    }
+
+    /**
+     * Returns true if the extracted classes.jar for the given library exists and is non-empty.
+     */
+    public static boolean isLibraryClassesJarAvailable(String libraryName) {
+        if (libraryName == null || libraryName.isEmpty()) {
+            return false;
+        }
+        File jar = getLibraryClassesJarPath(resolveFolderName(libraryName));
+        return jar.exists() && jar.length() > 0;
+    }
+
 }

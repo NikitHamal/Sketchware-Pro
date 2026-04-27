@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import a.a.a.Jp;
@@ -22,10 +24,14 @@ import pro.sketchware.SketchApplication;
 
 public class BuiltInLibraryManager {
 
+    private static final String TAG = ProjectBuilder.TAG;
+
     private final ArrayList<String> libraryNames = new ArrayList<>();
     private final ArrayList<Jp> libraries = new ArrayList<>();
     private final List<BuiltInLibraries.BuiltInLibrary> excludedLibraries;
     private final List<BuiltInLibraries.BuiltInLibrary> manuallyEnabledLibraries;
+    /** Tracks processed library names to avoid duplicate work and dependency cycles. */
+    private final Set<String> processedNames = new HashSet<>();
 
     public BuiltInLibraryManager(String projectId) {
         excludedLibraries = ExcludeBuiltInLibrariesActivity.getExcludedLibraries(projectId);
@@ -40,25 +46,37 @@ public class BuiltInLibraryManager {
      * Won't add a library if it's in the list already,
      * or it got excluded with {@link ExcludeBuiltInLibrariesActivity}.
      *
+     * <p>Unknown libraries are accepted without dependency expansion so projects
+     * created by another Sketchware variant do not crash the builder.</p>
+     *
      * @param libraryName The built-in library's name, e.g. material-1.0.0
      */
     public void addLibrary(String libraryName) {
+        if (libraryName == null || libraryName.isEmpty()) {
+            return;
+        }
+        if (!processedNames.add(libraryName)) {
+            Log.v(TAG, "Didn't reprocess built-in library \"" + libraryName + "\"");
+            return;
+        }
+
         Optional<BuiltInLibraries.BuiltInLibrary> library = BuiltInLibraries.BuiltInLibrary.ofName(libraryName);
         //noinspection SimplifyOptionalCallChains because #isEmpty() isn't available on Android.
-        if (!library.isPresent() || !excludedLibraries.contains(library.get())) {
+        boolean isExcluded = library.isPresent() && excludedLibraries.contains(library.get());
+        if (!isExcluded) {
             if (!libraryNames.contains(libraryName)) {
-                Log.d(ProjectBuilder.TAG, "Added built-in library \"" + libraryName + "\" to project's dependencies");
+                Log.d(TAG, "Added built-in library \"" + libraryName + "\" to project's dependencies");
                 libraryNames.add(libraryName);
                 libraries.add(new Jp(libraryName));
-                addDependencies(libraryName);
             } else {
-                Log.v(ProjectBuilder.TAG, "Didn't add built-in library \"" + libraryName + "\" to project's dependencies again");
+                Log.v(TAG, "Didn't add built-in library \"" + libraryName + "\" to project's dependencies again");
             }
         } else {
-            Log.v(ProjectBuilder.TAG, "Didn't add built-in library \"" + libraryName + "\" to project's dependencies as it's excluded");
-            Log.v(ProjectBuilder.TAG, "Adding its dependencies though");
-            addDependencies(libraryName);
+            Log.v(TAG, "Didn't add built-in library \"" + libraryName + "\" to project's dependencies as it's excluded");
+            Log.v(TAG, "Adding its dependencies though");
         }
+
+        addDependencies(libraryName);
     }
 
     private void addDependencies(String libraryName) {
@@ -71,7 +89,7 @@ public class BuiltInLibraryManager {
         Optional<BuiltInLibraries.BuiltInLibrary> library = BuiltInLibraries.BuiltInLibrary.ofName(libraryName);
         //noinspection SimplifyOptionalCallChains because #isEmpty() isn't available on Android.
         if (!library.isPresent()) {
-            return false;
+            return libraryNames.contains(libraryName);
         }
         return libraries.contains(new Jp(library.get().getName()));
     }
@@ -81,6 +99,25 @@ public class BuiltInLibraryManager {
      */
     public ArrayList<Jp> getLibraries() {
         return libraries;
+    }
+
+    /**
+     * Validates that each registered built-in library has an extracted classes.jar.
+     * This is useful for diagnosing stale/corrupt compile assets before build steps fail.
+     *
+     * @return names of libraries whose classes.jar is missing or empty
+     */
+    public List<String> validateClasspath() {
+        List<String> missing = new ArrayList<>();
+        for (String name : libraryNames) {
+            if (!BuiltInLibraries.isLibraryClassesJarAvailable(name)) {
+                missing.add(name);
+            }
+        }
+        if (!missing.isEmpty()) {
+            Log.e(TAG, "Built-in libraries with missing classes.jar: " + missing);
+        }
+        return missing;
     }
 
     public static List<BuiltInLibraries.BuiltInLibrary> getEffectiveEnabledLibraries(String projectId) {
