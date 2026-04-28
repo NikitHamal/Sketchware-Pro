@@ -56,6 +56,6 @@ public class ProjectLifecycleActivity extends BaseAppCompatActivity {
     private void run(String label, Work work) { append(label + "..."); executor.execute(() -> { String text; try { text = work.run(); } catch (Exception e) { text = "ERROR: " + e.getMessage(); } String finalText = text; runOnUiThread(() -> append(finalText)); }); }
     private void append(String text) { if (outputView != null) outputView.append("\n\n" + text); }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
-    @Override protected void onDestroy() { executor.shutdownNow(); super.onDestroy(); }
+    @Override public void onDestroy() { executor.shutdownNow(); super.onDestroy(); }
     private interface Work { String run() throws Exception; }
 }

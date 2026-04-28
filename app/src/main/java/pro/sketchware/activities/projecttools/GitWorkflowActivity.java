@@ -84,7 +84,7 @@ public class GitWorkflowActivity extends BaseAppCompatActivity {
     private String getText(TextInputEditText input) { return input.getText() == null ? "" : input.getText().toString().trim(); }
     private void append(String text) { if (outputView != null) outputView.append("\n\n" + text); }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
-    @Override protected void onDestroy() { executor.shutdownNow(); super.onDestroy(); }
+    @Override public void onDestroy() { executor.shutdownNow(); super.onDestroy(); }
     private interface GitCall { GitResult run(); }
     private interface TextCall { String run() throws Exception; }
 }
