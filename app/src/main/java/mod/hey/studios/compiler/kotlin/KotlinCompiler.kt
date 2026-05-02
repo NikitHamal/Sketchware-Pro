@@ -100,8 +100,15 @@ class KotlinCompiler(
         LogUtil.d(TAG, "kotlinc MessageCollector: $collector")
 
         // kotlinc generates some .kotlin_module files that make D8 fail,
-        // delete them for now (?) TODO
-        File(mClassOutput, "META-INF").deleteRecursively()
+        // delete them for now
+        mClassOutput.walk().filter { it.name.endsWith(".kotlin_module") }.forEach { it.delete() }
+
+        // Cleanup empty META-INF directory if it's now empty
+        File(mClassOutput, "META-INF").let {
+            if (it.exists() && it.isDirectory && it.list()?.isEmpty() == true) {
+                it.delete()
+            }
+        }
 
         if (collector.hasErrors()) {
             LogUtil.e(TAG, "Failed to compile Kotlin files")
