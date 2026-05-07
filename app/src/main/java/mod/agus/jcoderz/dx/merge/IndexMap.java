@@ -20,28 +20,10 @@ import mod.agus.jcoderz.dex.Annotation;
 import mod.agus.jcoderz.dex.CallSiteId;
 import mod.agus.jcoderz.dex.ClassDef;
 import mod.agus.jcoderz.dex.Dex;
-import mod.agus.jcoderz.dex.DexException;
 import mod.agus.jcoderz.dex.EncodedValue;
-import mod.agus.jcoderz.dex.EncodedValueCodec;
 import mod.agus.jcoderz.dex.EncodedValueReader;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_ANNOTATION;
 import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_ARRAY;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_BOOLEAN;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_BYTE;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_CHAR;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_DOUBLE;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_ENUM;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_FIELD;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_FLOAT;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_INT;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_LONG;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_METHOD;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_METHOD_HANDLE;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_METHOD_TYPE;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_NULL;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_SHORT;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_STRING;
-import static mod.agus.jcoderz.dex.EncodedValueReader.ENCODED_TYPE;
+import mod.agus.jcoderz.dex.EncodedValueWriter;
 import mod.agus.jcoderz.dex.FieldId;
 import mod.agus.jcoderz.dex.Leb128;
 import mod.agus.jcoderz.dex.MethodHandle;
@@ -280,111 +262,39 @@ public final class IndexMap {
     /**
      * Adjust an encoded value or array.
      */
-    private final class EncodedValueTransformer {
-        private final ByteOutput out;
-
+    private final class EncodedValueTransformer extends EncodedValueWriter {
         public EncodedValueTransformer(ByteOutput out) {
-            this.out = out;
+            super(out);
         }
 
-        public void transform(EncodedValueReader reader) {
-            // TODO: extract this into a helper class, EncodedValueWriter
-            switch (reader.peek()) {
-            case ENCODED_BYTE:
-                EncodedValueCodec.writeSignedIntegralValue(out, ENCODED_BYTE, reader.readByte());
-                break;
-            case ENCODED_SHORT:
-                EncodedValueCodec.writeSignedIntegralValue(out, ENCODED_SHORT, reader.readShort());
-                break;
-            case ENCODED_INT:
-                EncodedValueCodec.writeSignedIntegralValue(out, ENCODED_INT, reader.readInt());
-                break;
-            case ENCODED_LONG:
-                EncodedValueCodec.writeSignedIntegralValue(out, ENCODED_LONG, reader.readLong());
-                break;
-            case ENCODED_CHAR:
-                EncodedValueCodec.writeUnsignedIntegralValue(out, ENCODED_CHAR, reader.readChar());
-                break;
-            case ENCODED_FLOAT:
-                // Shift value left 32 so that right-zero-extension works.
-                long longBits = ((long) Float.floatToIntBits(reader.readFloat())) << 32;
-                EncodedValueCodec.writeRightZeroExtendedValue(out, ENCODED_FLOAT, longBits);
-                break;
-            case ENCODED_DOUBLE:
-                EncodedValueCodec.writeRightZeroExtendedValue(
-                        out, ENCODED_DOUBLE, Double.doubleToLongBits(reader.readDouble()));
-                break;
-            case ENCODED_METHOD_TYPE:
-                EncodedValueCodec.writeUnsignedIntegralValue(
-                        out, ENCODED_METHOD_TYPE, adjustProto(reader.readMethodType()));
-                break;
-            case ENCODED_METHOD_HANDLE:
-                EncodedValueCodec.writeUnsignedIntegralValue(
-                        out,
-                        ENCODED_METHOD_HANDLE,
-                        adjustMethodHandle(reader.readMethodHandle()));
-                break;
-            case ENCODED_STRING:
-                EncodedValueCodec.writeUnsignedIntegralValue(
-                        out, ENCODED_STRING, adjustString(reader.readString()));
-                break;
-            case ENCODED_TYPE:
-                EncodedValueCodec.writeUnsignedIntegralValue(
-                        out, ENCODED_TYPE, adjustType(reader.readType()));
-                break;
-            case ENCODED_FIELD:
-                EncodedValueCodec.writeUnsignedIntegralValue(
-                        out, ENCODED_FIELD, adjustField(reader.readField()));
-                break;
-            case ENCODED_ENUM:
-                EncodedValueCodec.writeUnsignedIntegralValue(
-                        out, ENCODED_ENUM, adjustField(reader.readEnum()));
-                break;
-            case ENCODED_METHOD:
-                EncodedValueCodec.writeUnsignedIntegralValue(
-                        out, ENCODED_METHOD, adjustMethod(reader.readMethod()));
-                break;
-            case ENCODED_ARRAY:
-                writeTypeAndArg(ENCODED_ARRAY, 0);
-                transformArray(reader);
-                break;
-            case ENCODED_ANNOTATION:
-                writeTypeAndArg(ENCODED_ANNOTATION, 0);
-                transformAnnotation(reader);
-                break;
-            case ENCODED_NULL:
-                reader.readNull();
-                writeTypeAndArg(ENCODED_NULL, 0);
-                break;
-            case ENCODED_BOOLEAN:
-                boolean value = reader.readBoolean();
-                writeTypeAndArg(ENCODED_BOOLEAN, value ? 1 : 0);
-                break;
-            default:
-                throw new DexException("Unexpected type: " + Integer.toHexString(reader.peek()));
-            }
+        @Override
+        protected int adjustString(int stringIndex) {
+            return IndexMap.this.adjustString(stringIndex);
         }
 
-        private void transformAnnotation(EncodedValueReader reader) {
-            int fieldCount = reader.readAnnotation();
-            Leb128.writeUnsignedLeb128(out, adjustType(reader.getAnnotationType()));
-            Leb128.writeUnsignedLeb128(out, fieldCount);
-            for (int i = 0; i < fieldCount; i++) {
-                Leb128.writeUnsignedLeb128(out, adjustString(reader.readAnnotationName()));
-                transform(reader);
-            }
+        @Override
+        protected int adjustType(int typeIndex) {
+            return IndexMap.this.adjustType(typeIndex);
         }
 
-        private void transformArray(EncodedValueReader reader) {
-            int size = reader.readArray();
-            Leb128.writeUnsignedLeb128(out, size);
-            for (int i = 0; i < size; i++) {
-                transform(reader);
-            }
+        @Override
+        protected int adjustProto(int protoIndex) {
+            return IndexMap.this.adjustProto(protoIndex);
         }
 
-        private void writeTypeAndArg(int type, int arg) {
-            out.writeByte((arg << 5) | type);
+        @Override
+        protected int adjustField(int fieldIndex) {
+            return IndexMap.this.adjustField(fieldIndex);
+        }
+
+        @Override
+        protected int adjustMethod(int methodIndex) {
+            return IndexMap.this.adjustMethod(methodIndex);
+        }
+
+        @Override
+        protected int adjustMethodHandle(int methodHandleIndex) {
+            return IndexMap.this.adjustMethodHandle(methodHandleIndex);
         }
     }
 }
