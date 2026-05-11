@@ -240,7 +240,6 @@ public class AiProviderAdapter extends RecyclerView.Adapter<AiProviderAdapter.Vi
             case TOGETHER:         return R.drawable.ic_provider_together;
             case HUGGINGFACE:      return R.drawable.ic_provider_huggingface;
             case CEREBRAS:         return R.drawable.ic_provider_cerebras;
-            case GOOGLE_AI_STUDIO: return R.drawable.ic_provider_google_ai_studio;
             case SAMBANOVA:        return R.drawable.ic_provider_sambanova;
             default:               return R.drawable.ic_provider_local_llm;
         }
@@ -260,7 +259,6 @@ public class AiProviderAdapter extends RecyclerView.Adapter<AiProviderAdapter.Vi
             case TOGETHER:         return "Together AI";
             case HUGGINGFACE:      return "HuggingFace";
             case CEREBRAS:         return "Cerebras Cloud";
-            case GOOGLE_AI_STUDIO: return "Google AI Studio";
             case SAMBANOVA:        return "SambaNova Cloud";
             default:               return "Provider";
         }

@@ -45,60 +45,6 @@ public final class LiveUiPreviewTool {
         JsonArray r = new JsonArray(); for (String k : keys) r.add(k); s.add("required", r);
     }
 
-    public static class DescribeLayoutLiveTool implements AgentTool {
-
-        @Override public String getName() { return "describe_layout_live"; }
-
-        @Override
-        public String getDescription() {
-            return "Reads the current ViewBean layout for a Sketchware activity. Uses jC in-memory "
-                    + "cache (most accurate, includes unsaved AI changes) with encrypted disk fallback. "
-                    + "Returns a human-readable tree + raw ViewBean JSON for editing. "
-                    + "ALWAYS call before build_screen_layout or modify_view_live.\n\n"
-                    + SketchwareViewBridge.buildTypeReference();
-        }
-
-        @Override
-        public JsonObject getParametersSchema() {
-            JsonObject props = new JsonObject();
-            JsonObject sc = new JsonObject(); sc.addProperty("type","string");
-            sc.addProperty("description","Project ID (sc_id)"); props.add("sc_id", sc);
-            JsonObject n = new JsonObject(); n.addProperty("type","string");
-            n.addProperty("description","Activity name e.g. 'main' or 'main.xml'"); props.add("activity_xml", n);
-            JsonObject s = new JsonObject(); s.addProperty("type","object"); s.add("properties", props);
-            JsonArray r = new JsonArray(); r.add("sc_id"); r.add("activity_xml"); s.add("required", r);
-            return s;
-        }
-
-        @Override
-        public ToolResult execute(JsonObject args, ToolContext ctx) {
-            String scId = str(args, "sc_id");
-            String xml = SketchwareViewBridge.normalizeXmlName(str(args, "activity_xml"));
-            if (scId == null || xml == null) return err("sc_id and activity_xml required");
-            if (!ctx.isProjectAllowed(scId)) return err("Project not in workspace");
-
-            ArrayList<ViewBean> beans = SketchwareViewBridge.getViewBeans(scId, xml);
-            if (beans == null || beans.isEmpty()) {
-                String raw = SketchwareViewBridge.readViewFile(scId);
-                Map<String, List<String>> sections = SketchwareViewBridge.parseSections(raw);
-                StringBuilder sb = new StringBuilder("No views found for " + xml + ".\n");
-                sb.append("Available sections: ").append(sections.keySet()).append("\n\n");
-                sb.append(SketchwareViewBridge.buildTypeReference());
-                return ok(sb.toString());
-            }
-
-            StringBuilder sb = new StringBuilder();
-            sb.append("=== Layout: ").append(xml).append(" (").append(beans.size()).append(" views) ===\n\n");
-            sb.append(SketchwareViewBridge.buildViewTreeDescription(beans));
-            sb.append("\n--- Raw ViewBean JSON ---\n");
-            for (ViewBean bean : beans) {
-                sb.append(SketchwareViewBridge.viewBeanToJsonObject(bean)).append("\n");
-            }
-            sb.append("\n").append(SketchwareViewBridge.buildTypeReference());
-            return ok(sb.toString());
-        }
-    }
-
     public static class BuildScreenLayoutTool implements AgentTool {
 
         @Override public String getName() { return "build_screen_layout"; }

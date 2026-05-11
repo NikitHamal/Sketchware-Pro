@@ -55,7 +55,6 @@ public class AiSettingsActivity extends AppCompatActivity {
     private static final String URL_TOGETHER         = "https://api.together.ai/settings/api-keys";
     private static final String URL_HUGGINGFACE      = "https://huggingface.co/settings/tokens";
     private static final String URL_CEREBRAS         = "https://cloud.cerebras.ai/platform";
-    private static final String URL_GOOGLE_AI_STUDIO = "https://aistudio.google.com/app/apikey";
     private static final String URL_SAMBANOVA        = "https://cloud.sambanova.ai/apis";
 
     private static final String PREF_ENABLED     = "provider_enabled_";
@@ -114,7 +113,7 @@ public class AiSettingsActivity extends AppCompatActivity {
         for (AiProvider p : AiProvider.values()) {
             if (p == AiProvider.LOCAL_LLM) continue;
             boolean enabled = preferences.prefs().getBoolean(PREF_ENABLED + p.name(),
-                    p == AiProvider.GOOGLE_AI_STUDIO || p == AiProvider.SAMBANOVA);
+                    p == AiProvider.SAMBANOVA);
             String  key     = p.requiresApiKey() ? preferences.getApiKey(p) : "";
             String  count   = buildModelCountText(p);
             states.add(new AiProviderAdapter.ProviderState(p, enabled, key, count));
@@ -303,7 +302,6 @@ public class AiSettingsActivity extends AppCompatActivity {
             case TOGETHER:         return URL_TOGETHER;
             case HUGGINGFACE:      return URL_HUGGINGFACE;
             case CEREBRAS:         return URL_CEREBRAS;
-            case GOOGLE_AI_STUDIO: return URL_GOOGLE_AI_STUDIO;
             case SAMBANOVA:        return URL_SAMBANOVA;
             default:               return "";
         }

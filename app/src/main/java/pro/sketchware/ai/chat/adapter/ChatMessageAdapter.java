@@ -23,7 +23,7 @@ import java.util.Date;
 import java.util.List;
 
 import pro.sketchware.R;
-import pro.sketchware.ai.chat.model.ChatMessage;
+import pro.sketchware.ai.models.ChatMessage;
 
 /**
  * ChatMessageAdapter — Stage 3 FINAL (FIXED).

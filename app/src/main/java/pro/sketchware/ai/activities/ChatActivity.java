@@ -38,6 +38,7 @@ import pro.sketchware.ai.activities.AiSettingsActivity;
 import pro.sketchware.ai.adapters.ChatAdapter;
 import pro.sketchware.ai.adapters.ModelSelectorAdapter;
 import pro.sketchware.ai.engine.AgentExecutor;
+import pro.sketchware.ai.tools.ToolRegistry;
 import pro.sketchware.ai.engine.TokenOptimizer;
 import pro.sketchware.ai.models.AiProvider;
 import pro.sketchware.ai.models.ChatMessage;
@@ -249,8 +250,9 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
         // Tools button — shows the AI capability catalogue
         if (binding.btnTools != null) {
             binding.btnTools.setOnClickListener(v ->
-                pro.sketchware.ai.bottomsheet.AiToolsBottomSheet.show(this, tool -> {
-                    // Pre-fill input with a helpful prompt about the chosen tool
+                pro.sketchware.ai.bottomsheet.AiToolsBottomSheet.show(this,
+                        agentExecutor != null ? agentExecutor.getToolRegistry() : new ToolRegistry(),
+                        tool -> {
                     String prompt = "Use the \"" + tool.name + "\" tool to help me: ";
                     binding.inputMessage.setText(prompt);
                     binding.inputMessage.setSelection(prompt.length());

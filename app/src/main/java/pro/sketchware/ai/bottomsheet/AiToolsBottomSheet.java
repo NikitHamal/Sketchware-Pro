@@ -4,7 +4,6 @@ import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -12,42 +11,65 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.bottomsheet.BottomSheetDialog;
-import com.google.android.material.card.MaterialCardView;
+import com.google.gson.JsonObject;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import pro.sketchware.R;
-import pro.sketchware.ai.manifest.AiCapabilityManifest;
-import pro.sketchware.ai.manifest.AiCapabilityManifest.ToolEntry;
+import pro.sketchware.ai.tools.AgentTool;
+import pro.sketchware.ai.tools.ToolRegistry;
 
-/**
- * AiToolsBottomSheet — Shows a categorised list of all AI tools.
- *
- * <p>When the user taps a tool, a callback fires with a suggested prompt
- * ("كيف تريد مساعدتك بهذه الأداة؟") inserted into the chat input.
- *
- * <h2>Usage</h2>
- * <pre>{@code
- * AiToolsBottomSheet.show(context, toolEntry -> {
- *     inputView.setText(toolEntry.name + ": ");
- * });
- * }</pre>
- */
 public final class AiToolsBottomSheet {
 
-    /** Called when the user selects a tool. */
     public interface OnToolSelectedListener {
         void onToolSelected(@NonNull ToolEntry tool);
     }
 
-    /**
-     * Shows the tools bottom sheet.
-     *
-     * @param context  Android context.
-     * @param listener Callback for tool selection.
-     */
+    public static final class ToolEntry {
+        public final String name;
+        public final String description;
+        public final String category;
+
+        public ToolEntry(@NonNull String name, @NonNull String description, @NonNull String category) {
+            this.name = name;
+            this.description = description;
+            this.category = category;
+        }
+    }
+
+    private static String categorize(@NonNull String toolName) {
+        if (toolName.contains("layout") || toolName.contains("view") || toolName.contains("screen")
+                || toolName.contains("xml") || toolName.contains("widget"))
+            return "UI Layout & Design";
+        if (toolName.contains("file") || toolName.contains("search_in"))
+            return "File Operations";
+        if (toolName.contains("project") || toolName.contains("activity") || toolName.contains("template"))
+            return "Project Management";
+        if (toolName.contains("library") || toolName.contains("maven") || toolName.contains("dependency"))
+            return "Library Management";
+        if (toolName.contains("resource") || toolName.contains("string") || toolName.contains("color"))
+            return "Resources";
+        if (toolName.contains("build") || toolName.contains("compile") || toolName.contains("r8"))
+            return "Build & Compile";
+        if (toolName.contains("block") || toolName.contains("event"))
+            return "Block Logic";
+        if (toolName.contains("code") || toolName.contains("review") || toolName.contains("analyze")
+                || toolName.contains("rtl") || toolName.contains("validate"))
+            return "Code Analysis";
+        if (toolName.contains("export") || toolName.contains("android_studio"))
+            return "Export";
+        if (toolName.contains("github"))
+            return "GitHub Intelligence";
+        if (toolName.contains("web_search") || toolName.contains("logcat") || toolName.contains("resource_optimizer"))
+            return "Developer Utilities";
+        return "Other";
+    }
+
     public static void show(@NonNull Context context,
+                            @NonNull ToolRegistry toolRegistry,
                             @NonNull OnToolSelectedListener listener) {
         BottomSheetDialog dialog = new BottomSheetDialog(context);
 
@@ -58,37 +80,36 @@ public final class AiToolsBottomSheet {
         RecyclerView rv = root.findViewById(R.id.rv_tools);
         rv.setLayoutManager(new LinearLayoutManager(context));
 
-        // Build flat list with category headers
-        List<Object> items = buildItems();
+        List<Object> items = buildItems(toolRegistry);
         ToolsAdapter adapter = new ToolsAdapter(items, tool -> {
             dialog.dismiss();
             listener.onToolSelected(tool);
         });
         rv.setAdapter(adapter);
 
-        // Close button
         View btnClose = root.findViewById(R.id.btn_close_tools_sheet);
         if (btnClose != null) btnClose.setOnClickListener(v -> dialog.dismiss());
 
         dialog.show();
     }
 
-    // ── Private: build categorised list ───────────────────────────────────
-
     @NonNull
-    private static List<Object> buildItems() {
+    private static List<Object> buildItems(@NonNull ToolRegistry toolRegistry) {
+        List<AgentTool> tools = toolRegistry.getAllTools();
+        Map<String, List<ToolEntry>> categories = new LinkedHashMap<>();
+        for (AgentTool tool : tools) {
+            String cat = categorize(tool.getName());
+            categories.computeIfAbsent(cat, k -> new ArrayList<>())
+                    .add(new ToolEntry(tool.getName(), tool.getDescription(), cat));
+        }
+
         List<Object> items = new ArrayList<>();
-        for (String category : AiCapabilityManifest.getCategories()) {
-            List<ToolEntry> tools = AiCapabilityManifest.getToolsByCategory(category);
-            if (!tools.isEmpty()) {
-                items.add(category);          // header (String)
-                items.addAll(tools);          // items (ToolEntry)
-            }
+        for (Map.Entry<String, List<ToolEntry>> entry : categories.entrySet()) {
+            items.add(entry.getKey());
+            items.addAll(entry.getValue());
         }
         return items;
     }
-
-    // ── Adapter ────────────────────────────────────────────────────────────
 
     private static final class ToolsAdapter
             extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
@@ -132,8 +153,6 @@ public final class AiToolsBottomSheet {
             }
         }
     }
-
-    // ── ViewHolders ────────────────────────────────────────────────────────
 
     private static final class HeaderVH extends RecyclerView.ViewHolder {
         private final TextView tvCategory;

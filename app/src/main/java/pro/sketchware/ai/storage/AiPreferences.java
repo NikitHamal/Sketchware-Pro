@@ -48,7 +48,6 @@ public class AiPreferences {
     public static final String DEFAULT_GROQ_MODEL             = "compound-beta-mini";
     public static final String DEFAULT_TOGETHER_MODEL         = "google/gemma-3-27b-it";
     public static final String DEFAULT_SAMBANOVA_MODEL        = "Gemma-3-27B-IT";
-    public static final String DEFAULT_GOOGLE_AI_STUDIO_MODEL = "gemma-3-27b-it";
     public static final String DEFAULT_DEEPSEEK_MODEL  = "deepseek-chat";
     public static final String DEFAULT_ANTHROPIC_MODEL  = "claude-sonnet-4-5"; // Claude Sonnet 4.5 — best for code
     public static final String DEFAULT_OPENAI_MODEL     = "gpt-4o-mini";
@@ -216,11 +215,10 @@ public class AiPreferences {
 
     /**
      * Returns true if the provider has been toggled ON by the user in AI Settings.
-     * GOOGLE_AI_STUDIO and SAMBANOVA are enabled by default.
+     * SAMBANOVA is enabled by default.
      */
     public boolean isProviderEnabled(@NonNull AiProvider provider) {
-        boolean defaultEnabled = provider == AiProvider.GOOGLE_AI_STUDIO
-                || provider == AiProvider.SAMBANOVA;
+        boolean defaultEnabled = provider == AiProvider.SAMBANOVA;
         return prefs.getBoolean(KEY_PROVIDER_ENABLED + provider.name(), defaultEnabled);
     }
 
@@ -265,7 +263,6 @@ public class AiPreferences {
             case ANTHROPIC:        return DEFAULT_ANTHROPIC_MODEL;
             case OPENAI:           return DEFAULT_OPENAI_MODEL;
             case GEMINI:           return DEFAULT_GEMINI_MODEL;
-            case GOOGLE_AI_STUDIO: return DEFAULT_GOOGLE_AI_STUDIO_MODEL;
             case TOGETHER:         return DEFAULT_TOGETHER_MODEL;
             case SAMBANOVA:        return DEFAULT_SAMBANOVA_MODEL;
             default:               return null;

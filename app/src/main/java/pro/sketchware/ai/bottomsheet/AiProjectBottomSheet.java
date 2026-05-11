@@ -42,6 +42,7 @@ import java.util.List;
 import pro.sketchware.R;
 import pro.sketchware.ai.activities.AiSettingsActivity;
 import pro.sketchware.ai.adapters.ChatAdapter;
+import pro.sketchware.ai.tools.ToolRegistry;
 import pro.sketchware.ai.adapters.ModelSelectorAdapter;
 import pro.sketchware.ai.engine.AgentExecutor;
 import pro.sketchware.ai.integration.AiProjectIntegrationHelper;
@@ -829,7 +830,9 @@ public class AiProjectBottomSheet
         View btnTools = sheetRoot.findViewById(R.id.ai_sheet_btn_tools);
         if (btnTools != null) {
             btnTools.setOnClickListener(v ->
-                    pro.sketchware.ai.bottomsheet.AiToolsBottomSheet.show(context, tool -> {
+                    pro.sketchware.ai.bottomsheet.AiToolsBottomSheet.show(context,
+                            agentExecutor != null ? agentExecutor.getToolRegistry() : new ToolRegistry(),
+                            tool -> {
                         String prompt = "Use the \"" + tool.name + "\" tool to help me: ";
                         inputView.setText(prompt);
                         inputView.setSelection(inputView.getText().length());

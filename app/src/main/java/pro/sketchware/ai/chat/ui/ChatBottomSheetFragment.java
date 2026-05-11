@@ -21,7 +21,7 @@ import com.google.android.material.textfield.TextInputEditText;
 import pro.sketchware.R;
 import pro.sketchware.ai.chat.adapter.ChatMessageAdapter;
 import pro.sketchware.ai.chat.coordinator.ChatCoordinator;
-import pro.sketchware.ai.chat.model.ChatMessage;
+import pro.sketchware.ai.models.ChatMessage;
 import pro.sketchware.ai.file.FileAttachManager;
 
 /**

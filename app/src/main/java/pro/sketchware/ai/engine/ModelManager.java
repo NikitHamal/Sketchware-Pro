@@ -277,7 +277,6 @@ public final class ModelManager {
     private List<ActiveModel> buildDefaultActiveModels() {
         return new ArrayList<>(Arrays.asList(
                 new ActiveModel(AiProvider.GROQ,            AiPreferences.DEFAULT_GROQ_MODEL),
-                new ActiveModel(AiProvider.GOOGLE_AI_STUDIO, AiPreferences.DEFAULT_GOOGLE_AI_STUDIO_MODEL),
                 new ActiveModel(AiProvider.SAMBANOVA,       AiPreferences.DEFAULT_SAMBANOVA_MODEL),
                 new ActiveModel(AiProvider.TOGETHER,        AiPreferences.DEFAULT_TOGETHER_MODEL),
                 new ActiveModel(AiProvider.GEMINI,          AiPreferences.DEFAULT_GEMINI_MODEL),

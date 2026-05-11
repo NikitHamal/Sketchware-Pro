@@ -17,7 +17,7 @@ import androidx.annotation.Nullable;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 
 import pro.sketchware.R;
-import pro.sketchware.ai.chat.model.ChatMessage;
+import pro.sketchware.ai.models.ChatMessage;
 
 /**
  * MessageActionsBottomSheet — Stage 3 custom long-press action sheet.

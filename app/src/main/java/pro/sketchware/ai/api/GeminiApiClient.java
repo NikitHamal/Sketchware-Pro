@@ -75,12 +75,21 @@ public class GeminiApiClient extends AiApiClient {
                 long inputTokenLimit = model.has("inputTokenLimit")
                         ? model.get("inputTokenLimit").getAsLong() : 0L;
 
-                // Skip image/audio/embedding/non-chat Gemini models
+                // Skip image generation, music, video, embeddings, and non-chat Gemini models
+                // Only keep flash/pro models for coding tasks
                 {
                     String _lo = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
                     if (_lo.contains("embed") || _lo.contains("tts") || _lo.contains("speech")
                         || _lo.contains("audio") || _lo.contains("vision-gen")
-                        || _lo.contains("image") || _lo.contains("aqa")) continue;
+                        || _lo.contains("aqa")
+                        || _lo.contains("music") || _lo.contains("video") || _lo.contains("veo")
+                        || _lo.contains("imagen") || _lo.contains("imagegen") || _lo.contains("image-generation")
+                        || (_lo.contains("code") && _lo.contains("exec"))
+                        || _lo.contains("safety")) continue;
+
+                    // Only keep flash/pro model families (the useful ones)
+                    if (!_lo.contains("flash") && !_lo.contains("pro") && !_lo.contains("preview")
+                        && !_lo.contains("experimental") && !_lo.contains("lite")) continue;
                 }
                 result.add(new ModelInfo(name, displayName, AiProvider.GEMINI, inputTokenLimit, description));
             }
@@ -129,7 +138,7 @@ public class GeminiApiClient extends AiApiClient {
                                 String systemPrompt, List<ToolDefinition> tools,
                                 Object tag, StreamingResponseHandler handler) {
         try {
-            String url = BASE_URL + "/v1beta/" + modelId + ":streamGenerateContent?alt=sse&key=" + apiKey;
+            String url = BASE_URL + "/v1beta/models/" + modelId + ":streamGenerateContent?alt=sse&key=" + apiKey;
             JsonObject requestBody = buildRequestBody(messages, systemPrompt, tools);
 
             Request.Builder builder = new Request.Builder()

@@ -39,9 +39,10 @@ public final class LayoutTools {
         @Override
         public String getDescription() {
             return "Reads the current view layout of a Sketchware activity screen and returns "
-                    + "a human-readable tree description. ALWAYS call this before editing a layout. "
-                    + "Returns ViewBean details: id, type, parent, dimensions, text content, etc. "
-                    + "Also shows the raw ViewBean JSON for precise editing reference.";
+                    + "a human-readable tree description with raw ViewBean JSON. "
+                    + "Reads from jC in-memory cache (most accurate, includes unsaved changes) with disk fallback. "
+                    + "ALWAYS call this before editing a layout (edit_layout, add_view_xml, build_screen_layout, etc.). "
+                    + "Returns ViewBean details: id, type, parent, dimensions, text content, etc.";
         }
 
         @Override
@@ -78,9 +79,9 @@ public final class LayoutTools {
             }
 
             StringBuilder sb = new StringBuilder();
-            sb.append("=== Layout: ").append(xmlName).append(" ===\n");
+            sb.append("=== Layout: ").append(xmlName).append(" (").append(beans.size()).append(" views) ===\n");
             sb.append(SketchwareViewBridge.buildViewTreeDescription(beans));
-            sb.append("\n--- Raw ViewBean JSON ---\n");
+            sb.append("\n--- ViewBean JSON ---\n");
             for (ViewBean bean : beans) {
                 sb.append(SketchwareViewBridge.viewBeanToJsonObject(bean)).append("\n");
             }

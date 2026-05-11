@@ -44,8 +44,8 @@ public enum AiProvider {
 
     DEEPINFRA("DeepInfra",
             "https://api.deepinfra.com",
-            "/v1/openai/models", "/v1/openai/chat/completions", true, false,
-            "DeepInfra — affordable inference for Gemma 2/3, Llama, Qwen, and DeepSeek models. Free trial credits available."),
+            "/v1/openai/models", "/v1/openai/chat/completions", false, false,
+            "DeepInfra — free inference for Gemma 2/3, Llama, Qwen, and DeepSeek models. No API key required."),
 
     TOGETHER("Together AI",
             "https://api.together.xyz",
@@ -61,11 +61,6 @@ public enum AiProvider {
             "https://api.cerebras.ai",
             "/v1/models", "/v1/chat/completions", true, false,
             "Cerebras — ultra-fast inference on custom hardware. Free tier with Llama 3.3 70B and Llama 3.1 8B. API key at cloud.cerebras.ai."),
-
-    GOOGLE_AI_STUDIO("Google AI Studio",
-            "https://generativelanguage.googleapis.com",
-            "/v1beta/openai/models", "/v1beta/openai/chat/completions", true, false,
-            "Google AI Studio — free access to Gemma 3 models (1B, 4B, 12B, 27B) and Gemini Flash. Free API key at aistudio.google.com."),
 
     SAMBANOVA("SambaNova",
             "https://api.sambanova.ai",

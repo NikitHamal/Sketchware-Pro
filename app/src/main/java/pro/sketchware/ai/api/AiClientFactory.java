@@ -8,7 +8,7 @@ import pro.sketchware.ai.storage.AiPreferences;
  * Centralized factory for creating AI API clients.
  * Supported: GEMINI, OPENAI, ANTHROPIC, DEEPSEEK, XAI_GROK, GROQ, NVIDIA,
  * OPENROUTER, DEEPINFRA, TOGETHER, HUGGINGFACE, CEREBRAS,
- * GOOGLE_AI_STUDIO, SAMBANOVA, LOCAL_LLM.
+ * SAMBANOVA, LOCAL_LLM.
  */
 public final class AiClientFactory {
 
@@ -29,7 +29,6 @@ public final class AiClientFactory {
             case TOGETHER:         return new TogetherApiClient(apiKey);
             case HUGGINGFACE:      return new HuggingFaceApiClient(apiKey);
             case CEREBRAS:         return new CerebrasApiClient(apiKey);
-            case GOOGLE_AI_STUDIO: return new GoogleAiStudioApiClient(apiKey);
             case SAMBANOVA:        return new SambaNovaApiClient(apiKey);
             case LOCAL_LLM: {
                 String url      = preferences.prefs().getString("ai_local_llm_url",       "http://localhost:1234");
@@ -51,7 +50,6 @@ public final class AiClientFactory {
             case XAI_GROK:         return "\u2705 Stable \u2014 use grok-3-mini for coding tasks";
             case CEREBRAS:         return "\u2705 Stable \u2014 extremely fast, use llama3.1-8b for quick tasks";
             case TOGETHER:         return "\u2705 Stable \u2014 supports Gemma 3 27B, Llama 3.3, DeepSeek R1";
-            case GOOGLE_AI_STUDIO: return "\u2705 Stable \u2014 Gemma 3 models free via aistudio.google.com key";
             case SAMBANOVA:        return "\u2705 Stable \u2014 Gemma 3/2, Llama 4, DeepSeek R1 free at cloud.sambanova.ai";
             case NVIDIA:           return "\u26A0\uFE0F May have rate limits \u2014 use meta/llama-3.3-70b-instruct";
             case OPENROUTER:       return "\u26A0\uFE0F Quality varies by sub-model \u2014 prefix model with provider/";

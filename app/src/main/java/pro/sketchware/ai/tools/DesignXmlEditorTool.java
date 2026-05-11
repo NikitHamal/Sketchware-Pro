@@ -31,60 +31,6 @@ public final class DesignXmlEditorTool {
         props.add(key, p);
     }
 
-    public static class DescribeLayoutTool implements AgentTool {
-        @Override public String getName() { return "describe_layout_xml"; }
-
-        @Override
-        public String getDescription() {
-            return "Reads the current view layout of a Sketchware activity and returns both a "
-                    + "human-readable tree description AND the raw ViewBean JSON for precise editing. "
-                    + "Reads from jC in-memory cache (most accurate, includes unsaved changes) with "
-                    + "disk fallback. ALWAYS call this before add_view_xml or edit_layout.";
-        }
-
-        @Override
-        public JsonObject getParametersSchema() {
-            JsonObject schema = new JsonObject(); schema.addProperty("type", "object");
-            JsonObject props = new JsonObject();
-            addP(props, "sc_id", "string", "Project ID");
-            addP(props, "activity_name", "string", "Activity name (e.g. 'main')");
-            schema.add("properties", props);
-            JsonArray req = new JsonArray(); req.add("sc_id"); req.add("activity_name");
-            schema.add("required", req);
-            return schema;
-        }
-
-        @Override
-        public ToolResult execute(JsonObject args, ToolContext ctx) {
-            String scId = requireString(args, "sc_id");
-            String actName = requireString(args, "activity_name");
-            if (scId == null || actName == null) return error("sc_id and activity_name required");
-            if (!ctx.isProjectAllowed(scId)) return error("Access denied: project " + scId);
-
-            String xmlName = SketchwareViewBridge.normalizeXmlName(actName);
-            ArrayList<ViewBean> beans = SketchwareViewBridge.getViewBeans(scId, xmlName);
-
-            if (beans == null || beans.isEmpty()) {
-                String raw = SketchwareViewBridge.readViewFile(scId);
-                Map<String, List<String>> sections = SketchwareViewBridge.parseSections(raw);
-                StringBuilder sb = new StringBuilder("No views found for " + xmlName + ".\n");
-                sb.append("Available sections: ").append(sections.keySet()).append("\n\n");
-                sb.append(TYPE_REF);
-                return success(sb.toString());
-            }
-
-            StringBuilder sb = new StringBuilder();
-            sb.append("=== Layout: ").append(xmlName).append(" (").append(beans.size()).append(" views) ===\n\n");
-            sb.append(SketchwareViewBridge.buildViewTreeDescription(beans));
-            sb.append("\n--- ViewBean JSON (for edit_layout) ---\n");
-            for (ViewBean bean : beans) {
-                sb.append(SketchwareViewBridge.viewBeanToJsonObject(bean)).append("\n");
-            }
-            sb.append("\n").append(TYPE_REF);
-            return success(sb.toString());
-        }
-    }
-
     public static class AddViewXmlTool implements AgentTool {
         @Override public String getName() { return "add_view_xml"; }
 

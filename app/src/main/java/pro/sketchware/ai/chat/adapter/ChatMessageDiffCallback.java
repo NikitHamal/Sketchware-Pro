@@ -4,7 +4,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.DiffUtil;
 
-import pro.sketchware.ai.chat.model.ChatMessage;
+import pro.sketchware.ai.models.ChatMessage;
 
 /**
  * ChatMessageDiffCallback — DiffUtil implementation for the chat message list.

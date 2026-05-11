@@ -57,7 +57,6 @@ public class AgentExecutor {
     /** Failover order - only enabled providers with API keys will be used. */
     private static final pro.sketchware.ai.models.AiProvider[] FAILOVER_ORDER = {
         pro.sketchware.ai.models.AiProvider.GROQ,
-        pro.sketchware.ai.models.AiProvider.GOOGLE_AI_STUDIO,
         pro.sketchware.ai.models.AiProvider.SAMBANOVA,
         pro.sketchware.ai.models.AiProvider.TOGETHER,
         pro.sketchware.ai.models.AiProvider.OPENAI,
@@ -76,6 +75,10 @@ public class AgentExecutor {
     private final ExecutorService executor;
     private final Handler mainHandler;
     private final AtomicBoolean isCancelled;
+
+    public ToolRegistry getToolRegistry() {
+        return toolRegistry;
+    }
 
     private volatile AiApiClient currentClient;
 

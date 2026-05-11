@@ -11,7 +11,6 @@ import android.util.Log;
 import androidx.annotation.MainThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.annotation.WorkerThread;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -23,7 +22,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import pro.sketchware.ai.chat.adapter.ChatMessageAdapter;
-import pro.sketchware.ai.chat.model.ChatMessage;
+import pro.sketchware.ai.models.ChatMessage;
+import pro.sketchware.ai.offline.OfflineModeController;
 
 /**
  * ChatCoordinator — The ONLY bridge between the Chat UI and the AI/logic layers.
@@ -106,64 +106,17 @@ public class ChatCoordinator implements ChatMessageAdapter.ChatMessageListener {
     @NonNull
     private final Context applicationContext;
 
-    // ─── Delegates ────────────────────────────────────────────────────────────
-
-    @Nullable private AiDelegate aiDelegate;
     @Nullable private CoordinatorListener coordinatorListener;
 
-    /**
-     * Stage 2: Optional offline message handler.
-     * When set, user messages are first offered to this handler in offline mode.
-     */
-    @Nullable
-    private OfflineMessageHandler offlineMessageHandler;
+    @Nullable private OfflineModeController offlineController;
 
     // ─── Interfaces ───────────────────────────────────────────────────────────
 
-    /**
-     * AI response callback — implemented by AIOrchestrator (Stage 2).
-     * All methods are safe to call from ANY thread.
-     */
-    public interface AiDelegate {
-        void onUserMessageReady(
-                @NonNull ChatMessage userMessage,
-                @NonNull List<ChatMessage> history,
-                @NonNull AiResponseCallback callback
-        );
-        void onCancelRequested();
-    }
-
-    /**
-     * Callback passed to the AI delegate to deliver responses back.
-     * All methods are thread-safe.
-     */
-    public interface AiResponseCallback {
-        void onStreamingStarted();
-        void onTokenReceived(@NonNull String token);
-        void onStreamingComplete(@NonNull String fullResponse);
-        void onError(@NonNull String errorMessage);
-    }
-
-    /**
-     * High-level state listener for the hosting Activity/Fragment/BottomSheet.
-     */
     public interface CoordinatorListener {
         void onAiStarted();
         void onAiFinished();
         void onAiError(@NonNull String errorMessage);
         void onMessageCountChanged(int count);
-    }
-
-    /**
-     * Stage 2: Hook for OfflineModeController.
-     * Called when a user message arrives and offline mode may handle it.
-     */
-    public interface OfflineMessageHandler {
-        /**
-         * @param message the user's message
-         * @return true if handled offline (AI should NOT be called), false otherwise
-         */
-        boolean handleOfflineMessage(@NonNull ChatMessage message);
     }
 
     // ─── Constructor ──────────────────────────────────────────────────────────
@@ -225,22 +178,16 @@ public class ChatCoordinator implements ChatMessageAdapter.ChatMessageListener {
     public void destroy() {
         detach();
         backgroundExecutor.shutdownNow();
-        if (aiDelegate != null) aiDelegate.onCancelRequested();
     }
 
     // ─── Configuration ────────────────────────────────────────────────────────
-
-    public void setAiDelegate(@Nullable AiDelegate aiDelegate) {
-        this.aiDelegate = aiDelegate;
-    }
 
     public void setCoordinatorListener(@Nullable CoordinatorListener listener) {
         this.coordinatorListener = listener;
     }
 
-    /** Stage 2: Register the offline mode handler. */
-    public void setOfflineMessageHandler(@Nullable OfflineMessageHandler handler) {
-        this.offlineMessageHandler = handler;
+    public void setOfflineController(@Nullable OfflineModeController controller) {
+        this.offlineController = controller;
     }
 
     // ─── User actions ─────────────────────────────────────────────────────────
@@ -270,44 +217,30 @@ public class ChatCoordinator implements ChatMessageAdapter.ChatMessageListener {
             return;
         }
 
-        // 1. Create and add user message
         ChatMessage userMessage = ChatMessage.user(trimmed);
         addMessageInternal(userMessage);
 
-        // 2. Stage 2: Check offline handler FIRST
-        if (offlineMessageHandler != null
-                && offlineMessageHandler.handleOfflineMessage(userMessage)) {
+        if (offlineController != null && offlineController.isOfflineModeActive()) {
             Log.d(TAG, "Message handled offline — skipping AI.");
+            offlineController.handleOfflineMessage(userMessage);
             return;
         }
 
-        // 3. Show typing indicator
         showTypingIndicator(true);
-
-        // 4. Mark as responding
         isAiResponding.set(true);
 
-        // 5. Notify listener
         if (coordinatorListener != null) coordinatorListener.onAiStarted();
 
-        // 6. Snapshot history for AI delegate
         List<ChatMessage> historyCopy =
                 Collections.unmodifiableList(new ArrayList<>(messages));
 
-        // 7. Delegate to AI (runs on background thread)
         backgroundExecutor.submit(() -> {
-            if (aiDelegate != null) {
-                aiDelegate.onUserMessageReady(userMessage, historyCopy,
-                        buildAiResponseCallback());
-            } else {
-                runStage1EchoResponse(trimmed);
-            }
+            runEchoResponse(trimmed);
         });
     }
 
     public void cancelCurrentResponse() {
         if (!isAiResponding.get()) return;
-        if (aiDelegate != null) aiDelegate.onCancelRequested();
         mainHandler.post(() -> {
             isAiResponding.set(false);
             showTypingIndicator(false);
@@ -475,75 +408,6 @@ public class ChatCoordinator implements ChatMessageAdapter.ChatMessageListener {
         else mainHandler.post(r);
     }
 
-    // ─── AI response callback factory ────────────────────────────────────────
-
-    @NonNull
-    private AiResponseCallback buildAiResponseCallback() {
-        return new AiResponseCallback() {
-
-            @Override
-            public void onStreamingStarted() {
-                mainHandler.post(() -> {
-                    showTypingIndicator(false);
-                    streamingMessage = ChatMessage.aiPlaceholder();
-                    streamingMessage.setStreaming(true);
-                    addMessageInternal(streamingMessage);
-                });
-            }
-
-            @Override
-            public void onTokenReceived(@NonNull String token) {
-                if (streamingMessage != null) streamingMessage.appendText(token);
-
-                long now = System.currentTimeMillis();
-                if (now - lastStreamingUpdateMs >= STREAMING_BATCH_INTERVAL_MS) {
-                    lastStreamingUpdateMs = now;
-                    scheduleBatchUpdate();
-                }
-            }
-
-            @Override
-            public void onStreamingComplete(@NonNull String fullResponse) {
-                mainHandler.post(() -> {
-                    cancelPendingBatchUpdate();
-
-                    if (streamingMessage != null) {
-                        streamingMessage.setText(fullResponse);
-                        streamingMessage.setStreaming(false);
-                        streamingMessage.setStatus(ChatMessage.MessageStatus.SENT);
-                        if (adapter != null) adapter.updateMessage(streamingMessage);
-                        streamingMessage = null;
-                    }
-
-                    isAiResponding.set(false);
-                    showTypingIndicator(false);
-                    scrollToBottom(true);
-
-                    if (coordinatorListener != null) coordinatorListener.onAiFinished();
-                });
-            }
-
-            @Override
-            public void onError(@NonNull String errorMessage) {
-                mainHandler.post(() -> {
-                    cancelPendingBatchUpdate();
-
-                    if (streamingMessage != null) {
-                        messages.remove(streamingMessage);
-                        if (adapter != null) adapter.removeMessage(streamingMessage.getId());
-                        streamingMessage = null;
-                    }
-
-                    addMessageInternal(ChatMessage.error(null, errorMessage));
-                    isAiResponding.set(false);
-                    showTypingIndicator(false);
-
-                    if (coordinatorListener != null) coordinatorListener.onAiError(errorMessage);
-                });
-            }
-        };
-    }
-
     private void scheduleBatchUpdate() {
         if (pendingBatchUpdate != null) mainHandler.removeCallbacks(pendingBatchUpdate);
         pendingBatchUpdate = () -> {
@@ -567,34 +431,8 @@ public class ChatCoordinator implements ChatMessageAdapter.ChatMessageListener {
 
     // ─── Stage 1 echo placeholder ─────────────────────────────────────────────
 
-    @WorkerThread
-    private void runStage1EchoResponse(@NonNull String userText) {
-        AiResponseCallback callback = buildAiResponseCallback();
-        callback.onStreamingStarted();
-
-        try { Thread.sleep(600); } catch (InterruptedException e) {
-            Thread.currentThread().interrupt(); return;
-        }
-
-        String response =
-                "**[Stage 2 Foundation — AIOrchestrator not yet connected]**\n\n"
-                + "ChatCoordinator received:\n> " + userText + "\n\n"
-                + "Connect `AIOrchestrator` via `setAiDelegate()` to enable real AI responses.\n\n"
-                + "✅ Stage 2 architecture ready:\n"
-                + "- AIOrchestrator ← ToolManager ← Tool implementations\n"
-                + "- OfflineModeController functional\n"
-                + "- addToolResultMessage() / addSystemMessage() available\n"
-                + "- DiffUtil adapter running";
-
-        for (int i = 0; i < response.length(); i++) {
-            if (Thread.currentThread().isInterrupted()) return;
-            callback.onTokenReceived(String.valueOf(response.charAt(i)));
-            try { Thread.sleep(6); } catch (InterruptedException e) {
-                Thread.currentThread().interrupt(); return;
-            }
-        }
-
-        callback.onStreamingComplete(response);
+    private void runEchoResponse(@NonNull String userText) {
+        addSystemMessage("AI is not connected. Configure an AI provider in Settings to enable responses.");
     }
 
     // ─── Getters ──────────────────────────────────────────────────────────────

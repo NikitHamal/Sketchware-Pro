@@ -95,10 +95,8 @@ public class ToolRegistry {
         // ── UI Layout — ViewBean-level tools (deep Sketchware Pro integration) ──
         registry.register(new LayoutTools.DescribeLayoutTool());
         registry.register(new LayoutTools.EditLayoutTool());
-        registry.register(new DesignXmlEditorTool.DescribeLayoutTool());
         registry.register(new DesignXmlEditorTool.AddViewXmlTool());
         registry.register(new DesignXmlEditorTool.GenerateLayoutTool());
-        registry.register(new LiveUiPreviewTool.DescribeLayoutLiveTool());
         registry.register(new LiveUiPreviewTool.BuildScreenLayoutTool());
         registry.register(new LiveUiPreviewTool.AddViewLiveTool());
         registry.register(new LiveUiPreviewTool.ModifyViewLiveTool());
@@ -158,19 +156,6 @@ public class ToolRegistry {
         registry.register(new pro.sketchware.ai.tools.blocks.BlockApiTools.CreateMoreBlockTool());
         registry.register(new pro.sketchware.ai.tools.blocks.BlockApiTools.DeleteMoreBlockTool());
 
-        // ── UI Layout — ViewBean-level tools (deep Sketchware Pro integration) ──
-        registry.register(new LayoutTools.DescribeLayoutTool());
-        registry.register(new LayoutTools.EditLayoutTool());
-        registry.register(new DesignXmlEditorTool.DescribeLayoutTool());
-        registry.register(new DesignXmlEditorTool.AddViewXmlTool());
-        registry.register(new DesignXmlEditorTool.GenerateLayoutTool());
-        registry.register(new LiveUiPreviewTool.DescribeLayoutLiveTool());
-        registry.register(new LiveUiPreviewTool.BuildScreenLayoutTool());
-        registry.register(new LiveUiPreviewTool.AddViewLiveTool());
-        registry.register(new LiveUiPreviewTool.ModifyViewLiveTool());
-        registry.register(new LiveUiPreviewTool.RemoveViewLiveTool());
-        registry.register(new LayoutGeneratorTool());
-
         // ── Developer Utilities (web search, shell, logcat, resource scan) ─
 
         registry.register(new DevTools.WebSearchTool());
@@ -224,10 +209,8 @@ public class ToolRegistry {
         // ── UI Layout — ViewBean-level tools (deep Sketchware Pro integration) ──
         registry.register(new LayoutTools.DescribeLayoutTool());
         registry.register(new LayoutTools.EditLayoutTool());
-        registry.register(new DesignXmlEditorTool.DescribeLayoutTool());
         registry.register(new DesignXmlEditorTool.AddViewXmlTool());
         registry.register(new DesignXmlEditorTool.GenerateLayoutTool());
-        registry.register(new LiveUiPreviewTool.DescribeLayoutLiveTool());
         registry.register(new LiveUiPreviewTool.BuildScreenLayoutTool());
         registry.register(new LiveUiPreviewTool.AddViewLiveTool());
         registry.register(new LiveUiPreviewTool.ModifyViewLiveTool());
@@ -276,19 +259,6 @@ public class ToolRegistry {
         registry.register(new pro.sketchware.ai.tools.blocks.BlockApiTools.GetMoreBlocksTool());
         registry.register(new pro.sketchware.ai.tools.blocks.BlockApiTools.CreateMoreBlockTool());
         registry.register(new pro.sketchware.ai.tools.blocks.BlockApiTools.DeleteMoreBlockTool());
-
-        // ── UI Layout — ViewBean-level tools (deep Sketchware Pro integration) ──
-        registry.register(new LayoutTools.DescribeLayoutTool());
-        registry.register(new LayoutTools.EditLayoutTool());
-        registry.register(new DesignXmlEditorTool.DescribeLayoutTool());
-        registry.register(new DesignXmlEditorTool.AddViewXmlTool());
-        registry.register(new DesignXmlEditorTool.GenerateLayoutTool());
-        registry.register(new LiveUiPreviewTool.DescribeLayoutLiveTool());
-        registry.register(new LiveUiPreviewTool.BuildScreenLayoutTool());
-        registry.register(new LiveUiPreviewTool.AddViewLiveTool());
-        registry.register(new LiveUiPreviewTool.ModifyViewLiveTool());
-        registry.register(new LiveUiPreviewTool.RemoveViewLiveTool());
-        registry.register(new LayoutGeneratorTool());
 
         // ── GitHub Intelligence Tools ────────────────────────────────────────
         registry.register(new AI_GitHub_Analyzer.GitHubCompareTool());
