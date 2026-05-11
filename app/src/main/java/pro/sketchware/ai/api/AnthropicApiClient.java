@@ -194,7 +194,7 @@ public class AnthropicApiClient extends AiApiClient {
                         if (m.getContent() == null) break;
                         JsonObject sysMsg = new JsonObject();
                         sysMsg.addProperty("role", "user");
-                        sysMsg.addProperty("content", "[SYSTEM NOTE]: " + m.getContent());
+                        sysMsg.addProperty("content", pro.sketchware.ai.prompts.SystemPrompts.ANTHROPIC_SYSTEM_NOTE_PREFIX + m.getContent());
                         msgs.add(sysMsg);
                         break;
                     }

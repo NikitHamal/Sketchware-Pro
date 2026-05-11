@@ -376,10 +376,6 @@ public final class AIEngine {
     }
 
     private static String buildSystemPrompt() {
-        return "You are an expert Android layout engineer embedded in Sketchware Pro. "
-                + "Always output ONLY valid Android XML inside ```xml … ``` fences. "
-                + "Never include explanations inside the XML. "
-                + "Never remove existing views unless explicitly asked. "
-                + "All android:id values must use @+id/snake_case format.";
+        return pro.sketchware.ai.prompts.SystemPrompts.AI_ENGINE_SYSTEM_PROMPT;
     }
 }

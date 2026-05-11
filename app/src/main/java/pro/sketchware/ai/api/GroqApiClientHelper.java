@@ -138,7 +138,6 @@ public final class GroqApiClientHelper {
     }
 
     private static String getDefaultSystemPrompt() {
-        return "You are an expert Android developer assistant helping with Sketchware Pro block management. "
-                + "Be concise, precise, and respond only with what was asked.";
+        return pro.sketchware.ai.prompts.SystemPrompts.GROQ_BLOCK_MANAGEMENT_PROMPT;
     }
 }

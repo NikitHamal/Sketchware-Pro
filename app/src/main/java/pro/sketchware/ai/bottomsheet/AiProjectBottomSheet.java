@@ -833,7 +833,7 @@ public class AiProjectBottomSheet
                     pro.sketchware.ai.bottomsheet.AiToolsBottomSheet.show(context,
                             agentExecutor != null ? agentExecutor.getToolRegistry() : new ToolRegistry(),
                             tool -> {
-                        String prompt = "Use the \"" + tool.name + "\" tool to help me: ";
+                        String prompt = pro.sketchware.ai.prompts.SystemPrompts.buildToolPromptTemplate(tool.name);
                         inputView.setText(prompt);
                         inputView.setSelection(inputView.getText().length());
                         if (currentState == STATE_HIDDEN) animateTo(STATE_HALF);
@@ -1069,9 +1069,7 @@ public class AiProjectBottomSheet
         // Plain readable text — no markdown symbols (they render as ** ` etc. in some builds)
         pro.sketchware.ai.models.ChatMessage sysMsg =
                 pro.sketchware.ai.models.ChatMessage.assistantMessage(
-                    "📋 Ready for screen: " + actName + "\n"
-                    + "Project: " + scId + "\n"
-                    + "Tip: Use the sidebar to pick a tool, or just describe what you want.",
+                    pro.sketchware.ai.prompts.SystemPrompts.buildReadyMessage(actName, scId),
                     null);
         chatAdapter.addAssistantMessage(sysMsg);
     }
@@ -1090,9 +1088,7 @@ public class AiProjectBottomSheet
         isAwaitingLayoutPrompt = true;
         pro.sketchware.ai.models.ChatMessage promptMsg =
                 pro.sketchware.ai.models.ChatMessage.assistantMessage(
-                    "🎨 Generate Layout for: " + actName + "\n\n"
-                    + "Describe what you want. Be specific about widgets and layout.\n\n"
-                    + "Example: A calculator with a display at top and 4x4 button grid.",
+                    pro.sketchware.ai.prompts.SystemPrompts.buildLayoutGeneratorPrompt(actName),
                     null);
         chatAdapter.addAssistantMessage(promptMsg);
         scrollToBottom();

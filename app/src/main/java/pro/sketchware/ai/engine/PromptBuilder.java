@@ -1,72 +1,112 @@
 package pro.sketchware.ai.engine;
 
+import pro.sketchware.ai.prompts.SystemPrompts;
+
 /**
  * PromptBuilder — builds per-tool, context-aware prompts for the AI engine.
  *
- * <p>Every tool has its own prompt template with strict guardrails baked in.
- * Context (existing XML, Java code, user request, screen info) is injected
- * cleanly to maximize accuracy and minimize hallucinations.
- *
- * <p>Design principles:
- * <ul>
- *   <li>Prompts are deterministic — same inputs → same prompt structure</li>
- *   <li>Every prompt ends with "OUTPUT:" to force the model into output mode</li>
- *   <li>Guardrails are repeated inline so the model can't miss them</li>
- *   <li>XML output is always fenced with {@code ```xml} so extraction is reliable</li>
- * </ul>
+ * <p>Delegates to {@link SystemPrompts} for all prompt text. This class
+ * retains its own API for backward compatibility but all prompt content
+ * is now centralized in SystemPrompts.
  */
 public final class PromptBuilder {
 
     private PromptBuilder() {}
 
-    // ── Shared guardrails appended to every prompt ────────────────────────────
+    // ── Shared guardrails (delegated to SystemPrompts) ─────────────────────────
 
-    private static final String GUARDRAILS =
-            "\n\n⚠️ STRICT RULES — NEVER VIOLATE:\n"
-            + "• Output ONLY valid Android XML inside ```xml … ``` fences\n"
-            + "• Never remove existing views unless explicitly asked\n"
-            + "• Never change existing android:id values\n"
-            + "• Never use deprecated attributes (layout_marginStart = OK, paddingLeft prefer Start/End)\n"
-            + "• Never put logic or explanations inside the XML\n"
-            + "• All IDs must follow @+id/snake_case format\n"
-            + "• Root must always have android:layout_width and android:layout_height\n"
-            + "• Never emit ```java, only ```xml\n"
-            + "• ViewBean type=2 is HorizontalScrollView NOT TextView — use type=4 for TextView\n"
-            + "• Every screen MUST have a _fab section (auto-created)\n"
-            + "• Root views: parent=\"root\", preIndex=-1, preParent=\"\", preParentType=-1\n"
-            + "• In horizontal LinearLayout children that fill: width=0, weight=1\n"
-            + "• Colors are ARGB signed ints: -1=white, -16777216=black, 0=transparent\n"
-            + "• Width/Height: -1=MATCH_PARENT, -2=WRAP_CONTENT, N=dp\n"
-            + "• Gravity: 0=none, 17=center, 16=center_horizontal, 5=center_vertical, 48=top\n";
+    private static final String GUARDRAILS = SystemPrompts.GUARDRAILS;
 
     // ── Tool: GENERATE_UI ──────────────────────────────────────────────────────
 
-    /**
-     * Builds a prompt to generate a brand-new layout from a free-text description.
-     *
-     * @param userRequest   what the user wants (e.g. "login screen with email and password")
-     * @param activityName  name of the activity/screen being designed
-     * @param projectPkg    app package name (for contextual decisions)
-     * @return full system+user prompt string
-     */
     public static String buildGenerateUiPrompt(
             String userRequest, String activityName, String projectPkg) {
-        return "You are an expert Android layout engineer specializing in Sketchware Pro.\n"
-                + "Generate a complete, modern Android XML layout for the following request.\n\n"
-                + "Activity: " + safe(activityName) + "\n"
-                + "Package: "  + safe(projectPkg)  + "\n"
-                + "Screen size target: phone (360–420 dp wide)\n\n"
-                + "User request:\n" + safe(userRequest) + "\n\n"
-                + "Requirements:\n"
-                + "• Use ConstraintLayout or LinearLayout as root\n"
-                + "• Apply Material Design 3 style (rounded corners, proper spacing)\n"
-                + "• Use android:layout_width/height properly\n"
-                + "• Give every interactive view a meaningful android:id\n"
-                + "• Use @color/colorPrimary for branding elements\n"
-                + "• Margins: 16dp standard, 8dp inner gaps\n"
-                + GUARDRAILS
-                + "\nOUTPUT (full XML only):";
+        return SystemPrompts.buildGenerateUiPrompt(userRequest, activityName, projectPkg);
     }
+
+    // ── Tool: MODIFY_UI ────────────────────────────────────────────────────────
+
+    public static String buildModifyUiPrompt(
+            String userRequest, String existingXml, String activityName) {
+        return SystemPrompts.buildModifyUiPrompt(userRequest, existingXml, activityName);
+    }
+
+    // ── Tool: FIX_CODE ─────────────────────────────────────────────────────────
+
+    public static String buildFixPrompt(String brokenXml, String errorReport) {
+        return SystemPrompts.buildFixPrompt(brokenXml, errorReport);
+    }
+
+    // ── Tool: OPTIMIZE ────────────────────────────────────────────────────────
+
+    public static String buildOptimizePrompt(String xml, String activityName) {
+        return SystemPrompts.buildOptimizePrompt(xml, activityName);
+    }
+
+    // ── Tool: RTL_PROMPT (for AI-assisted RTL advice only) ────────────────────
+
+    public static String buildRtlReviewPrompt(String xml) {
+        return SystemPrompts.buildRtlReviewPrompt(xml);
+    }
+
+    // ── Tool: EXPLAIN ──────────────────────────────────────────────────────────
+
+    public static String buildExplainPrompt(String xml, String language) {
+        return SystemPrompts.buildExplainPrompt(xml, language);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /** Null-safe string: replaces null with empty string. */
+    private static String safe(String s) {
+        return s != null ? s : "";
+    }
+
+    /**
+     * Extracts the XML block from an AI response.
+     * The model should always output {@code ```xml … ```} but this handles edge cases:
+     * raw XML, missing fences, extra text around the block.
+     *
+     * @param aiResponse the raw AI text response
+     * @return extracted XML string, or the raw response if no fence found
+     */
+    public static String extractXmlFromResponse(String aiResponse) {
+        if (aiResponse == null || aiResponse.isEmpty()) return "";
+
+        // Primary: ```xml … ``` fence
+        int start = aiResponse.indexOf("```xml");
+        if (start >= 0) {
+            start += 6;
+            // skip optional newline right after ```xml
+            if (start < aiResponse.length() && aiResponse.charAt(start) == '\n') start++;
+            int end = aiResponse.indexOf("```", start);
+            if (end > start) return aiResponse.substring(start, end).trim();
+        }
+
+        // Secondary: ``` … ``` fence (no language marker)
+        start = aiResponse.indexOf("```");
+        if (start >= 0) {
+            start += 3;
+            if (start < aiResponse.length() && aiResponse.charAt(start) == '\n') start++;
+            int end = aiResponse.indexOf("```", start);
+            if (end > start) return aiResponse.substring(start, end).trim();
+        }
+
+        // Tertiary: response starts with a valid XML tag
+        String trimmed = aiResponse.trim();
+        if (trimmed.startsWith("<?xml") || trimmed.startsWith("<LinearLayout")
+                || trimmed.startsWith("<ConstraintLayout")
+                || trimmed.startsWith("<RelativeLayout")
+                || trimmed.startsWith("<FrameLayout")
+                || trimmed.startsWith("<ScrollView")
+                || trimmed.startsWith("<androidx.")) {
+            return trimmed;
+        }
+
+        // Fallback: return as-is and let XMLValidator decide
+        return aiResponse.trim();
+    }
+}
 
     // ── Tool: MODIFY_UI ────────────────────────────────────────────────────────
 

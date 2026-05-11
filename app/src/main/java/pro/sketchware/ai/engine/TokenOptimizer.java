@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import pro.sketchware.ai.models.ChatMessage;
+import pro.sketchware.ai.prompts.SystemPrompts;
 
 /**
  * Token Optimizer — reduces API token consumption without degrading quality.
@@ -135,8 +136,7 @@ public final class TokenOptimizer {
      */
     private static String buildSummaryText(List<ChatMessage> older) {
         StringBuilder sb = new StringBuilder();
-        sb.append("[CONVERSATION SUMMARY — ").append(older.size())
-          .append(" earlier messages compressed to save tokens]\n\n");
+        sb.append(SystemPrompts.buildSummaryPrefix(older.size()));
 
         int idx = 1;
         for (ChatMessage m : older) {
@@ -150,7 +150,7 @@ public final class TokenOptimizer {
                     : content;
             sb.append(idx++).append(". [").append(role).append("] ").append(snippet).append("\n");
         }
-        sb.append("\n[End of summary — full conversation continues below]");
+        sb.append(SystemPrompts.SUMMARY_SUFFIX);
         return sb.toString();
     }
 

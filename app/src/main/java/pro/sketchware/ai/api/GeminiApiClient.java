@@ -203,7 +203,7 @@ public class GeminiApiClient extends AiApiClient {
             // with a [SYSTEM NOTE] prefix so they reach the model and are not silently dropped.
             if ("system".equals(role)) {
                 role = "user";
-                msgContent = "[SYSTEM NOTE]: " + (msgContent != null ? msgContent : "");
+                msgContent = pro.sketchware.ai.prompts.SystemPrompts.ANTHROPIC_SYSTEM_NOTE_PREFIX + (msgContent != null ? msgContent : "");
             }
 
             JsonObject content = new JsonObject();
