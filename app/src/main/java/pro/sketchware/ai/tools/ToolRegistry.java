@@ -92,7 +92,18 @@ public class ToolRegistry {
         registry.register(new ActivityTools.CreateActivityTool());
         registry.register(new ActivityTools.DeleteActivityTool());
 
-        // ── UI Layout ─────────────────────────────────────────────────────
+        // ── UI Layout — ViewBean-level tools (deep Sketchware Pro integration) ──
+        registry.register(new LayoutTools.DescribeLayoutTool());
+        registry.register(new LayoutTools.EditLayoutTool());
+        registry.register(new DesignXmlEditorTool.DescribeLayoutTool());
+        registry.register(new DesignXmlEditorTool.AddViewXmlTool());
+        registry.register(new DesignXmlEditorTool.GenerateLayoutTool());
+        registry.register(new LiveUiPreviewTool.DescribeLayoutLiveTool());
+        registry.register(new LiveUiPreviewTool.BuildScreenLayoutTool());
+        registry.register(new LiveUiPreviewTool.AddViewLiveTool());
+        registry.register(new LiveUiPreviewTool.ModifyViewLiveTool());
+        registry.register(new LiveUiPreviewTool.RemoveViewLiveTool());
+        registry.register(new LayoutGeneratorTool());
 
         // ── Resources ────────────────────────────────────────────────────
         registry.register(new ResourceTools.AddStringResourceTool());
@@ -147,13 +158,18 @@ public class ToolRegistry {
         registry.register(new pro.sketchware.ai.tools.blocks.BlockApiTools.CreateMoreBlockTool());
         registry.register(new pro.sketchware.ai.tools.blocks.BlockApiTools.DeleteMoreBlockTool());
 
-        // ── UI Layout — 4 tools ONLY (describe, generate, add_xml, remove) ──────
+        // ── UI Layout — ViewBean-level tools (deep Sketchware Pro integration) ──
+        registry.register(new LayoutTools.DescribeLayoutTool());
+        registry.register(new LayoutTools.EditLayoutTool());
         registry.register(new DesignXmlEditorTool.DescribeLayoutTool());
-        // Preferred: XML-based tools using ViewBeanParser (matches Sketchware-IA approach)
         registry.register(new DesignXmlEditorTool.AddViewXmlTool());
         registry.register(new DesignXmlEditorTool.GenerateLayoutTool());
-
-        // ── Live UI Drawing (ViewBean — real-time DesignActivity reload) ──
+        registry.register(new LiveUiPreviewTool.DescribeLayoutLiveTool());
+        registry.register(new LiveUiPreviewTool.BuildScreenLayoutTool());
+        registry.register(new LiveUiPreviewTool.AddViewLiveTool());
+        registry.register(new LiveUiPreviewTool.ModifyViewLiveTool());
+        registry.register(new LiveUiPreviewTool.RemoveViewLiveTool());
+        registry.register(new LayoutGeneratorTool());
 
         // ── Developer Utilities (web search, shell, logcat, resource scan) ─
 
@@ -205,7 +221,18 @@ public class ToolRegistry {
         registry.register(new ActivityTools.CreateActivityTool());
         registry.register(new ActivityTools.DeleteActivityTool());
 
-        // ── UI Layout ─────────────────────────────────────────────────────
+        // ── UI Layout — ViewBean-level tools (deep Sketchware Pro integration) ──
+        registry.register(new LayoutTools.DescribeLayoutTool());
+        registry.register(new LayoutTools.EditLayoutTool());
+        registry.register(new DesignXmlEditorTool.DescribeLayoutTool());
+        registry.register(new DesignXmlEditorTool.AddViewXmlTool());
+        registry.register(new DesignXmlEditorTool.GenerateLayoutTool());
+        registry.register(new LiveUiPreviewTool.DescribeLayoutLiveTool());
+        registry.register(new LiveUiPreviewTool.BuildScreenLayoutTool());
+        registry.register(new LiveUiPreviewTool.AddViewLiveTool());
+        registry.register(new LiveUiPreviewTool.ModifyViewLiveTool());
+        registry.register(new LiveUiPreviewTool.RemoveViewLiveTool());
+        registry.register(new LayoutGeneratorTool());
 
         // ── Resources ────────────────────────────────────────────────────
         registry.register(new ResourceTools.AddStringResourceTool());
@@ -250,11 +277,18 @@ public class ToolRegistry {
         registry.register(new pro.sketchware.ai.tools.blocks.BlockApiTools.CreateMoreBlockTool());
         registry.register(new pro.sketchware.ai.tools.blocks.BlockApiTools.DeleteMoreBlockTool());
 
-        // ── UI Layout — 4 tools ONLY (describe, generate, add_xml, remove) ──────
+        // ── UI Layout — ViewBean-level tools (deep Sketchware Pro integration) ──
+        registry.register(new LayoutTools.DescribeLayoutTool());
+        registry.register(new LayoutTools.EditLayoutTool());
         registry.register(new DesignXmlEditorTool.DescribeLayoutTool());
-        // Preferred: XML-based tools using ViewBeanParser (matches Sketchware-IA approach)
         registry.register(new DesignXmlEditorTool.AddViewXmlTool());
         registry.register(new DesignXmlEditorTool.GenerateLayoutTool());
+        registry.register(new LiveUiPreviewTool.DescribeLayoutLiveTool());
+        registry.register(new LiveUiPreviewTool.BuildScreenLayoutTool());
+        registry.register(new LiveUiPreviewTool.AddViewLiveTool());
+        registry.register(new LiveUiPreviewTool.ModifyViewLiveTool());
+        registry.register(new LiveUiPreviewTool.RemoveViewLiveTool());
+        registry.register(new LayoutGeneratorTool());
 
         // ── GitHub Intelligence Tools ────────────────────────────────────────
         registry.register(new AI_GitHub_Analyzer.GitHubCompareTool());

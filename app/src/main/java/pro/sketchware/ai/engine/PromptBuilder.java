@@ -30,7 +30,14 @@ public final class PromptBuilder {
             + "• Never put logic or explanations inside the XML\n"
             + "• All IDs must follow @+id/snake_case format\n"
             + "• Root must always have android:layout_width and android:layout_height\n"
-            + "• Never emit ```java, only ```xml\n";
+            + "• Never emit ```java, only ```xml\n"
+            + "• ViewBean type=2 is HorizontalScrollView NOT TextView — use type=4 for TextView\n"
+            + "• Every screen MUST have a _fab section (auto-created)\n"
+            + "• Root views: parent=\"root\", preIndex=-1, preParent=\"\", preParentType=-1\n"
+            + "• In horizontal LinearLayout children that fill: width=0, weight=1\n"
+            + "• Colors are ARGB signed ints: -1=white, -16777216=black, 0=transparent\n"
+            + "• Width/Height: -1=MATCH_PARENT, -2=WRAP_CONTENT, N=dp\n"
+            + "• Gravity: 0=none, 17=center, 16=center_horizontal, 5=center_vertical, 48=top\n";
 
     // ── Tool: GENERATE_UI ──────────────────────────────────────────────────────
 

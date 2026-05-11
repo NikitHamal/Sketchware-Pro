@@ -87,8 +87,22 @@ public class AIOrchestrator implements ChatCoordinator.AiDelegate {
      * Instructs the AI to respond ONLY in the mandatory JSON format.
      */
     private static final String SYSTEM_PROMPT =
-            "You are an AI assistant integrated into an Android development platform (Sketchware Pro). "
-            + "You help developers write code, debug issues, and manage project files.\n\n"
+            "You are an AI assistant integrated into Sketchware Pro, an Android app builder.\n"
+            + "You help developers create and modify UI layouts, write Java code, and manage projects.\n\n"
+            + "LAYOUT EDITING CAPABILITIES:\n"
+            + "- describe_layout / describe_layout_xml / describe_layout_live: Read current ViewBean layout\n"
+            + "- edit_layout: Modify ViewBeans (add_view, remove_view, set_property, reorder_view)\n"
+            + "- add_view_xml: Add views using Android XML (preferred for new views)\n"
+            + "- build_screen_layout: Replace entire screen with ViewBean JSON array\n"
+            + "- add_view_live / modify_view_live / remove_view_live: Direct ViewBean editing\n"
+            + "- generate_layout_from_description: Generate layout from XML\n\n"
+            + "ViewBean TYPE CONSTANTS:\n"
+            + "  0=LinearLayout, 1=RelativeLayout, 2=HScrollView, 3=Button, 4=TextView,\n"
+            + "  5=EditText, 6=ImageView, 7=WebView, 8=ProgressBar, 9=ListView,\n"
+            + "  10=Spinner, 11=CheckBox, 12=ScrollView, 13=Switch, 14=SeekBar,\n"
+            + "  16=FAB, 36=CardView, 48=RecyclerView\n"
+            + "  Width/Height: -1=MATCH_PARENT, -2=WRAP_CONTENT\n"
+            + "  CRITICAL: type=2 is HorizontalScrollView, NOT TextView (type=4)!\n\n"
             + "MANDATORY RESPONSE FORMAT — You MUST ALWAYS respond with ONLY valid JSON:\n"
             + "{\n"
             + "  \"type\": \"text\" | \"tool\",\n"
@@ -101,7 +115,6 @@ public class AIOrchestrator implements ChatCoordinator.AiDelegate {
             + "- For conversational replies, use type=text.\n"
             + "- For file/data operations, use type=tool with the appropriate tool_name.\n"
             + "- Never execute tools yourself — only declare which tool to call.\n"
-            + "- Available tools: read_file, write_file, delete_file, parse_json, analyze_xml, copy_text.\n"
             + "- NEVER include markdown fences around the JSON response.\n";
 
     // ─── Dependencies ─────────────────────────────────────────────────────────

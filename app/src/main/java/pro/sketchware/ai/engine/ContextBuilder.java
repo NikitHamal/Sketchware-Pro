@@ -112,6 +112,41 @@ public class ContextBuilder {
         return sb.toString();
     }
 
+    /**
+     * Builds a detailed context string for a specific activity's layout,
+     * reading the ViewBean data from jC (in-memory) or disk.
+     */
+    @NonNull
+    public static String getActivityLayoutContext(@NonNull String scId, @NonNull String xmlName) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Layout context for activity ").append(xmlName).append(":\n\n");
+
+        try {
+            ArrayList<com.besome.sketch.beans.ViewBean> beans =
+                    a.a.a.jC.a(scId).d(xmlName);
+            if (beans != null && !beans.isEmpty()) {
+                sb.append("Views (").append(beans.size()).append(" total):\n");
+                for (com.besome.sketch.beans.ViewBean bean : beans) {
+                    sb.append("  id=").append(bean.id);
+                    sb.append(" type=").append(com.besome.sketch.beans.ViewBean.getViewTypeName(bean.type));
+                    sb.append("(").append(bean.type).append(")");
+                    sb.append(" parent=").append(bean.parent != null ? bean.parent : "root");
+                    if (bean.text != null && bean.text.text != null && !bean.text.text.isEmpty()) {
+                        sb.append(" text=\"").append(bean.text.text).append("\"");
+                    }
+                    sb.append("\n");
+                }
+            } else {
+                sb.append("(No views loaded in memory)\n");
+            }
+        } catch (Exception e) {
+            sb.append("(Could not read layout: ").append(e.getMessage()).append(")\n");
+        }
+
+        sb.append("\n").append(pro.sketchware.ai.tools.SketchwareViewBridge.buildTypeReference());
+        return sb.toString();
+    }
+
     // ── Directory resolution ─────────────────────────────────────────────────
 
     /**
