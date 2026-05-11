@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Primary actions shown as icons -->
+    <item
+        android:id="@+id/action_download"
+        android:icon="@drawable/ic_mtrl_download"
+        android:title="Download library"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_refresh_versions"
+        android:icon="@drawable/ic_mtrl_refresh"
+        android:title="Refresh versions"
+        app:showAsAction="ifRoom" />
+
+    <!-- Overflow items -->
+    <item
+        android:id="@+id/action_update_all"
+        android:title="Update all libraries"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_scan_jars"
+        android:title="Scan JARs for coordinates"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_sort"
+        android:title="Sort libraries"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_select"
+        android:title="Select libraries"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_import"
+        android:title="Import library"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_backup_all"
+        android:title="Backup all libraries"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_restore_backup"
+        android:title="Restore from backup"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_version_history"
+        android:title="Version history"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_manage_repositories"
+        android:title="Manage repositories"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_find_duplicate_libraries"
+        android:title="Find duplicate libraries"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_detect_conflicts"
+        android:title="Detect conflicts"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_clean_unused"
+        android:title="Clean unused libraries"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_remove_unused_libraries"
+        android:title="Remove unused libraries"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_clean_orphans"
+        android:title="Clean orphan files"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_delete_old_unused"
+        android:title="Delete old unused libraries"
+        app:showAsAction="never" />
+
+</menu>
