@@ -27,15 +27,28 @@ public class AiPreferences {
     private static final String KEY_TEMPERATURE = "ai_temperature";
     private static final String KEY_MAX_TOKENS = "ai_max_tokens";
     private static final String KEY_AUTO_FIX_ON_ERROR = "ai_auto_fix_on_error";
+
+    /** Prefix for provider enabled toggle — must match AiSettingsActivity.PREF_ENABLED */
+    public static final String KEY_PROVIDER_ENABLED = "provider_enabled_";
+    
+    /** Morph (MORF) code-edit AI — used to refine AI-generated layouts */
+    public static final String KEY_MORPH_API_KEY    = "morph_api_key";
+    public static final String KEY_MORPH_ENABLED    = "morph_enabled";
+    public static final String KEY_MORPH_FOR_LAYOUT = "morph_for_layout";
+
+    /** Optional: dedicated provider for layout generation (Groq recommended — fast). */
+    public static final String KEY_LAYOUT_AI_PROVIDER = "layout_ai_provider";
     
     /** Profile-specific model and provider settings */
     private static final String KEY_PROFILE_MODEL_PREFIX = "profile_model_";
     private static final String KEY_PROFILE_PROVIDER_PREFIX = "profile_provider_";
 
     /** الموديلات الافتراضية الذكية للمزودات (برمجية وقوية) */
-    public static final String DEFAULT_DEEPINFRA_MODEL = "deepseek-ai/DeepSeek-V3";
-    public static final String DEFAULT_AIRFORCE_MODEL  = "deepseek-v3:free";
-    public static final String DEFAULT_GROQ_MODEL      = "compound-beta-mini"; // Groq compound-beta-mini: fast + tool-calling, matches IA approach
+    public static final String DEFAULT_DEEPINFRA_MODEL        = "google/gemma-3-27b-it";
+    public static final String DEFAULT_GROQ_MODEL             = "compound-beta-mini";
+    public static final String DEFAULT_TOGETHER_MODEL         = "google/gemma-3-27b-it";
+    public static final String DEFAULT_SAMBANOVA_MODEL        = "Gemma-3-27B-IT";
+    public static final String DEFAULT_GOOGLE_AI_STUDIO_MODEL = "gemma-3-27b-it";
     public static final String DEFAULT_DEEPSEEK_MODEL  = "deepseek-chat";
     public static final String DEFAULT_ANTHROPIC_MODEL  = "claude-sonnet-4-5"; // Claude Sonnet 4.5 — best for code
     public static final String DEFAULT_OPENAI_MODEL     = "gpt-4o-mini";
@@ -201,6 +214,16 @@ public class AiPreferences {
         return key != null && !key.isEmpty();
     }
 
+    /**
+     * Returns true if the provider has been toggled ON by the user in AI Settings.
+     * GOOGLE_AI_STUDIO and SAMBANOVA are enabled by default.
+     */
+    public boolean isProviderEnabled(@NonNull AiProvider provider) {
+        boolean defaultEnabled = provider == AiProvider.GOOGLE_AI_STUDIO
+                || provider == AiProvider.SAMBANOVA;
+        return prefs.getBoolean(KEY_PROVIDER_ENABLED + provider.name(), defaultEnabled);
+    }
+
     public void clearApiKey(@NonNull AiProvider provider) {
         prefs.edit().remove(KEY_API_KEY_PREFIX + provider.name()).apply();
     }
@@ -236,15 +259,16 @@ public class AiPreferences {
         if (saved != null && !saved.isEmpty()) return saved;
         
         switch (provider) {
-            case DEEPINFRA:    return DEFAULT_DEEPINFRA_MODEL;
-            case AIRFORCE:     return DEFAULT_AIRFORCE_MODEL;
-            case GROQ:         return DEFAULT_GROQ_MODEL;
-            case DEEPSEEK:     return DEFAULT_DEEPSEEK_MODEL;
-            case ANTHROPIC:    return DEFAULT_ANTHROPIC_MODEL;
-            case OPENAI:       return DEFAULT_OPENAI_MODEL;
-            case GEMINI:       return DEFAULT_GEMINI_MODEL;
-            case GOOGLE_AI_STUDIO: return DEFAULT_GEMINI_MODEL;
-            default:           return null;
+            case DEEPINFRA:        return DEFAULT_DEEPINFRA_MODEL;
+            case GROQ:             return DEFAULT_GROQ_MODEL;
+            case DEEPSEEK:         return DEFAULT_DEEPSEEK_MODEL;
+            case ANTHROPIC:        return DEFAULT_ANTHROPIC_MODEL;
+            case OPENAI:           return DEFAULT_OPENAI_MODEL;
+            case GEMINI:           return DEFAULT_GEMINI_MODEL;
+            case GOOGLE_AI_STUDIO: return DEFAULT_GOOGLE_AI_STUDIO_MODEL;
+            case TOGETHER:         return DEFAULT_TOGETHER_MODEL;
+            case SAMBANOVA:        return DEFAULT_SAMBANOVA_MODEL;
+            default:               return null;
         }
     }
 
@@ -268,7 +292,9 @@ public class AiPreferences {
 
     @NonNull
     public String getSystemPrompt() {
-        return prefs.getString(KEY_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT);
+        String base = prefs.getString(KEY_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT);
+        // Always append the capability manifest so the AI knows what tools it has
+        return base + pro.sketchware.ai.manifest.AiCapabilityManifest.buildSystemPromptInjection();
     }
 
     public float getTemperature() {
@@ -293,6 +319,28 @@ public class AiPreferences {
 
     public void setAutoFixOnError(boolean enabled) {
         prefs.edit().putBoolean(KEY_AUTO_FIX_ON_ERROR, enabled).apply();
+    }
+
+    // ── Morph (MORF) Layout Refinement ─────────────────────────────────────
+
+    public String getMorphApiKey() {
+        return prefs.getString(KEY_MORPH_API_KEY, "");
+    }
+
+    public void setMorphApiKey(@NonNull String key) {
+        prefs.edit().putString(KEY_MORPH_API_KEY, key.trim()).apply();
+    }
+
+    /** True if Morph is enabled globally (has API key + user turned it on). */
+    public boolean isMorphEnabled() {
+        return prefs.getBoolean(KEY_MORPH_ENABLED, false)
+                && !getMorphApiKey().isEmpty();
+    }
+
+    /** True if Morph should automatically refine AI-generated layouts. */
+    public boolean isMorphForLayoutEnabled() {
+        return isMorphEnabled()
+                && prefs.getBoolean(KEY_MORPH_FOR_LAYOUT, false);
     }
 
     // ── Profile-Specific Settings ───────────────────────────────────────────

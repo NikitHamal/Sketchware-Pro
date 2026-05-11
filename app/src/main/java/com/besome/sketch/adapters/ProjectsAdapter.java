@@ -35,8 +35,11 @@ import mod.hey.studios.project.ProjectSettingsDialog;
 import mod.hey.studios.project.backup.BackupRestoreManager;
 import mod.hey.studios.util.Helper;
 import pro.sketchware.R;
+import pro.sketchware.project.ProjectCloneTool;
+
 import pro.sketchware.activities.main.fragments.projects.ProjectsFragment;
 import pro.sketchware.ai.integration.AiProjectIntegrationHelper;
+import pro.sketchware.ai.storage.WorkspaceManager;
 import pro.sketchware.databinding.BottomSheetProjectOptionsBinding;
 import pro.sketchware.databinding.MyprojectsItemBinding;
 
@@ -217,11 +220,17 @@ public class ProjectsAdapter extends RecyclerView.Adapter<ProjectsAdapter.Projec
         String scId = yB.c(projectMap, "sc_id");
         new Thread(() -> {
             lC.a(activity, scId);
+            // Delete AI workspace and chat history for this project
+            try {
+                WorkspaceManager workspaceManager = new WorkspaceManager(activity);
+                workspaceManager.deleteWorkspace("project-" + scId);
+            } catch (Exception ignored) {}
             activity.runOnUiThread(() -> {
                 progressDialog.dismiss();
-                shownProjects.remove(position);
-                notifyDataSetChanged();
                 allProjects.remove(projectMap);
+                // Reset isLoading so refreshProjectsList can run
+                projectsFragment.resetLoadingState();
+                projectsFragment.refreshProjectsList();
             });
         }).start();
     }
@@ -305,6 +314,11 @@ public class ProjectsAdapter extends RecyclerView.Adapter<ProjectsAdapter.Projec
                     "AI • " + projectName,
                     "Audit and improve Sketchware project '" + projectName + "'. Understand its screens, logic, resources, libraries, and build setup, then help me make production-ready changes.");
             projectOptionsBSD.dismiss();
+        });
+
+        binding.projectClone.setOnClickListener(v -> {
+            projectOptionsBSD.dismiss();
+            ProjectCloneTool.showDialogNow(activity, yB.c(projectMap, "sc_id"));
         });
 
         binding.projectDelete.setOnClickListener(v -> {

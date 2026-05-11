@@ -44,33 +44,18 @@ public enum AiProvider {
 
     DEEPINFRA("DeepInfra",
             "https://api.deepinfra.com",
-            "/models/featured", "/v1/openai/chat/completions", false, false,
-            "DeepInfra — free inference for open-source models. Note: may be rate-limited (403) during peak hours."),
-
-    PAXSENIX("Paxsenix",
-            "https://api.paxsenix.biz.id",
-            "/v1/models", "/v1/chat/completions", true, false,
-            "Paxsenix — alternative AI gateway. Good fallback when other providers are unavailable."),
-
-    AIRFORCE("AirForce",
-            "https://api.airforce",
-            "/v1/models", "/v1/chat/completions", false, false,
-            "AirForce — completely free AI proxy. No API key required. Provides access to GPT-4o, Claude, and Gemini."),
-
-    MANUS("Manus AI",
-            "https://api.manus.im",
-            "/v1/models", "/v1/tasks", true, false,
-            "Manus AI — an autonomous agent API (async task-based, not OpenAI-compatible). Requires active Manus subscription at manus.im. NOTE: Manus uses /v1/tasks for submissions, not standard chat completions."),
+            "/v1/openai/models", "/v1/openai/chat/completions", true, false,
+            "DeepInfra — affordable inference for Gemma 2/3, Llama, Qwen, and DeepSeek models. Free trial credits available."),
 
     TOGETHER("Together AI",
             "https://api.together.xyz",
             "/v1/models", "/v1/chat/completions", true, false,
-            "Together AI — open-source models including Llama 3.3, Gemma 3, DeepSeek R1, and Qwen 2.5. Free tier available at together.ai."),
+            "Together AI — open-source models including Gemma 3 27B, Llama 3.3, DeepSeek R1, and Qwen 2.5. Free tier available."),
 
     HUGGINGFACE("HuggingFace",
             "https://api-inference.huggingface.co",
             "/v1/models", "/v1/chat/completions", true, false,
-            "HuggingFace — free inference for Gemma, Llama, Mistral, and Qwen models. Free API key at huggingface.co."),
+            "HuggingFace — free inference for Gemma 2/3, Llama, Mistral, and Qwen models. Free API key at huggingface.co."),
 
     CEREBRAS("Cerebras",
             "https://api.cerebras.ai",
@@ -82,10 +67,15 @@ public enum AiProvider {
             "/v1beta/openai/models", "/v1beta/openai/chat/completions", true, false,
             "Google AI Studio — free access to Gemma 3 models (1B, 4B, 12B, 27B) and Gemini Flash. Free API key at aistudio.google.com."),
 
+    SAMBANOVA("SambaNova",
+            "https://api.sambanova.ai",
+            "/v1/models", "/v1/chat/completions", true, false,
+            "SambaNova Cloud — free fast inference for Gemma 3, Gemma 2, Llama 4, DeepSeek R1. Free API key at cloud.sambanova.ai."),
+
     LOCAL_LLM("Local LLM",
             "http://localhost:1234",
             "/v1/models", "/v1/chat/completions", false, true,
-            "Local LLM — run models locally on your device or server (LM Studio, Ollama, etc.). Complete privacy, no internet needed.");
+            "Local LLM — run models locally on your device or server (LM Studio, Ollama). Supports Gemma 2/3/4 models.");
 
     private final String displayName;
     private final String baseUrl;
@@ -115,8 +105,8 @@ public enum AiProvider {
     public String getDescription()    { return description; }
 
     public String getSelectorLabel() {
-        if (unlimited)       return displayName + " ∞";
-        if (!apiKeyRequired) return displayName + " 🆓";
+        if (unlimited)       return displayName + " \u221e";
+        if (!apiKeyRequired) return displayName + " \uD83C\uDD93";
         return displayName;
     }
 

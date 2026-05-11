@@ -1,5 +1,7 @@
 package dev.aldi.sayuti.editor.manage;
 
+import pro.sketchware.library.LibraryVersionChecker;
+
 import static pro.sketchware.utility.FileUtil.deleteFile;
 import static pro.sketchware.utility.FileUtil.getExternalStorageDir;
 import static pro.sketchware.utility.FileUtil.isExistFile;
@@ -29,7 +31,14 @@ public class LocalLibrariesUtil {
         List<LocalLibrary> localLibraries = new LinkedList<>();
         for (File libraryFile : localLibraryFiles) {
             if (libraryFile.isDirectory()) {
-                localLibraries.add(LocalLibrary.fromFile(libraryFile));
+                LocalLibrary lib = LocalLibrary.fromFile(libraryFile);
+                // Load dependency string from the library's "dependency" file if it exists
+                File depFile = new File(libraryFile, "dependency");
+                if (depFile.exists()) {
+                    String dep = readFile(depFile.getAbsolutePath()).trim();
+                    if (!dep.isEmpty()) lib.setDependency(dep);
+                }
+                localLibraries.add(lib);
             }
         }
 
@@ -54,7 +63,12 @@ public class LocalLibrariesUtil {
                     int indexToRemove = -1;
                     for (int i = 0; i < projectUsedLibs.size(); i++) {
                         Map<String, Object> libraryMap = projectUsedLibs.get(i);
-                        if (library.getName().equals(libraryMap.get("name").toString())) {
+                        // Match by stable id (preferred) or by name (legacy fallback)
+                Object mapId   = libraryMap.get("id");
+                Object mapName = libraryMap.get("name");
+                boolean idMatch   = mapId   instanceof String && library.matches((String) mapId);
+                boolean nameMatch = mapName instanceof String && library.matches((String) mapName);
+                if (idMatch || nameMatch) {
                             indexToRemove = i;
                             break;
                         }
@@ -88,8 +102,23 @@ public class LocalLibrariesUtil {
         String pgRulesPath = localLibsPath + name + "/proguard.txt";
         String assetsPath = localLibsPath + name + "/assets";
 
+        // Compute stable id: strip version from folder name
+        String libId = LibraryVersionChecker.extractBaseNameFromFolder(name);
+        // Try to read from existing "id" file in library folder
+        File idFile = new File(localLibsPath + name + "/id");
+        if (idFile.exists()) {
+            try {
+                String stored = readFile(idFile.getAbsolutePath()).trim();
+                if (!stored.isEmpty()) libId = stored;
+            } catch (Exception ignored) {}
+        } else {
+            // Write id file for future lookups (write-once, never overwrite)
+            try { writeFile(idFile.getAbsolutePath(), libId); } catch (Exception ignored) {}
+        }
+
         HashMap<String, Object> localLibrary = new HashMap<>();
-        localLibrary.put("name", name);
+        localLibrary.put("id", libId);    // stable identifier (no version)
+        localLibrary.put("name", name);   // current folder name (may include version)
         if (dependency != null) {
             localLibrary.put("dependency", dependency);
         }
@@ -114,6 +143,90 @@ public class LocalLibrariesUtil {
         if (isExistFile(assetsPath)) {
             localLibrary.put("assetsPath", assetsPath);
         }
+
+        // ── Ported from ManageLocalLibrary (legacy): JNI native libs ──────
+        String jniPath = localLibsPath + name + "/jni";
+        if (isExistFile(jniPath)) {
+            localLibrary.put("jniPath", jniPath);
+        }
+
         return localLibrary;
+    }
+
+    // ── Utility methods ported from ManageLocalLibrary (legacy) ───────────
+
+    /**
+     * Returns paths to extra DEX files (classes2.dex, classes3.dex, …) found
+     * alongside the main classes.dex for the given library list.
+     */
+    public static ArrayList<String> getExtraDexPaths(ArrayList<HashMap<String, Object>> libList) {
+        ArrayList<String> extraDexes = new ArrayList<>();
+        for (HashMap<String, Object> lib : libList) {
+            Object dexPath = lib.get("dexPath");
+            if (!(dexPath instanceof String)) continue;
+            File dexFile = new File((String) dexPath);
+            File parent = dexFile.getParentFile();
+            if (parent == null) continue;
+            File[] files = parent.listFiles();
+            if (files == null) continue;
+            for (File f : files) {
+                String n = f.getName();
+                if (!n.equals("classes.dex") && n.startsWith("classes") && n.endsWith(".dex")) {
+                    extraDexes.add(f.getAbsolutePath());
+                }
+            }
+        }
+        return extraDexes;
+    }
+
+    /**
+     * Returns paths to JNI native library folders for the given library list.
+     * Ported from {@code ManageLocalLibrary#getNativeLibs()}.
+     */
+    public static ArrayList<String> getNativeLibPaths(ArrayList<HashMap<String, Object>> libList) {
+        ArrayList<String> nativeLibDirs = new ArrayList<>();
+        for (HashMap<String, Object> lib : libList) {
+            // Try explicit jniPath first (set by createLibraryMap)
+            Object jniPath = lib.get("jniPath");
+            if (jniPath instanceof String && new File((String) jniPath).isDirectory()) {
+                nativeLibDirs.add((String) jniPath);
+                continue;
+            }
+            // Fallback: derive from dexPath parent
+            Object dexPath = lib.get("dexPath");
+            if (dexPath instanceof String) {
+                File jniFolder = new File(new File((String) dexPath).getParentFile(), "jni");
+                if (jniFolder.isDirectory()) {
+                    nativeLibDirs.add(jniFolder.getAbsolutePath());
+                }
+            }
+        }
+        return nativeLibDirs;
+    }
+
+    /**
+     * Returns ProGuard rule file paths for all enabled libraries.
+     * Ported from {@code ManageLocalLibrary#getPgRules()}.
+     */
+    public static ArrayList<String> getProguardRulePaths(ArrayList<HashMap<String, Object>> libList) {
+        ArrayList<String> pgPaths = new ArrayList<>();
+        for (HashMap<String, Object> lib : libList) {
+            Object pgPath = lib.get("pgRulesPath");
+            if (pgPath instanceof String) pgPaths.add((String) pgPath);
+        }
+        return pgPaths;
+    }
+
+    /**
+     * Returns assets folder paths for all enabled libraries.
+     * Ported from {@code ManageLocalLibrary#getAssets()}.
+     */
+    public static ArrayList<String> getAssetsPaths(ArrayList<HashMap<String, Object>> libList) {
+        ArrayList<String> assets = new ArrayList<>();
+        for (HashMap<String, Object> lib : libList) {
+            Object assetsPath = lib.get("assetsPath");
+            if (assetsPath instanceof String) assets.add((String) assetsPath);
+        }
+        return assets;
     }
 }

@@ -115,6 +115,18 @@
             android:name="pro.sketchware.activities.projecttools.AdvancedProjectSettingsActivity"
             android:configChanges="orientation|screenSize" />
         <activity
+            android:name="pro.sketchware.activities.library.extras.FirebaseExtrasActivity"
+            android:configChanges="orientation|screenSize"
+            android:exported="false" />
+        <activity
+            android:name="pro.sketchware.activities.library.extras.LibraryExtrasActivity"
+            android:configChanges="orientation|screenSize"
+            android:exported="false" />
+        <activity
+            android:name="pro.sketchware.activities.library.extras.UiSettingsLibraryActivity"
+            android:configChanges="orientation|screenSize"
+            android:exported="false" />
+        <activity
             android:name="pro.sketchware.activities.projecttools.DeveloperToolsActivity"
             android:configChanges="orientation|screenSize" />
         <activity
@@ -333,6 +345,8 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
 
         <activity android:name="pro.sketchware.activities.settings.SettingsActivity" />
+        <activity android:name="pro.sketchware.activities.settings.ThemeSettingsActivity" />
+        <activity android:name="pro.sketchware.activities.tools.ProjectCleanUpActivity" />
 
         <activity
             android:name="pro.sketchware.ai.activities.WorkspaceActivity"

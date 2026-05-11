@@ -561,9 +561,12 @@ public class Ix {
                 }
                 if (!AndroidManifestInjector.isActivityKeyboardUsed(activityTag, c.sc_id, projectFileBean.getJavaName())) {
                     String keyboardSetting = vq.a(projectFileBean.keyboardSetting);
-                    if (!keyboardSetting.isEmpty()) {
-                        activityTag.addAttribute("android", "windowSoftInputMode", keyboardSetting);
-                    }
+                    // Always append adjustResize so the layout shifts up when the keyboard appears
+                    // instead of the keyboard overlaying the bottom of the screen.
+                    String softInputMode = keyboardSetting.isEmpty()
+                            ? "adjustResize"
+                            : keyboardSetting + "|adjustResize";
+                    activityTag.addAttribute("android", "windowSoftInputMode", softInputMode);
                 }
                 if (projectFileBean.fileName.equals(AndroidManifestInjector.getLauncherActivity(c.sc_id))) {
                     XmlBuilder intentFilterTag = new XmlBuilder("intent-filter");

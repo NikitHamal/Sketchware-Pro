@@ -7,6 +7,8 @@ import com.besome.sketch.editor.LogicEditorActivity;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import dev.aldi.sayuti.block.DRBlockHandler;
+import dev.aldi.sayuti.block.DRPaletteBlock;
 import mod.hilal.saif.activities.tools.ConfigActivity;
 import pro.sketchware.R;
 import pro.sketchware.blocks.ExtraBlocks;
@@ -719,6 +721,24 @@ public class BlocksHandler {
         hashMap.put("color", "#5CB721");
         hashMap.put("palette", "-1");
         hashMap.put("spec", "toHashCode %s");
+        arrayList.add(hashMap);
+
+        hashMap = new HashMap<>();
+        hashMap.put("name", "toSHA1");
+        hashMap.put("type", "s");
+        hashMap.put("code", "pro.sketchware.utility.hash.HashUtil.sha1(%s)");
+        hashMap.put("color", "#5CB721");
+        hashMap.put("palette", "-1");
+        hashMap.put("spec", "toSHA1 %s");
+        arrayList.add(hashMap);
+
+        hashMap = new HashMap<>();
+        hashMap.put("name", "toMD5");
+        hashMap.put("type", "s");
+        hashMap.put("code", "pro.sketchware.utility.hash.HashUtil.md5(%s)");
+        hashMap.put("color", "#5CB721");
+        hashMap.put("palette", "-1");
+        hashMap.put("spec", "toMD5 %s");
         arrayList.add(hashMap);
 
         hashMap = new HashMap<>();
@@ -2593,6 +2613,8 @@ public class BlocksHandler {
         hashMap.put("palette", "-1");
         hashMap.put("spec", "get String from %m.ResString");
         arrayList.add(hashMap);
+
+        DRBlockHandler.addBlocks(arrayList);
     }
 
     private static boolean showAll() {
@@ -2622,6 +2644,7 @@ public class BlocksHandler {
         }
         if (showAll() || isStrUsed) {
             logicEditorActivity.a(" ", "setVarString");
+            DRPaletteBlock.addStringBlocks(logicEditorActivity);
         }
         if (showAll() || isMapUsed) {
             logicEditorActivity.a(" ", "mapCreateNew");
@@ -2795,6 +2818,7 @@ public class BlocksHandler {
         }
         logicEditorActivity.a("b", "stringEquals");
         logicEditorActivity.a("b", "stringContains");
+        DRPaletteBlock.addStringOperatorBlocks(logicEditorActivity);
         if (showBuiltIn()) {
             logicEditorActivity.a("b", "stringMatches");
         }
@@ -2811,6 +2835,8 @@ public class BlocksHandler {
         logicEditorActivity.a("d", "toNumber");
         logicEditorActivity.a("d", "strParseInteger");
         logicEditorActivity.a("d", "toHashCode");
+        logicEditorActivity.a("s", "toSHA1");
+        logicEditorActivity.a("s", "toMD5");
         logicEditorActivity.a("s", "toString");
         logicEditorActivity.a("s", "toStringWithDecimal");
         logicEditorActivity.a("s", "toStringFormat");

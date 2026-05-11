@@ -1,20 +1,19 @@
 package dev.aldi.sayuti.editor.manage;
 
-import static android.net.ConnectivityManager.NetworkCallback;
+import static dev.aldi.sayuti.editor.manage.LocalLibrariesUtil.createLibraryMap;
 
 import android.content.Context;
 import android.net.ConnectivityManager;
-import static dev.aldi.sayuti.editor.manage.LocalLibrariesUtil.createLibraryMap;
-
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.net.Network;
-import android.net.NetworkCapabilities;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -35,14 +34,15 @@ import mod.hey.studios.build.BuildSettings;
 import mod.hey.studios.util.Helper;
 import mod.jbk.build.BuiltInLibraries;
 import mod.pranav.dependency.resolver.DependencyResolver;
+import pro.sketchware.library.MavenCoordinateResolver;
 import pro.sketchware.R;
 import pro.sketchware.databinding.LibraryDownloaderDialogBinding;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
 
+//DR
 public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
     private LibraryDownloaderDialogBinding binding;
-
     private DependencyDownloadAdapter dependencyAdapter;
     private final List<DependencyDownloadItem> downloadItems = new ArrayList<>();
     private ExecutorService downloadExecutor;
@@ -52,11 +52,14 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
 
     private boolean notAssociatedWithProject;
     private String dependencyName;
+    /** Set when opening from Update dialog: old library folder name to delete after download. */
+    private String oldLibraryName;
+    /** Set when opening from Update dialog: old dependency coordinate. */
+    private String oldDependencyCoord;
     private String localLibFile;
     private OnLibraryDownloadedTask onLibraryDownloadedTask;
-
     private ConnectivityManager connectivityManager;
-    private NetworkCallback networkCallback;
+    private ConnectivityManager.NetworkCallback networkCallback;
 
     @Nullable
     @Override
@@ -91,6 +94,14 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
         buildSettings = (BuildSettings) getArguments().getSerializable("buildSettings");
         localLibFile = getArguments().getString("localLibFile");
 
+        // Pre-fill dependency field when opened from the Update dialog
+        String prefill = getArguments().getString("prefillDependency", null);
+        if (prefill != null && !prefill.isEmpty()) {
+            binding.dependencyInput.setText(prefill);
+        }
+        oldLibraryName     = getArguments().getString("oldLibraryName", null);
+        oldDependencyCoord = getArguments().getString("oldDependencyCoord", null);
+
         binding.btnDownload.setOnClickListener(v -> initDownloadFlow());
 
         connectivityManager = (ConnectivityManager) requireContext().getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -98,12 +109,14 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
     }
 
     private void registerNetworkCallback() {
-        networkCallback = new NetworkCallback() {
+        networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
             public void onAvailable(@NonNull Network network) {
                 super.onAvailable(network);
                 if (binding != null) {
-                    requireActivity().runOnUiThread(() -> binding.btnDownload.setEnabled(true));
+                    requireActivity().runOnUiThread(() -> {
+                        if (binding != null) binding.btnDownload.setEnabled(true);
+                    });
                 }
             }
 
@@ -111,7 +124,9 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
             public void onLost(@NonNull Network network) {
                 super.onLost(network);
                 if (binding != null) {
-                    requireActivity().runOnUiThread(() -> binding.btnDownload.setEnabled(false));
+                    requireActivity().runOnUiThread(() -> {
+                        if (binding != null) binding.btnDownload.setEnabled(false);
+                    });
                 }
             }
         };
@@ -124,6 +139,14 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
         if (connectivityManager != null && networkCallback != null) {
             connectivityManager.unregisterNetworkCallback(networkCallback);
         }
+
+        String[] options = new String[]{"21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34"};
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                requireContext(),
+                android.R.layout.simple_dropdown_item_1line,
+                options
+        );
+        binding.actChooseminapi.setAdapter(adapter);
     }
 
     public void setOnLibraryDownloadedTask(OnLibraryDownloadedTask onLibraryDownloadedTask) {
@@ -309,6 +332,39 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
                 public void onTaskCompleted(@NonNull List<String> dependencies) {
                     handler.post(() -> {
                         SketchwareUtil.toast("Library downloaded successfully");
+
+                        String localLibsRoot = pro.sketchware.utility.FileUtil.getExternalStorageDir()
+                                + "/.sketchware/libs/local_libs/";
+
+                        // Save dependency coordinate (ALWAYS overwrite – handles updates)
+                        for (String libName : dependencies) {
+                            String coord = deriveDependencyForLib(libName, dependencyName);
+                            if (coord != null) {
+                                FileUtil.writeFile(localLibsRoot + libName + "/dependency", coord);
+                            }
+                        }
+
+                        // If this was a real update (old library name ≠ primary artifact folder),
+                        // delete the old library folder and update all project references.
+                        if (oldLibraryName != null && !oldLibraryName.isEmpty()) {
+                            // Primary downloaded folder = first in dependencies list
+                            String newLibName = dependencies.isEmpty() ? null : dependencies.get(0);
+                            if (newLibName != null && !newLibName.equals(oldLibraryName)) {
+                                // Delete old library folder
+                                pro.sketchware.utility.FileUtil.deleteFile(
+                                    localLibsRoot + oldLibraryName);
+                                // Update all project local_library files
+                                String newCoord = deriveDependencyForLib(newLibName, dependencyName);
+                                ManageLocalLibraryActivity.updateLibraryInAllProjects(
+                                    oldLibraryName, newLibName, oldDependencyCoord, newCoord);
+                            } else if (newLibName != null) {
+                                // Same folder name – coord change only
+                                String newCoord = deriveDependencyForLib(newLibName, dependencyName);
+                                ManageLocalLibraryActivity.updateLibraryInAllProjects(
+                                    oldLibraryName, oldLibraryName, oldDependencyCoord, newCoord);
+                            }
+                        }
+
                         if (!notAssociatedWithProject) {
                             var fileContent = FileUtil.readFile(localLibFile);
                             var enabledLibs = gson.fromJson(fileContent, Helper.TYPE_MAP_LIST);
@@ -324,6 +380,32 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
                 }
             });
         });
+    }
+
+    /**
+     * Resolves Maven coordinate for a downloaded library folder.
+     * Priority: primary dep string > lookup table > best-effort extraction.
+     */
+    private String deriveDependencyForLib(String libName, String primaryDependency) {
+        // 1. If this is the primary artifact itself
+        String[] primaryParts = primaryDependency.split(":");
+        if (primaryParts.length >= 2) {
+            if (libName.toLowerCase().contains(primaryParts[1].toLowerCase())) {
+                return primaryDependency;
+            }
+        }
+        // 2. Static lookup table (80+ common libs, instant, no network)
+        String resolved = pro.sketchware.library.LibraryVersionChecker.resolveCoordinate(libName);
+        if (resolved != null) return resolved;
+
+        // 3. Best-effort: primary group + extracted artifact + version
+        String version = pro.sketchware.library.LibraryVersionChecker.extractVersionFromName(libName);
+        if (version != null && primaryParts.length >= 1) {
+            String artBase = libName.replaceAll("[_-][Vv]?" + java.util.regex.Pattern.quote(version) + "$", "")
+                                    .replaceAll("[_-]$", "");
+            return primaryParts[0] + ":" + artBase + ":" + version;
+        }
+        return null;
     }
 
     private DependencyDownloadItem findOrCreateDependencyItem(Artifact artifact) {
@@ -349,6 +431,7 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
     }
 
     private void updateOverallProgress() {
+        if (binding == null) return;
         int completed = 0;
         for (DependencyDownloadItem item : downloadItems) {
             if (item.isCompleted()) completed++;
@@ -361,6 +444,8 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
     }
 
     private void setDownloadState(boolean downloading) {
+        // Guard: fragment may have been detached/destroyed while download was in progress
+        if (binding == null) return;
         if (downloading) {
             binding.btnDownload.setVisibility(View.GONE);
         } else {

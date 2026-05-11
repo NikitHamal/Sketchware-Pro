@@ -35,6 +35,13 @@ public class ThemeManager {
     }
 
     private static final ThemePreset[] THEME_PRESETS = {
+            new ThemePreset("Default",
+                    getDefaultColor(ProjectFile.COLOR_ACCENT),
+                    getDefaultColor(ProjectFile.COLOR_PRIMARY),
+                    getDefaultColor(ProjectFile.COLOR_PRIMARY_DARK),
+                    getDefaultColor(ProjectFile.COLOR_ON_PRIMARY),
+                    getDefaultColor(ProjectFile.COLOR_CONTROL_HIGHLIGHT),
+                    getDefaultColor(ProjectFile.COLOR_CONTROL_NORMAL)),
             new ThemePreset("Material Purple",
                     0xFF03DAC5, 0xFF6200EE, 0xFF3700B3, 0xFFFFFFFF, 0xFFE8EAF6, 0xFFBDBDBD),
 

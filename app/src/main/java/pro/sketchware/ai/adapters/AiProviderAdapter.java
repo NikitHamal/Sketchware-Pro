@@ -237,13 +237,11 @@ public class AiProviderAdapter extends RecyclerView.Adapter<AiProviderAdapter.Vi
             case NVIDIA:           return R.drawable.ic_provider_nvidia;
             case OPENROUTER:       return R.drawable.ic_provider_openrouter;
             case DEEPINFRA:        return R.drawable.ic_provider_deepinfra;
-            case PAXSENIX:         return R.drawable.ic_provider_paxsenix;
-            case AIRFORCE:         return R.drawable.ic_provider_airforce;
-            case MANUS:            return R.drawable.ic_provider_manus;
             case TOGETHER:         return R.drawable.ic_provider_together;
             case HUGGINGFACE:      return R.drawable.ic_provider_huggingface;
             case CEREBRAS:         return R.drawable.ic_provider_cerebras;
             case GOOGLE_AI_STUDIO: return R.drawable.ic_provider_google_ai_studio;
+            case SAMBANOVA:        return R.drawable.ic_provider_sambanova;
             default:               return R.drawable.ic_provider_local_llm;
         }
     }
@@ -259,13 +257,11 @@ public class AiProviderAdapter extends RecyclerView.Adapter<AiProviderAdapter.Vi
             case NVIDIA:           return "NVIDIA Build";
             case OPENROUTER:       return "OpenRouter";
             case DEEPINFRA:        return "DeepInfra";
-            case PAXSENIX:         return "Paxsenix API";
-            case AIRFORCE:         return "AirForce API";
-            case MANUS:            return "Manus Settings";
             case TOGETHER:         return "Together AI";
             case HUGGINGFACE:      return "HuggingFace";
             case CEREBRAS:         return "Cerebras Cloud";
             case GOOGLE_AI_STUDIO: return "Google AI Studio";
+            case SAMBANOVA:        return "SambaNova Cloud";
             default:               return "Provider";
         }
     }

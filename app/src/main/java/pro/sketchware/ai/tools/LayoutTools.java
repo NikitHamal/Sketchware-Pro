@@ -3,310 +3,360 @@ package pro.sketchware.ai.tools;
 import android.content.Context;
 import android.content.Intent;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.google.gson.JsonSyntaxException;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import pro.sketchware.ai.models.ToolResult;
+import pro.sketchware.util.SketchwareFileDecryptor;
+import pro.sketchware.util.SketchwareFileEncryptor;
 
 /**
- * Tools for managing view layouts within Sketchware Pro projects.
+ * LayoutTools — AI tools for reading and editing Sketchware view layouts.
  *
- * بعد كل edit_layout، يُرسل broadcast بـ ACTION_LAYOUT_CHANGED.
- * DesignActivity يستقبل هذا الـ broadcast ويُعيد تحميل الـ view مباشرةً
- * في Design Editor — بدون إغلاق وإعادة فتح المشروع.
+ * FIXED: All read/write operations now use SketchwareFileDecryptor / SketchwareFileEncryptor
+ * to handle the encrypted AES @section view file format, then flush jC's in-memory cache
+ * and broadcast ACTION_LAYOUT_CHANGED so DesignActivity reloads live.
+ *
+ * The view file uses Sketchware's @section flat ViewBean format:
+ *   @main.xml
+ *   {flat ViewBean JSON}
+ *   {flat ViewBean JSON}
+ *   @main.xml_fab
+ *   {FAB ViewBean JSON}
+ *
+ * Tools provided:
+ *   get_layout     — read current flat ViewBeans for an activity
+ *   edit_layout    — add / remove / set-property on flat ViewBeans
  */
 public final class LayoutTools {
 
-    /**
-     * Action يُرسله LayoutTools بعد تعديل layout.
-     * DesignActivity يسجّل Receiver لهذا الـ action ويُعيد initialize.
-     */
-    public static final String ACTION_LAYOUT_CHANGED =
-            "pro.sketchware.ai.ACTION_LAYOUT_CHANGED";
+    public static final String ACTION_LAYOUT_CHANGED  = "pro.sketchware.ai.ACTION_LAYOUT_CHANGED";
+    public static final String EXTRA_SC_ID            = "sc_id";
+    public static final String EXTRA_ACTIVITY_NAME    = "activity_name";
 
-    public static final String EXTRA_SC_ID = "sc_id";
-    public static final String EXTRA_ACTIVITY_NAME = "activity_name";
+    private static final Gson GSON = new GsonBuilder()
+            .disableHtmlEscaping().serializeNulls().create();
 
     private LayoutTools() {}
 
-    private static ToolResult success(String output) {
-        return new ToolResult(null, true, output, null);
+    // ── Encrypted file helpers ─────────────────────────────────────────────────
+
+    /** Reads and decrypts the view file; returns the raw @section text. */
+    private static String readView(String scId) {
+        String content = SketchwareFileDecryptor.decryptFile(scId, "view");
+        return content != null ? content : "";
     }
 
-    private static ToolResult error(String message) {
-        return new ToolResult(null, false, null, message);
+    /** Encrypts and saves the @section text; also flushes jC in-memory cache. */
+    private static boolean writeView(String scId, String content) {
+        boolean saved = SketchwareFileEncryptor.encryptAndSaveFile(scId, "view", content);
+        if (saved) {
+            try { a.a.a.jC.b(); a.a.a.jC.a(scId, true); } catch (Throwable ignored) {}
+        }
+        return saved;
     }
 
-    private static String readFileContent(File file) throws IOException {
+    // ── @section format helpers ────────────────────────────────────────────────
+
+    private static Map<String, List<String>> parseSections(String raw) {
+        Map<String, List<String>> sections = new LinkedHashMap<>();
+        if (raw == null || raw.isEmpty()) return sections;
+        String cur = null;
+        for (String line : raw.split("\\r?\\n")) {
+            String t = line.trim();
+            if (t.startsWith("@")) {
+                cur = t.substring(1).trim();
+                sections.putIfAbsent(cur, new ArrayList<>());
+            } else if (cur != null && !t.isEmpty()) {
+                sections.get(cur).add(t);
+            }
+        }
+        return sections;
+    }
+
+    private static String serialise(Map<String, List<String>> sections) {
         StringBuilder sb = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            char[] buf = new char[4096];
-            int read;
-            while ((read = reader.read(buf)) != -1) sb.append(buf, 0, read);
+        for (Map.Entry<String, List<String>> e : sections.entrySet()) {
+            sb.append('@').append(e.getKey()).append('\n');
+            for (String line : e.getValue()) sb.append(line).append('\n');
         }
         return sb.toString();
     }
 
-    private static void writeFileContent(File file, String content) throws IOException {
-        File parent = file.getParentFile();
-        if (parent != null && !parent.exists()) parent.mkdirs();
-        try (FileWriter writer = new FileWriter(file)) {
-            writer.write(content);
-        }
+    private static String toXmlKey(String name) {
+        if (name == null) return null;
+        name = name.trim();
+        return name.endsWith(".xml") ? name : name + ".xml";
     }
 
-    private static JsonArray readViewArray(File viewFile) throws IOException, JsonSyntaxException {
-        if (!viewFile.exists()) return new JsonArray();
-        String content = readFileContent(viewFile);
-        if (content.trim().isEmpty()) return new JsonArray();
-        JsonElement element = JsonParser.parseString(content);
-        return element.isJsonArray() ? element.getAsJsonArray() : new JsonArray();
-    }
-
-    private static JsonObject findViewEntry(JsonArray viewArray, String activityName) {
-        String viewId = activityName + ".xml";
-        for (JsonElement element : viewArray) {
-            if (element.isJsonObject()) {
-                JsonObject entry = element.getAsJsonObject();
-                if (entry.has("id") && entry.get("id").getAsString().equals(viewId))
-                    return entry;
-            }
-        }
-        return null;
+    private static void notifyLayoutChanged(Context ctx, String scId, String activityName) {
+        notifyLayoutChangedWithXml(ctx, scId, activityName, null);
     }
 
     /**
-     * يُرسل broadcast لـ DesignActivity لتحديث الـ view مباشرةً بعد الكتابة.
+     * Broadcasts ACTION_LAYOUT_CHANGED with all keys the receiver expects.
+     * When layoutXml is non-null, DesignActivity will run the full ViewBeanParser path.
+     * When null, it falls back to a simple canvas refresh (jC already updated by caller).
      */
-    private static void notifyLayoutChanged(Context ctx, String scId, String activityName) {
+    private static void notifyLayoutChangedWithXml(Context ctx, String scId,
+                                                   String activityName, String layoutXml) {
         try {
+            String xmlKey = activityName.endsWith(".xml") ? activityName : activityName + ".xml";
             Intent intent = new Intent(ACTION_LAYOUT_CHANGED);
             intent.putExtra(EXTRA_SC_ID, scId);
             intent.putExtra(EXTRA_ACTIVITY_NAME, activityName);
+            intent.putExtra("activity_xml", xmlKey);   // key the receiver actually reads
+            if (layoutXml != null && !layoutXml.isEmpty()) {
+                intent.putExtra("layout_xml", layoutXml);
+            }
             ctx.sendBroadcast(intent);
         } catch (Exception ignored) {}
     }
 
-    // ────────────────────────────────────────────────────────────────
-    // Tool: get_layout
-    // ────────────────────────────────────────────────────────────────
+    private static ToolResult ok(String s)  { return ToolResult.success(null, s); }
+    private static ToolResult err(String s) { return ToolResult.failure(null, s); }
+
+    private static String str(JsonObject o, String k) {
+        return o.has(k) && !o.get(k).isJsonNull() ? o.get(k).getAsString().trim() : null;
+    }
+
+    // ── Tool: get_layout ──────────────────────────────────────────────────────
+
     public static class GetLayoutTool implements AgentTool {
 
         @Override public String getName() { return "get_layout"; }
 
         @Override
         public String getDescription() {
-            return "Gets the view hierarchy (layout) of an activity in a Sketchware Pro project. "
-                    + "Returns the root view and all child views as a JSON structure.";
+            return "Gets the ViewBean list of an activity in a Sketchware Pro project. "
+                    + "Reads the encrypted view file and returns the flat list of ViewBeans "
+                    + "for the specified activity. Each bean shows id, type, parent, and properties.";
         }
 
         @Override
         public JsonObject getParametersSchema() {
-            JsonObject props = new JsonObject();
-            JsonObject scIdP = new JsonObject();
-            scIdP.addProperty("type", "string");
-            scIdP.addProperty("description", "The project SC ID");
-            props.add("sc_id", scIdP);
-
-            JsonObject nameP = new JsonObject();
-            nameP.addProperty("type", "string");
-            nameP.addProperty("description", "Activity name (e.g., \"main\")");
-            props.add("activity_name", nameP);
-
-            JsonArray req = new JsonArray();
-            req.add("sc_id");
-            req.add("activity_name");
-
             JsonObject schema = new JsonObject();
             schema.addProperty("type", "object");
-            schema.add("properties", props);
-            schema.add("required", req);
+            JsonObject props = new JsonObject();
+            JsonObject scP = new JsonObject(); scP.addProperty("type","string");
+            scP.addProperty("description","The project SC ID"); props.add("sc_id", scP);
+            JsonObject nP = new JsonObject(); nP.addProperty("type","string");
+            nP.addProperty("description","Activity name (e.g., \"main\")"); props.add("activity_name", nP);
+            JsonArray req = new JsonArray(); req.add("sc_id"); req.add("activity_name");
+            schema.add("properties", props); schema.add("required", req);
             return schema;
         }
 
         @Override
         public ToolResult execute(JsonObject args, ToolContext ctx) {
             if (!args.has("sc_id") || args.get("sc_id").isJsonNull())
-                return error("Missing required parameter: sc_id");
+                return err("Missing required parameter: sc_id");
             if (!args.has("activity_name") || args.get("activity_name").isJsonNull())
-                return error("Missing required parameter: activity_name");
+                return err("Missing required parameter: activity_name");
 
-            String scId = args.get("sc_id").getAsString();
-            String actName = args.get("activity_name").getAsString();
-
+            String scId    = args.get("sc_id").getAsString();
+            String xmlKey  = toXmlKey(args.get("activity_name").getAsString());
             if (!ctx.isProjectAllowed(scId))
-                return error("Access denied: project " + scId + " is not in the current workspace");
+                return err("Access denied: project " + scId + " is not in the current workspace");
 
-            File viewFile = new File(ctx.getProjectDataDir(scId), "view");
-            try {
-                JsonArray viewArray = readViewArray(viewFile);
-                JsonObject entry = findViewEntry(viewArray, actName);
-                if (entry == null) return error("Layout not found for activity: " + actName);
-                return success(entry.toString());
-            } catch (IOException e) {
-                return error("Failed to read layout: " + e.getMessage());
-            } catch (JsonSyntaxException e) {
-                return error("View file contains invalid JSON: " + e.getMessage());
+            String raw = readView(scId);
+            Map<String, List<String>> sections = parseSections(raw);
+            List<String> lines = sections.get(xmlKey);
+
+            if (lines == null)
+                return err("Layout not found for activity: " + xmlKey
+                        + "\nAvailable sections: " + sections.keySet());
+
+            StringBuilder sb = new StringBuilder("=== Layout: " + xmlKey + " ===\n");
+            sb.append("ViewBeans: ").append(lines.size()).append("\n\n");
+            for (String line : lines) {
+                try {
+                    JsonObject b = JsonParser.parseString(line).getAsJsonObject();
+                    sb.append("  id=").append(b.has("id") ? b.get("id").getAsString() : "?")
+                      .append(" type=").append(b.has("type") ? b.get("type").getAsInt() : -1)
+                      .append(" parent=").append(b.has("parent") ? b.get("parent").getAsString() : "?")
+                      .append(" index=").append(b.has("index") ? b.get("index").getAsInt() : -1);
+                    if (b.has("text") && b.get("text").isJsonObject()) {
+                        String txt = b.getAsJsonObject("text").has("text")
+                                ? b.getAsJsonObject("text").get("text").getAsString() : "";
+                        if (!txt.isEmpty()) sb.append(" text=\"").append(txt).append("\"");
+                    }
+                    sb.append("\n");
+                } catch (Exception e) {
+                    sb.append("  [parse error]: ").append(line, 0, Math.min(80, line.length())).append("\n");
+                }
             }
+            sb.append("\n[Raw JSON array]\n[").append(String.join(",", lines)).append("]");
+            return ok(sb.toString());
         }
     }
 
-    // ────────────────────────────────────────────────────────────────
-    // Tool: edit_layout — يكتب في الـ view ثم يُحدّث Design Editor
-    // ────────────────────────────────────────────────────────────────
+    // ── Tool: edit_layout ─────────────────────────────────────────────────────
+
     public static class EditLayoutTool implements AgentTool {
 
         @Override public String getName() { return "edit_layout"; }
 
         @Override
         public String getDescription() {
-            return "Edits the view layout of an activity by performing operations like "
-                    + "adding views, removing views, or setting view properties. "
-                    + "Changes are reflected IMMEDIATELY in the Design Editor view — "
-                    + "no need to close or reopen the project. "
-                    + "Operations: 'add_view' (requires 'view' object), "
-                    + "'remove_view' (requires 'view_id'), "
-                    + "'set_property' (requires 'view_id', 'property', 'value').";
+            return "Edits the view layout of an activity by performing operations on the flat "
+                    + "ViewBean list. Changes appear IMMEDIATELY in the Design Editor. "
+                    + "Operations: "
+                    + "'add_view' — adds a new ViewBean (requires 'view' JSON object with id/type/parent/parentType/index); "
+                    + "'remove_view' — removes by 'view_id'; "
+                    + "'set_property' — updates a property by 'view_id', 'property' (supports dot-paths like 'layout.width', 'text.text'), 'value'.";
         }
 
         @Override
         public JsonObject getParametersSchema() {
             JsonObject props = new JsonObject();
-
-            JsonObject scIdP = new JsonObject();
-            scIdP.addProperty("type", "string");
-            scIdP.addProperty("description", "The project SC ID");
-            props.add("sc_id", scIdP);
-
-            JsonObject nameP = new JsonObject();
-            nameP.addProperty("type", "string");
-            nameP.addProperty("description", "Activity name (e.g., \"main\")");
-            props.add("activity_name", nameP);
-
-            JsonObject opsP = new JsonObject();
-            opsP.addProperty("type", "array");
+            JsonObject scP = new JsonObject(); scP.addProperty("type","string");
+            scP.addProperty("description","The project SC ID"); props.add("sc_id", scP);
+            JsonObject nP = new JsonObject(); nP.addProperty("type","string");
+            nP.addProperty("description","Activity name"); props.add("activity_name", nP);
+            JsonObject opsP = new JsonObject(); opsP.addProperty("type","array");
             opsP.addProperty("description",
                     "Array of operations. Each has a 'type' field: "
-                            + "'add_view' requires 'view' object; "
-                            + "'remove_view' requires 'view_id'; "
-                            + "'set_property' requires 'view_id', 'property', 'value'.");
-            JsonObject itemSchema = new JsonObject();
-            itemSchema.addProperty("type", "object");
-            opsP.add("items", itemSchema);
-            props.add("view_operations", opsP);
-
+                    + "'add_view' needs a 'view' object (ViewBean JSON); "
+                    + "'remove_view' needs 'view_id'; "
+                    + "'set_property' needs 'view_id', 'property' (dot-path ok), 'value'.");
+            JsonObject itemSch = new JsonObject(); itemSch.addProperty("type","object");
+            opsP.add("items", itemSch); props.add("view_operations", opsP);
             JsonArray req = new JsonArray();
-            req.add("sc_id");
-            req.add("activity_name");
-            req.add("view_operations");
-
-            JsonObject schema = new JsonObject();
-            schema.addProperty("type", "object");
-            schema.add("properties", props);
-            schema.add("required", req);
+            req.add("sc_id"); req.add("activity_name"); req.add("view_operations");
+            JsonObject schema = new JsonObject(); schema.addProperty("type","object");
+            schema.add("properties", props); schema.add("required", req);
             return schema;
         }
 
         @Override
         public ToolResult execute(JsonObject args, ToolContext ctx) {
             if (!args.has("sc_id") || args.get("sc_id").isJsonNull())
-                return error("Missing required parameter: sc_id");
+                return err("Missing required parameter: sc_id");
             if (!args.has("activity_name") || args.get("activity_name").isJsonNull())
-                return error("Missing required parameter: activity_name");
+                return err("Missing required parameter: activity_name");
             if (!args.has("view_operations") || !args.get("view_operations").isJsonArray())
-                return error("Missing required parameter: view_operations (must be an array)");
+                return err("Missing required parameter: view_operations (must be an array)");
 
-            String scId = args.get("sc_id").getAsString();
-            String actName = args.get("activity_name").getAsString();
+            String scId   = args.get("sc_id").getAsString();
+            String xmlKey = toXmlKey(args.get("activity_name").getAsString());
             JsonArray ops = args.getAsJsonArray("view_operations");
 
             if (!ctx.isProjectAllowed(scId))
-                return error("Access denied: project " + scId + " is not in the current workspace");
+                return err("Access denied: project " + scId + " is not in the current workspace");
 
-            File viewFile = new File(ctx.getProjectDataDir(scId), "view");
-            try {
-                JsonArray viewArray = readViewArray(viewFile);
-                JsonObject viewEntry = findViewEntry(viewArray, actName);
-                if (viewEntry == null) return error("Layout not found for activity: " + actName);
+            // Read current encrypted view file
+            String raw = readView(scId);
+            Map<String, List<String>> sections = parseSections(raw);
 
-                JsonArray results = new JsonArray();
-                for (JsonElement opEl : ops) {
-                    if (!opEl.isJsonObject()) {
-                        JsonObject r = new JsonObject();
-                        r.addProperty("success", false);
-                        r.addProperty("error", "Operation must be a JSON object");
-                        results.add(r);
-                        continue;
-                    }
-                    JsonObject op = opEl.getAsJsonObject();
-                    if (!op.has("type")) {
-                        JsonObject r = new JsonObject();
-                        r.addProperty("success", false);
-                        r.addProperty("error", "Operation missing 'type' field");
-                        results.add(r);
-                        continue;
-                    }
-                    String opType = op.get("type").getAsString();
-                    JsonObject r;
-                    switch (opType) {
-                        case "add_view":    r = handleAddView(viewEntry, op);    break;
-                        case "remove_view": r = handleRemoveView(viewEntry, op); break;
-                        case "set_property":r = handleSetProperty(viewEntry, op);break;
-                        default:
-                            r = new JsonObject();
-                            r.addProperty("success", false);
-                            r.addProperty("error", "Unknown operation type: " + opType);
-                    }
-                    results.add(r);
-                }
-
-                // 1. كتابة الملف
-                writeFileContent(viewFile, viewArray.toString());
-
-                // 2. إشعار DesignActivity بالتحديث المباشر
-                notifyLayoutChanged(ctx.getAppContext(), scId, actName);
-
-                JsonObject result = new JsonObject();
-                result.addProperty("activity_name", actName);
-                result.add("operation_results", results);
-                result.addProperty("message",
-                        "Layout updated. Design Editor refreshed automatically.");
-                return success(result.toString());
-
-            } catch (IOException e) {
-                return error("Failed to edit layout: " + e.getMessage());
-            } catch (JsonSyntaxException e) {
-                return error("View file contains invalid JSON: " + e.getMessage());
+            List<String> lines = sections.get(xmlKey);
+            if (lines == null) {
+                lines = new ArrayList<>();
+                sections.put(xmlKey, lines);
             }
+            // Ensure _fab section
+            String fabKey = xmlKey + "_fab";
+            sections.putIfAbsent(fabKey,
+                    new ArrayList<>(Arrays.asList("{\"adSize\":\"\",\"adUnitId\":\"\",\"alpha\":1.0,\"checked\":0,\"choiceMode\":0,\"clickable\":1,\"convert\":\"\",\"customView\":\"\","+"\"dividerHeight\":1,\"enabled\":1,\"firstDayOfWeek\":1,\"id\":\"_fab\","+"\"image\":{\"resName\":\"default_image\",\"rotate\":0,\"scaleType\":\"CENTER\"},"+"\"indeterminate\":\"false\",\"index\":0,\"inject\":\"\","+"\"layout\":{\"backgroundColor\":-13730510,\"borderColor\":-3617307,"+"\"gravity\":0,\"height\":-1,\"layoutGravity\":0,"+"\"marginBottom\":0,\"marginLeft\":0,\"marginRight\":0,\"marginTop\":0,"+"\"orientation\":-1,\"paddingBottom\":0,\"paddingLeft\":0,"+"\"paddingRight\":0,\"paddingTop\":0,\"weight\":0,\"weightSum\":0,\"width\":-1},"+"\"max\":100,\"parent\":\"root\",\"parentType\":0,"+"\"preId\":\"_fab\",\"preIndex\":-1,\"preParent\":\"\",\"preParentType\":-1,"+"\"progress\":0,\"progressStyle\":\"?android:progressBarStyle\","+"\"scaleX\":1.0,\"scaleY\":1.0,\"spinnerMode\":1,"+"\"text\":{\"hint\":\"\",\"hintColor\":-10453621,\"imeOption\":0,"+"\"inputType\":1,\"line\":0,\"singleLine\":0,\"text\":\"\","+"\"textColor\":-16777216,\"textFont\":\"default_font\","+"\"textSize\":12,\"textType\":0},"+"\"translationX\":0.0,\"translationY\":0.0,\"type\":16}")));
+
+            JsonArray results = new JsonArray();
+            for (JsonElement opEl : ops) {
+                if (!opEl.isJsonObject()) {
+                    JsonObject r = new JsonObject();
+                    r.addProperty("success", false);
+                    r.addProperty("error", "Operation must be a JSON object");
+                    results.add(r); continue;
+                }
+                JsonObject op = opEl.getAsJsonObject();
+                if (!op.has("type")) {
+                    JsonObject r = new JsonObject();
+                    r.addProperty("success", false);
+                    r.addProperty("error", "Operation missing 'type' field");
+                    results.add(r); continue;
+                }
+                String opType = op.get("type").getAsString();
+                JsonObject r;
+                switch (opType) {
+                    case "add_view":    r = handleAdd(lines, op);          break;
+                    case "remove_view": r = handleRemove(lines, op);       break;
+                    case "set_property":r = handleSetProperty(lines, op);  break;
+                    default:
+                        r = new JsonObject();
+                        r.addProperty("success", false);
+                        r.addProperty("error", "Unknown operation type: " + opType);
+                }
+                results.add(r);
+            }
+
+            // Save encrypted
+            sections.put(xmlKey, lines);
+            boolean saved = writeView(scId, serialise(sections));
+            if (!saved) return err("Failed to save view file (encryption error).");
+
+            // Broadcast live reload
+            notifyLayoutChanged(ctx.getAppContext(), scId, xmlKey);
+
+            JsonObject result = new JsonObject();
+            result.addProperty("activity_name", xmlKey);
+            result.add("operation_results", results);
+            result.addProperty("message",
+                    "Layout updated. Design Editor refreshed automatically.");
+            return ok(result.toString());
         }
 
-        private JsonObject handleAddView(JsonObject viewEntry, JsonObject op) {
+        /** Appends a new ViewBean to the flat list. */
+        private JsonObject handleAdd(List<String> lines, JsonObject op) {
             JsonObject r = new JsonObject();
             if (!op.has("view") || !op.get("view").isJsonObject()) {
                 r.addProperty("success", false);
-                r.addProperty("error", "add_view requires a 'view' object");
+                r.addProperty("error", "add_view requires a 'view' object (ViewBean JSON)");
                 return r;
             }
             JsonObject newView = op.getAsJsonObject("view");
-            if (!viewEntry.has("children")) viewEntry.add("children", new JsonArray());
-            viewEntry.getAsJsonArray("children").add(newView);
-            String id = newView.has("id") ? newView.get("id").getAsString() : "unknown";
+
+            // Assign index if missing
+            if (!newView.has("index")) newView.addProperty("index", lines.size());
+
+            // Validate required fields
+            if (!newView.has("id") || newView.get("id").getAsString().isEmpty()) {
+                r.addProperty("success", false);
+                r.addProperty("error", "view must have an 'id' field");
+                return r;
+            }
+            if (!newView.has("type")) newView.addProperty("type", 4); // default TextView
+
+            // Check duplicate id
+            String newId = newView.get("id").getAsString();
+            for (String line : lines) {
+                try {
+                    JsonObject b = JsonParser.parseString(line).getAsJsonObject();
+                    if (newId.equals(b.has("id") ? b.get("id").getAsString() : "")) {
+                        r.addProperty("success", false);
+                        r.addProperty("error", "View with id '" + newId + "' already exists");
+                        return r;
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            lines.add(GSON.toJson(newView));
             r.addProperty("success", true);
-            r.addProperty("message", "View added: " + id);
+            r.addProperty("message", "ViewBean added: " + newId
+                    + " (type=" + newView.get("type").getAsInt() + ")");
             return r;
         }
 
-        private JsonObject handleRemoveView(JsonObject viewEntry, JsonObject op) {
+        /** Removes a ViewBean (and its children) by id from the flat list. */
+        private JsonObject handleRemove(List<String> lines, JsonObject op) {
             JsonObject r = new JsonObject();
             if (!op.has("view_id")) {
                 r.addProperty("success", false);
@@ -314,70 +364,96 @@ public final class LayoutTools {
                 return r;
             }
             String viewId = op.get("view_id").getAsString();
-            if (!viewEntry.has("children") || !viewEntry.get("children").isJsonArray()) {
+
+            // Collect ids to remove (target + all descendants)
+            java.util.Set<String> toRemove = new java.util.HashSet<>();
+            java.util.Queue<String> queue = new java.util.LinkedList<>();
+            for (String line : lines) {
+                try {
+                    JsonObject b = JsonParser.parseString(line).getAsJsonObject();
+                    if (viewId.equals(b.has("id") ? b.get("id").getAsString() : "")) {
+                        toRemove.add(viewId); queue.add(viewId); break;
+                    }
+                } catch (Exception ignored) {}
+            }
+            if (toRemove.isEmpty()) {
                 r.addProperty("success", false);
-                r.addProperty("error", "No children array in layout");
+                r.addProperty("error", "View '" + viewId + "' not found");
                 return r;
             }
-            JsonArray children = viewEntry.getAsJsonArray("children");
-            boolean removed = false;
-            Iterator<JsonElement> it = children.iterator();
-            while (it.hasNext()) {
-                JsonElement child = it.next();
-                if (child.isJsonObject()) {
-                    JsonObject c = child.getAsJsonObject();
-                    if (c.has("id") && c.get("id").getAsString().equals(viewId)) {
-                        it.remove();
-                        removed = true;
-                        break;
-                    }
+            while (!queue.isEmpty()) {
+                String pid = queue.poll();
+                for (String line : lines) {
+                    try {
+                        JsonObject b = JsonParser.parseString(line).getAsJsonObject();
+                        String bid = b.has("id") ? b.get("id").getAsString() : "";
+                        String bpar = b.has("parent") ? b.get("parent").getAsString() : "";
+                        if (pid.equals(bpar) && !toRemove.contains(bid)) {
+                            toRemove.add(bid); queue.add(bid);
+                        }
+                    } catch (Exception ignored) {}
                 }
             }
-            if (removed) {
-                r.addProperty("success", true);
-                r.addProperty("message", "View removed: " + viewId);
-            } else {
-                r.addProperty("success", false);
-                r.addProperty("error", "View not found: " + viewId);
-            }
+
+            lines.removeIf(line -> {
+                try {
+                    JsonObject b = JsonParser.parseString(line).getAsJsonObject();
+                    return toRemove.contains(b.has("id") ? b.get("id").getAsString() : "");
+                } catch (Exception e) { return false; }
+            });
+
+            r.addProperty("success", true);
+            r.addProperty("message", "Removed '" + viewId + "' and "
+                    + (toRemove.size() - 1) + " descendant(s).");
             return r;
         }
 
-        private JsonObject handleSetProperty(JsonObject viewEntry, JsonObject op) {
+        /**
+         * Updates a property in a flat ViewBean.
+         * Supports dot-path notation: "layout.width", "text.text", "text.textColor", etc.
+         */
+        private JsonObject handleSetProperty(List<String> lines, JsonObject op) {
             JsonObject r = new JsonObject();
             if (!op.has("view_id") || !op.has("property") || !op.has("value")) {
                 r.addProperty("success", false);
                 r.addProperty("error", "set_property requires 'view_id', 'property', and 'value'");
                 return r;
             }
-            String viewId = op.get("view_id").getAsString();
+            String viewId   = op.get("view_id").getAsString();
             String property = op.get("property").getAsString();
             JsonElement value = op.get("value");
 
-            if (viewEntry.has("root") && viewEntry.get("root").isJsonObject()) {
-                JsonObject root = viewEntry.getAsJsonObject("root");
-                if (root.has("id") && root.get("id").getAsString().equals(viewId)) {
-                    root.add(property, value);
-                    r.addProperty("success", true);
-                    r.addProperty("message", "Property set on root view: " + property);
+            boolean found = false;
+            for (int i = 0; i < lines.size(); i++) {
+                try {
+                    JsonObject b = JsonParser.parseString(lines.get(i)).getAsJsonObject();
+                    if (viewId.equals(b.has("id") ? b.get("id").getAsString() : "")) {
+                        // Apply property (supports dot-path)
+                        if (property.contains(".")) {
+                            String[] parts = property.split("\\.", 2);
+                            if (!b.has(parts[0])) b.add(parts[0], new JsonObject());
+                            b.getAsJsonObject(parts[0]).add(parts[1], value);
+                        } else {
+                            b.add(property, value);
+                        }
+                        lines.set(i, GSON.toJson(b));
+                        found = true;
+                        break;
+                    }
+                } catch (Exception e) {
+                    r.addProperty("success", false);
+                    r.addProperty("error", "Parse error on bean: " + e.getMessage());
                     return r;
                 }
             }
-            if (viewEntry.has("children") && viewEntry.get("children").isJsonArray()) {
-                for (JsonElement child : viewEntry.getAsJsonArray("children")) {
-                    if (child.isJsonObject()) {
-                        JsonObject c = child.getAsJsonObject();
-                        if (c.has("id") && c.get("id").getAsString().equals(viewId)) {
-                            c.add(property, value);
-                            r.addProperty("success", true);
-                            r.addProperty("message", "Property set on view " + viewId + ": " + property);
-                            return r;
-                        }
-                    }
-                }
+
+            if (!found) {
+                r.addProperty("success", false);
+                r.addProperty("error", "View '" + viewId + "' not found");
+                return r;
             }
-            r.addProperty("success", false);
-            r.addProperty("error", "View not found: " + viewId);
+            r.addProperty("success", true);
+            r.addProperty("message", "Property '" + property + "' updated on '" + viewId + "'");
             return r;
         }
     }

@@ -72,19 +72,6 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent" />
 
-                <!-- Quick Action FAB for adding views/events/components -->
-                <com.google.android.material.floatingactionbutton.FloatingActionButton
-                    android:id="@+id/fab_add"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="bottom|end"
-                    android:layout_margin="16dp"
-                    android:contentDescription="Add"
-                    android:src="@drawable/ic_mtrl_add"
-                    app:fabSize="normal"
-                    app:elevation="6dp"
-                    app:backgroundTint="?attr/colorPrimaryContainer"
-                    app:tint="?attr/colorOnPrimaryContainer" />
             </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
             <!-- Build progress section -->

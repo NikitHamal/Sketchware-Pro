@@ -277,10 +277,37 @@ public final class DesignXmlEditorTool {
 }
 
     private static void notifyChange(Context ctx, String scId, String activityName) {
+        // For old JSON-bean tools (add_view, modify_view, remove_view):
+        // writeFile already encrypted and reloaded jC. Send broadcast via LIVE_LAYOUT_RELOAD
+        // so liveLayoutReceiver can do a guaranteed refresh even if jC timing is off.
+        notifyChangeWithXml(ctx, scId, activityName, null);
+        // Also send on LIVE_LAYOUT_RELOAD channel for belt+suspenders refresh
+        try {
+            String xmlKey = activityName.endsWith(".xml") ? activityName : activityName + ".xml";
+            android.content.Intent i2 =
+                    new android.content.Intent("pro.sketchware.ai.ACTION_LIVE_LAYOUT_RELOAD");
+            i2.putExtra("sc_id", scId);
+            i2.putExtra("activity_xml", xmlKey);
+            // No layout_xml → receiver will do simple refresh from already-updated jC
+            ctx.sendBroadcast(i2);
+        } catch (Exception ignored) {}
+    }
+
+    /**
+     * Broadcasts ACTION_LAYOUT_CHANGED with optional layout_xml so DesignActivity
+     * uses the proven IA path: ViewBeanParser → jC.c.put → redraw.
+     */
+    private static void notifyChangeWithXml(Context ctx, String scId,
+                                            String activityName, String layoutXml) {
         try {
             Intent i = new Intent(ACTION_LAYOUT_CHANGED);
             i.putExtra(EXTRA_SC_ID, scId);
             i.putExtra(EXTRA_ACTIVITY_NAME, activityName);
+            String xmlKey = activityName.endsWith(".xml") ? activityName : activityName + ".xml";
+            i.putExtra("activity_xml", xmlKey);
+            if (layoutXml != null && !layoutXml.isEmpty()) {
+                i.putExtra("layout_xml", layoutXml);
+            }
             ctx.sendBroadcast(i);
         } catch (Exception ignored) {}
     }
@@ -291,6 +318,68 @@ public final class DesignXmlEditorTool {
         if (raw.isEmpty()) return new JsonArray();
         // Handle both @section format (real files) and JSON array (legacy/new)
         return sectionsToJsonArray(raw);
+    }
+
+    /**
+     * Converts in-memory ViewBeans back to Android XML for AI editing reference.
+     * This is the XML that was most recently applied to the canvas.
+     */
+    private static String viewBeansToXml(java.util.ArrayList<com.besome.sketch.beans.ViewBean> beans) {
+        if (beans == null || beans.isEmpty()) return null;
+        try {
+            // Use ViewBeanParser in reverse via InvokeUtil if available, otherwise basic XML
+            StringBuilder xml = new StringBuilder();
+            xml.append("<LinearLayout xmlns:android=\"http://schemas.android.com/apk/res/android\"\n");
+            xml.append("    android:layout_width=\"match_parent\"\n");
+            xml.append("    android:layout_height=\"match_parent\"\n");
+            xml.append("    android:orientation=\"vertical\">\n");
+            for (com.besome.sketch.beans.ViewBean bean : beans) {
+                if (bean.parent != null && !bean.parent.equals("root")) continue; // root level only
+                xml.append("    <").append(getTagForType(bean.type));
+                xml.append(" android:id=\"@+id/").append(bean.id).append("\"");
+                xml.append(" android:layout_width=\"").append(dimenStr(bean.layout.width)).append("\"");
+                xml.append(" android:layout_height=\"").append(dimenStr(bean.layout.height)).append("\"");
+                if (bean.text != null && !bean.text.text.isEmpty())
+                    xml.append("\n        android:text=\"").append(bean.text.text).append("\"");
+                xml.append("/>");
+                xml.append("\n");
+            }
+            xml.append("</LinearLayout>");
+            return xml.toString();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String dimenStr(int val) {
+        if (val == -1) return "match_parent";
+        if (val == -2) return "wrap_content";
+        return val + "dp";
+    }
+
+    private static String getTagForType(int type) {
+        switch (type) {
+            case 0: return "LinearLayout";
+            case 1: return "TextView";
+            case 2: return "EditText";
+            case 3: return "Button";
+            case 4: return "ImageView";
+            case 5: return "ImageButton";
+            case 6: return "CheckBox";
+            case 7: return "RadioButton";
+            case 8: return "RadioGroup";
+            case 9: return "ListView";
+            case 10: return "Spinner";
+            case 11: return "ScrollView";
+            case 12: return "Switch";
+            case 13: return "SeekBar";
+            case 14: return "ProgressBar";
+            case 15: return "WebView";
+            case 16: return "FloatingActionButton";
+            case 17: return "CardView";
+            case 18: return "RecyclerView";
+            default: return "View";
+        }
     }
 
     private static JsonObject findEntry(JsonArray arr, String activityName) {
@@ -481,40 +570,52 @@ public final class DesignXmlEditorTool {
                 return error("sc_id and activity_name are required");
             if (!ctx.isProjectAllowed(scId)) return error("Access denied: project " + scId);
 
-            // ⚠ RAW XML GUARD: detect raw XML layout files that are NOT Sketchware JSON
-            // These files exist in res/layout/ and cannot be parsed by this tool.
-            String lowerName = actName.toLowerCase();
-            if (lowerName.equals("design") || lowerName.endsWith("/design")
-                    || lowerName.equals("view_property") || lowerName.endsWith("/view_property")
-                    || lowerName.contains("design.xml")) {
-                return error("describe_layout does not support raw XML files like design.xml. "
-                        + "This file is a standard Android XML layout, not a Sketchware JSON view. "
-                        + "Use read_file with path 'res/layout/design.xml' to read it, "
-                        + "and write_file to edit it. "
-                        + "Remember: always use android:id=\"@+id/\" (not @id/) in raw XML.");
-            }
+            ctx.reportProgress("Reading layout from memory…", -1, true);
 
-            ctx.reportProgress("Reading layout\u2026", -1, true);
+            // PRIMARY: Read from jC in-memory (most accurate — includes unsaved AI changes)
+            String xmlName = actName.endsWith(".xml") ? actName : actName + ".xml";
+            try {
+                java.util.ArrayList<com.besome.sketch.beans.ViewBean> liveBeans =
+                        a.a.a.jC.a(scId).d(xmlName);
+                if (liveBeans != null && !liveBeans.isEmpty()) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("Layout of '").append(actName).append("' — ")
+                      .append(liveBeans.size()).append(" view(s) [live from canvas]:\n\n");
+                    for (com.besome.sketch.beans.ViewBean bean : liveBeans) {
+                        sb.append("  id=").append(bean.id)
+                          .append(" type=").append(bean.type)
+                          .append(" parent=").append(bean.parent != null ? bean.parent : "root")
+                          .append(" index=").append(bean.index);
+                        if (bean.text != null && !bean.text.text.isEmpty())
+                            sb.append(" text=\"").append(bean.text.text).append("\"");
+                        sb.append("\n");
+                    }
+                    // Also return as compact XML for AI editing reference
+                    String liveXml = viewBeansToXml(liveBeans);
+                    if (liveXml != null && !liveXml.isEmpty()) {
+                        sb.append("\n[Current XML — pass as current_layout when editing]\n");
+                        sb.append(liveXml);
+                    }
+                    return success(sb.toString());
+                }
+            } catch (Exception ignored) {}
+
+            // FALLBACK: Read from encrypted disk file
             File viewFile = new File(ctx.getProjectDataDir(scId), "view");
             try {
                 JsonArray arr = readViewArray(viewFile);
                 JsonObject entry = findEntry(arr, actName);
                 if (entry == null)
-                    return success("No layout found for activity '" + actName
-                            + "'. The activity may have no views defined yet. "
-                            + "Note: if you are trying to read a raw XML file (like design.xml), "
-                            + "use read_file instead of describe_layout.");
+                    return success("No layout found for '" + actName + "'. Screen may be empty.");
 
-                JsonArray data = entry.has("data") && entry.get("data").isJsonArray()
-                        ? entry.getAsJsonArray("data") : new JsonArray();
+                JsonArray data = entry.has("view") ? entry.getAsJsonArray("view")
+                        : entry.has("data") ? entry.getAsJsonArray("data") : new JsonArray();
 
                 StringBuilder sb = new StringBuilder();
                 sb.append("Layout of '").append(actName).append("' — ")
-                  .append(data.size()).append(" root view(s):\n\n");
+                  .append(data.size()).append(" root view(s) [from disk]:\n\n");
                 describeTree(data, "", sb);
-
-                // Also return full JSON for AI reference
-                sb.append("\n[Raw JSON]\n").append(data.toString());
+                sb.append("\n[Raw JSON for AI reference]\n").append(data.toString());
                 return success(sb.toString());
             } catch (IOException | JsonSyntaxException e) {
                 return error("Failed to read layout: " + e.getMessage());
@@ -859,7 +960,9 @@ public final class DesignXmlEditorTool {
                 }
 
                 saveViewBeans(viewFile, actName, finalBeans);
-                notifyChange(ctx.getAppContext(), scId, actName);
+                // Pass xml so DesignActivity runs full ViewBeanParser path:
+                // ViewBeanParser → InjectRootLayoutManager → HistoryViewBean → jC.c.put → redraw
+                notifyChangeWithXml(ctx.getAppContext(), scId, actName, xml);
 
                 return success((replace ? "Replaced" : "Added") + " " + newBeans.size()
                         + " view(s) to '" + actName + "'. "
@@ -882,22 +985,27 @@ public final class DesignXmlEditorTool {
         @Override public String getName() { return "generate_layout"; }
 
         @Override public String getDescription() {
-            return "Generates a full Android layout from a text description and applies it "
-                 + "to the design canvas. Use when the user says: 'create a login screen', "
-                 + "'make a profile page', 'design a settings screen', etc. "
-                 + "Built-in templates: login, register, profile, settings, dashboard, "
-                 + "chat, list. For other descriptions, generates from keywords. "
-                 + "Default: replace=true (replaces the entire screen layout).";
+            return "Generates a COMPLETE Android layout from description — REPLACES the full screen.\n"
+                 + "Use for: creating new screens, full redesigns, complete layout replacement.\n"
+                 + "For PARTIAL edits (add/change specific views): use add_view_xml with replace=false instead.\n"
+                 + "For EDITING existing layout: call describe_layout first to get current XML,\n"
+                 + "then call this with current_layout=<xml> so AI preserves existing structure.\n"
+                 + "Optionally refines output with Morph if enabled in AI Settings.";
         }
 
         @Override public JsonObject getParametersSchema() {
             JsonObject s = new JsonObject(); s.addProperty("type", "object");
             JsonObject p = new JsonObject();
-            addP(p, "sc_id",          "string",  "Project ID");
-            addP(p, "activity_name",  "string",  "Activity name without .java");
-            addP(p, "description",    "string",
-                    "Describe the layout, e.g. 'A login screen with email, password and submit button'");
-            addP(p, "replace",        "boolean", "Replace entire layout (default true)");
+            addP(p, "sc_id",           "string",  "Project ID");
+            addP(p, "activity_name",   "string",  "Activity name without .java");
+            addP(p, "description",     "string",
+                    "What to create or change. For new layouts: full description. "
+                    + "For edits: describe only the change (e.g. 'change button color to blue').");
+            addP(p, "current_layout",  "string",
+                    "OPTIONAL. Current layout XML from describe_layout. "
+                    + "Include this when EDITING so AI preserves existing views. "
+                    + "Omit when creating a new layout from scratch.");
+            addP(p, "replace",         "boolean", "Replace entire layout (default true)");
             s.add("properties", p);
             JsonArray r = new JsonArray();
             r.add("sc_id"); r.add("activity_name"); r.add("description");
@@ -916,7 +1024,34 @@ public final class DesignXmlEditorTool {
             if (!ctx.isProjectAllowed(scId))
                 return error("Access denied: project " + scId);
 
-            String xml = buildXmlFromDescription(desc);
+            // Ask for clarification if description is too vague
+            if (desc == null || desc.trim().length() < 10) {
+                return error("Please describe the layout in more detail. " +
+                        "Example: 'A calculator with a display and a 4x4 button grid " +
+                        "for digits 0-9, operators, clear and equals.' " +
+                        "What elements should appear on the screen?");
+            }
+
+            // Read optional current_layout (for edit mode — preserves existing views)
+            String currentLayout = (args.has("current_layout") && !args.get("current_layout").isJsonNull())
+                    ? args.get("current_layout").getAsString().trim() : null;
+
+            // GeradorDeLayoutPro: edit mode if currentLayout provided, generate mode if null
+            String xml;
+            try {
+                pro.sketchware.ia.GeradorDeLayoutPro gerador =
+                        (currentLayout != null && !currentLayout.isEmpty())
+                        ? new pro.sketchware.ia.GeradorDeLayoutPro(ctx.getAppContext(), desc, currentLayout)
+                        : new pro.sketchware.ia.GeradorDeLayoutPro(ctx.getAppContext(), desc);
+                xml = gerador.generateLayout();
+            } catch (Exception aiEx) {
+                android.util.Log.w("GenerateLayoutTool",
+                        "AI call failed, using template fallback: " + aiEx.getMessage());
+                xml = buildXmlFromDescription(desc != null ? desc : "");
+            }
+
+            if (xml == null || xml.trim().isEmpty())
+                return error("Layout generation returned empty result. Try a more specific description.");
 
             String[] errHolder = {null};
             ArrayList<ViewBean> beans = xmlToViewBeans(xml, true, errHolder);
@@ -927,11 +1062,12 @@ public final class DesignXmlEditorTool {
             try {
                 File viewFile = new File(ctx.getProjectDataDir(scId), "view");
                 saveViewBeans(viewFile, actName, beans);
-                notifyChange(ctx.getAppContext(), scId, actName);
+                // Pass xml so DesignActivity uses ViewBeanParser → jC.c.put → redraw (IA path)
+                notifyChangeWithXml(ctx.getAppContext(), scId, actName, xml);
 
                 return success("Layout generated and applied to '" + actName + "'. "
                         + beans.size() + " view(s) created from description: \"" + desc + "\"\n"
-                        + "Design canvas reloaded.");
+                        + "Design canvas reloaded live.");
             } catch (Exception e) {
                 return error("Failed to apply layout: " + e.getMessage());
             }

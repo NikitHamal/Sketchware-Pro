@@ -306,11 +306,14 @@ public class yq {
     public void generateGradleFiles() {
         String appBuildGradle = Lx.getBuildGradleString(VAR_DEFAULT_TARGET_SDK_VERSION, VAR_DEFAULT_MIN_SDK_VERSION, projectSettings.getValue(ProjectSettings.SETTING_TARGET_SDK_VERSION, String.valueOf(VAR_DEFAULT_TARGET_SDK_VERSION)), N, projectSettings.getValue(ProjectSettings.SETTING_ENABLE_VIEWBINDING, ProjectSettings.SETTING_GENERIC_VALUE_FALSE).equals(ProjectSettings.SETTING_GENERIC_VALUE_TRUE));
         String settingsGradle = Lx.a();
-        String projectBuildGradle = Lx.c("8.12.0", "4.4.3");
+        String projectBuildGradle = Lx.c("8.7.3", "4.4.2");
         String gradleProperties = """
-                android.enableR8.fullMode=false
-                android.enableJetifier=true
                 android.useAndroidX=true
+                android.enableJetifier=false
+                android.enableR8.fullMode=false
+                org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+                org.gradle.parallel=true
+                kotlin.code.style=official
                 """.trim();
 
         appBuildGradle = GradleInjectionManager.appendIfPresent(appBuildGradle, GradleInjectionManager.readAppGradleInject(sc_id));

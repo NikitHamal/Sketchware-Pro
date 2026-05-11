@@ -37,14 +37,12 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/list_events"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="horizontal"
+        android:layout_height="match_parent"
         android:scrollbars="none"
         android:splitMotionEvents="false"
         android:clipToPadding="false"
-        android:paddingBottom="72dp"
-        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+        android:paddingBottom="8dp"
+        android:paddingTop="4dp"
         tools:listitem="@layout/event_grid_item" />
 
     <!-- Empty state -->

@@ -195,6 +195,10 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
                 startActivity(new Intent(this, AiSettingsActivity.class));
                 return true;
             }
+            if (item.getItemId() == R.id.action_clear_chat) {
+                confirmClearConversation();
+                return true;
+            }
             return false;
         });
     }
@@ -241,6 +245,19 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
 
         // Attach button — file picker for text/JSON/Java/XML
         binding.btnAttach.setOnClickListener(v -> openFilePicker());
+
+        // Tools button — shows the AI capability catalogue
+        if (binding.btnTools != null) {
+            binding.btnTools.setOnClickListener(v ->
+                pro.sketchware.ai.bottomsheet.AiToolsBottomSheet.show(this, tool -> {
+                    // Pre-fill input with a helpful prompt about the chosen tool
+                    String prompt = "Use the \"" + tool.name + "\" tool to help me: ";
+                    binding.inputMessage.setText(prompt);
+                    binding.inputMessage.setSelection(prompt.length());
+                    binding.inputMessage.requestFocus();
+                })
+            );
+        }
     }
 
     private void startSpeechInput() {
@@ -318,28 +335,13 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
      *
      * The FAB is injected programmatically so no layout XML changes are needed.
      */
-    private FloatingActionButton fabScrollDown;
+    private com.google.android.material.floatingactionbutton.FloatingActionButton fabScrollDown;
 
     private void setupScrollToBottomFab() {
-        // Create FAB programmatically and add it to the root coordinator/frame
-        android.view.ViewGroup rootLayout = binding.getRoot();
-        fabScrollDown = new FloatingActionButton(this);
-        fabScrollDown.setImageResource(android.R.drawable.arrow_down_float);
-        fabScrollDown.setSize(FloatingActionButton.SIZE_MINI);
-        fabScrollDown.setVisibility(android.view.View.GONE);
-
-        // Position: bottom-end, above input bar (~80dp from bottom)
-        android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(
-                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
-                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT);
-        lp.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.END;
-        int margin = (int) (72 * getResources().getDisplayMetrics().density);
-        int marginSide = (int) (16 * getResources().getDisplayMetrics().density);
-        lp.bottomMargin = margin;
-        lp.rightMargin = marginSide;
-        rootLayout.addView(fabScrollDown, lp);
-
-        fabScrollDown.setOnClickListener(v -> scrollToBottom());
+        // Use the FAB already declared in activity_chat.xml
+        fabScrollDown = binding.fabScrollDown;
+        fabScrollDown.setVisibility(View.GONE);
+        fabScrollDown.setOnClickListener(v -> scrollToBottom(true));
 
         binding.messagesList.addOnScrollListener(new androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
             @Override
@@ -349,11 +351,10 @@ public class ChatActivity extends AppCompatActivity implements AgentExecutor.Age
                 if (lm == null) return;
                 int lastVisible = lm.findLastCompletelyVisibleItemPosition();
                 int total = rv.getAdapter() != null ? rv.getAdapter().getItemCount() : 0;
-                boolean atBottom = lastVisible >= total - 1;
-                // Track manual scrolling to suppress auto-scroll during streaming
+                boolean atBottom = (total == 0) || (lastVisible >= total - 1);
                 if (dy < 0) userScrolledUp = true;
                 if (atBottom) userScrolledUp = false;
-                fabScrollDown.setVisibility(atBottom ? android.view.View.GONE : android.view.View.VISIBLE);
+                fabScrollDown.setVisibility(atBottom ? View.GONE : View.VISIBLE);
             }
         });
     }

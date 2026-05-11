@@ -25,7 +25,8 @@
         app:statusBarForeground="?attr/colorSurface">
 
         <com.google.android.material.search.SearchBar
-            android:id="@+id/search_bar"
+            android:id="@+id/main_toolbar"
+            app:menu="@menu/menu_local_libraries"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
@@ -60,7 +61,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:hint="Search for libraries"
-        app:layout_anchor="@id/search_bar">
+        app:layout_anchor="@id/main_toolbar">
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/search_list"
@@ -113,5 +114,15 @@
         android:layout_marginBottom="20dp"
         android:text="@string/local_library_manager_download"
         app:icon="@drawable/ic_mtrl_download" />
+
+
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/progress_refresh_all"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:indeterminate="true"
+        android:visibility="gone"
+        app:trackCornerRadius="0dp" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

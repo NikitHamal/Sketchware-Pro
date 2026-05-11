@@ -8,6 +8,8 @@ import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.Parcelable;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -21,6 +23,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.appcompat.widget.Toolbar;
 import androidx.cardview.widget.CardView;
@@ -32,7 +35,12 @@ import com.google.gson.JsonParseException;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import dev.pranav.filepicker.FilePickerCallback;
@@ -40,7 +48,6 @@ import dev.pranav.filepicker.FilePickerDialogFragment;
 import dev.pranav.filepicker.FilePickerOptions;
 import mod.hey.studios.util.Helper;
 import pro.sketchware.R;
-import pro.sketchware.compiler.CustomBlockDefinitionValidator;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
 
@@ -62,15 +69,6 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
     private ListView block_list;
     private LinearLayout background;
     private com.google.android.material.floatingactionbutton.FloatingActionButton fab_button;
-
-    private String getLegacyValidationError(HashMap<String, Object> block) {
-        return CustomBlockDefinitionValidator.validate(
-                block.get("name") instanceof String ? (String) block.get("name") : "",
-                block.get("spec") instanceof String ? (String) block.get("spec") : "",
-                block.get("code") instanceof String ? (String) block.get("code") : "",
-                block.get("type") instanceof String ? (String) block.get("type") : " "
-        );
-    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -175,6 +173,11 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
                 menu.add(Menu.NONE, Menu.NONE, Menu.NONE, "Swap").setIcon(AppCompatResources.getDrawable(this, R.drawable.ic_mtrl_swap_vertical)).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
                 menu.add(Menu.NONE, Menu.NONE, Menu.NONE, "Import");
                 menu.add(Menu.NONE, Menu.NONE, Menu.NONE, "Export");
+                // ── Block tools ────────────────────────────────────────
+                menu.add(Menu.NONE, Menu.NONE, Menu.NONE, "↑ Sort A→Z");
+                menu.add(Menu.NONE, Menu.NONE, Menu.NONE, "↓ Sort Z→A");
+                menu.add(Menu.NONE, Menu.NONE, Menu.NONE, "🗑 Remove Duplicates");
+                menu.add(Menu.NONE, Menu.NONE, Menu.NONE, "✨ AI Optimize");
             } else {
                 menu.add(Menu.NONE, Menu.NONE, Menu.NONE, "Swap").setIcon(AppCompatResources.getDrawable(this, R.drawable.ic_mtrl_save)).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
             }
@@ -216,10 +219,321 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
                 }
                 break;
 
+            case "↑ Sort A→Z":
+                sortBlocksAlpha(true);
+                break;
+
+            case "↓ Sort Z→A":
+                sortBlocksAlpha(false);
+                break;
+
+            case "🗑 Remove Duplicates":
+                removeDuplicateBlocks();
+                break;
+
+            case "✨ AI Optimize":
+                launchGroqOptimizer();
+                break;
+
             default:
                 return false;
         }
         return super.onOptionsItemSelected(menuItem);
+    }
+
+    // ── Block Tools ───────────────────────────────────────────────────────
+
+    private void sortBlocksAlpha(boolean ascending) {
+        filtered_list.sort((a, b) -> {
+            String na = a.get("name") != null ? a.get("name").toString() : "";
+            String nb = b.get("name") != null ? b.get("name").toString() : "";
+            return ascending ? na.compareToIgnoreCase(nb) : nb.compareToIgnoreCase(na);
+        });
+        // Write sorted positions back into all_blocks_list
+        for (int i = 0; i < filtered_list.size(); i++) {
+            int ref = reference_list.get(i);
+            all_blocks_list.set(ref, filtered_list.get(i));
+        }
+        // ── Persist BOTH files atomically ─────────────────────────────
+        FileUtil.writeFile(blocks_path, getGson().toJson(all_blocks_list));
+        FileUtil.writeFile(pallet_path, getGson().toJson(pallet_list)); // palette unchanged but keep in sync
+        _refreshLists();
+        SketchwareUtil.toast(ascending ? "Sorted A→Z" : "Sorted Z→A");
+    }
+
+    private void removeDuplicateBlocks() {
+        // Build map: key → first occurrence index (to keep), rest are duplicates
+        java.util.LinkedHashMap<String, Integer> firstSeen = new java.util.LinkedHashMap<>();
+        java.util.List<Integer> dupIndices = new ArrayList<>();
+        java.util.List<String> dupLabels = new ArrayList<>();
+
+        for (int i = 0; i < all_blocks_list.size(); i++) {
+            HashMap<String, Object> b = all_blocks_list.get(i);
+            Object p = b.get("palette");
+            if (!(p instanceof String)) continue;
+            try { if (Integer.parseInt((String) p) != palette) continue; }
+            catch (NumberFormatException ignored) { continue; }
+
+            String key = b.get("name") + "|" + b.get("spec");
+            if (firstSeen.containsKey(key)) {
+                dupIndices.add(i);
+                dupLabels.add(String.valueOf(b.get("name"))
+                    + "  (type: " + b.get("type") + ")");
+            } else {
+                firstSeen.put(key, i);
+            }
+        }
+
+        if (dupIndices.isEmpty()) {
+            SketchwareUtil.toast("No duplicate blocks found");
+            return;
+        }
+
+        // Build checklist: all duplicates pre-checked
+        boolean[] checked = new boolean[dupIndices.size()];
+        java.util.Arrays.fill(checked, true);
+        String[] items = dupLabels.toArray(new String[0]);
+
+        new MaterialAlertDialogBuilder(this)
+            .setTitle("🗑 Remove Duplicate Blocks")
+            .setMessage("Found " + dupIndices.size() + " duplicate(s). Select which to delete:")
+            .setMultiChoiceItems(items, checked, (dialog, which, isChecked) ->
+                checked[which] = isChecked)
+            .setPositiveButton("Delete Selected", (dialog, which) -> {
+                java.util.List<Integer> toDelete = new ArrayList<>();
+                for (int i = 0; i < checked.length; i++) {
+                    if (checked[i]) toDelete.add(dupIndices.get(i));
+                }
+                if (toDelete.isEmpty()) { SketchwareUtil.toast("Nothing selected"); return; }
+                Collections.sort(toDelete, Collections.reverseOrder());
+                for (int idx : toDelete) all_blocks_list.remove(idx);
+                FileUtil.writeFile(blocks_path, getGson().toJson(all_blocks_list));
+                FileUtil.writeFile(pallet_path, getGson().toJson(pallet_list));
+                _refreshLists();
+                SketchwareUtil.toast(toDelete.size() + " duplicate(s) removed");
+            })
+            .setNegativeButton("Keep All", null)
+            .show();
+    }
+
+    private void launchGroqOptimizer() {
+        android.content.SharedPreferences prefs =
+            getSharedPreferences("ia_settings", android.content.Context.MODE_PRIVATE);
+        String apiKey = prefs.getString("groq_api_key", "");
+        boolean enabled = prefs.getBoolean("groq_enabled", false);
+        if (apiKey.isEmpty() || !enabled) {
+            new MaterialAlertDialogBuilder(this)
+                .setTitle("⚠️ Groq API Key Not Configured")
+                .setMessage("Enable Groq and add your API key in:\nSettings → App Settings → API Keys (Groq / Morph)")
+                .setPositiveButton("Open AI Settings", (d, w) ->
+                    startActivity(new Intent(this, pro.sketchware.ai.activities.AiSettingsActivity.class)))
+                .setNegativeButton("Cancel", null).show();
+            return;
+        }
+        if (filtered_list.isEmpty()) { SketchwareUtil.toast("No blocks to analyze"); return; }
+
+        String palName = (palette >= 9 && palette - 9 < pallet_list.size())
+            ? String.valueOf(pallet_list.get(palette - 9).get("name")) : "Unknown";
+
+        // Build block summary — respect token limit
+        StringBuilder sb = new StringBuilder();
+        int blockCount = 0;
+        final int MAX_BLOCKS = 80;
+        for (HashMap<String, Object> b : filtered_list) {
+            if (blockCount >= MAX_BLOCKS) { sb.append("... (truncated)\n"); break; }
+            sb.append("• [").append(b.get("type")).append("] ")
+              .append(b.get("name")).append(" — spec: ").append(b.get("spec"))
+              .append(" | opCode: ").append(b.get("opCode")).append("\n");
+            blockCount++;
+        }
+        if (filtered_list.size() > MAX_BLOCKS) {
+            new MaterialAlertDialogBuilder(this)
+                .setTitle("⚠️ Large Palette")
+                .setMessage("This palette has " + filtered_list.size() + " blocks.\n"
+                    + "AI will analyze the first " + MAX_BLOCKS + " blocks.")
+                .setPositiveButton("Continue", (d, w) -> runGroqAnalysis(palName, sb.toString(), filtered_list))
+                .setNegativeButton("Cancel", null).show();
+            return;
+        }
+        runGroqAnalysis(palName, sb.toString(), filtered_list);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void runGroqAnalysis(String palName, String blocksSummary,
+                                 List<HashMap<String, Object>> currentBlocks) {
+        String prompt = "You are a Sketchware custom block assistant.\n"
+            + "Analyze this palette \"" + palName + "\" and return a JSON array of suggestions.\n"
+            + "Each suggestion must have:\n"
+            + "  action: \"delete\" | \"edit\" | \"create\"\n"
+            + "  name: block name (for delete/edit = existing name; for create = new name)\n"
+            + "  reason: short explanation\n"
+            + "  new_spec: (for edit/create) new spec text\n"
+            + "  new_opCode: (for edit/create) new Java opCode\n"
+            + "  new_type: (for edit/create) block type: blank/boolean/d/s\n\n"
+            + "Palette blocks:\n" + blocksSummary + "\n\n"
+            + "Return ONLY the JSON array. No markdown. No explanation outside JSON.";
+
+        AlertDialog loading = new MaterialAlertDialogBuilder(this)
+            .setTitle("✨ AI analyzing…").setMessage("Please wait…").setCancelable(false).create();
+        loading.show();
+
+        ExecutorService exec = Executors.newSingleThreadExecutor();
+        Handler handler = new Handler(Looper.getMainLooper());
+        exec.execute(() -> {
+            String result;
+            try {
+                result = pro.sketchware.ai.api.GroqApiClientHelper.getInstance(this).sendMessage(prompt);
+            } catch (Exception e) {
+                result = null;
+                handler.post(() -> { loading.dismiss(); SketchwareUtil.toastError("AI error: " + e.getMessage()); });
+                return;
+            }
+            final String json = result;
+            handler.post(() -> {
+                loading.dismiss();
+                if (json == null || json.isEmpty()) { SketchwareUtil.toastError("No AI response"); return; }
+                showAiSuggestionsDialog(palName, json, currentBlocks);
+            });
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void showAiSuggestionsDialog(String palName, String jsonRaw,
+                                         List<HashMap<String, Object>> currentBlocks) {
+        ArrayList<HashMap<String, Object>> suggestions = new ArrayList<>();
+        try {
+            String json = jsonRaw.replaceAll("(?s)```json\\s*|```", "").trim();
+            int start = json.indexOf('[');
+            if (start >= 0) json = json.substring(start);
+            java.lang.reflect.Type t = new com.google.gson.reflect.TypeToken<
+                ArrayList<HashMap<String, Object>>>(){}.getType();
+            suggestions = new com.google.gson.Gson().fromJson(json, t);
+        } catch (Exception e) {
+            new MaterialAlertDialogBuilder(this)
+                .setTitle("✨ AI Analysis — " + palName)
+                .setMessage("Could not parse AI response:\n" + jsonRaw.substring(0, Math.min(500, jsonRaw.length())))
+                .setPositiveButton("Close", null).show();
+            return;
+        }
+        if (suggestions == null || suggestions.isEmpty()) {
+            SketchwareUtil.toast("AI has no suggestions for this palette");
+            return;
+        }
+
+        final ArrayList<HashMap<String, Object>> finalSugg = suggestions;
+        final boolean[] checked = new boolean[finalSugg.size()];
+        Arrays.fill(checked, true);
+
+        float dp = getResources().getDisplayMetrics().density;
+        int dp8 = (int)(8 * dp);
+
+        android.widget.LinearLayout root = new android.widget.LinearLayout(this);
+        root.setOrientation(android.widget.LinearLayout.VERTICAL);
+
+        android.widget.CheckBox selectAll = new android.widget.CheckBox(this);
+        selectAll.setText("  Select All / Deselect All");
+        selectAll.setChecked(true);
+        selectAll.setPadding(dp8, dp8, dp8, dp8/2);
+        root.addView(selectAll);
+
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        android.widget.LinearLayout listC = new android.widget.LinearLayout(this);
+        listC.setOrientation(android.widget.LinearLayout.VERTICAL);
+
+        android.widget.CheckBox[] cbList = new android.widget.CheckBox[finalSugg.size()];
+        for (int i = 0; i < finalSugg.size(); i++) {
+            final int fi = i;
+            HashMap<String, Object> s = finalSugg.get(i);
+            String action = String.valueOf(s.getOrDefault("action","?"));
+            String name   = String.valueOf(s.getOrDefault("name","?"));
+            String reason = String.valueOf(s.getOrDefault("reason",""));
+            String emoji  = action.equals("delete") ? "🗑" : action.equals("edit") ? "✏️" : "➕";
+
+            android.widget.CheckBox cb = new android.widget.CheckBox(this);
+            cb.setText(emoji + " [" + action.toUpperCase() + "] " + name + "\n   " + reason);
+            cb.setChecked(true);
+            cb.setPadding(dp8*2, dp8/2, dp8, dp8/2);
+            cb.setOnCheckedChangeListener((v, c) -> {
+                checked[fi] = c;
+                boolean allOn = true;
+                for (boolean val : checked) if (!val) { allOn = false; break; }
+                selectAll.setOnCheckedChangeListener(null);
+                selectAll.setChecked(allOn);
+                selectAll.setOnCheckedChangeListener((btn, chk) -> {
+                    Arrays.fill(checked, chk);
+                    for (android.widget.CheckBox box : cbList) if (box != null) box.setChecked(chk);
+                });
+            });
+            cbList[i] = cb;
+            listC.addView(cb);
+        }
+        selectAll.setOnCheckedChangeListener((btn, chk) -> {
+            Arrays.fill(checked, chk);
+            for (android.widget.CheckBox box : cbList) if (box != null) box.setChecked(chk);
+        });
+
+        scroll.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT, (int)(360*dp)));
+        scroll.addView(listC);
+        root.addView(scroll);
+
+        new MaterialAlertDialogBuilder(this)
+            .setTitle("✨ AI — " + finalSugg.size() + " Suggestion(s) for " + palName)
+            .setView(root)
+            .setPositiveButton("💾 Apply Selected", (d, w) -> {
+                int applied = 0;
+                for (int i = 0; i < finalSugg.size(); i++) {
+                    if (!checked[i]) continue;
+                    HashMap<String, Object> s = finalSugg.get(i);
+                    String action = String.valueOf(s.getOrDefault("action", ""));
+                    String name   = String.valueOf(s.getOrDefault("name", ""));
+                    switch (action) {
+                        case "delete":
+                            for (int j = all_blocks_list.size()-1; j >= 0; j--) {
+                                if (name.equals(all_blocks_list.get(j).get("name"))
+                                    && String.valueOf(palette).equals(
+                                        String.valueOf(all_blocks_list.get(j).get("palette")))) {
+                                    all_blocks_list.remove(j); applied++; break;
+                                }
+                            }
+                            break;
+                        case "edit":
+                            for (HashMap<String, Object> b : all_blocks_list) {
+                                if (name.equals(b.get("name"))
+                                    && String.valueOf(palette).equals(String.valueOf(b.get("palette")))) {
+                                    if (s.containsKey("new_spec"))   b.put("spec",   s.get("new_spec"));
+                                    if (s.containsKey("new_opCode")) b.put("opCode", s.get("new_opCode"));
+                                    if (s.containsKey("new_type"))   b.put("type",   s.get("new_type"));
+                                    applied++; break;
+                                }
+                            }
+                            break;
+                        case "create":
+                            HashMap<String, Object> nb = new HashMap<>();
+                            nb.put("name",     name);
+                            nb.put("spec",     s.getOrDefault("new_spec",   name));
+                            nb.put("opCode",   s.getOrDefault("new_opCode", ""));
+                            nb.put("type",     s.getOrDefault("new_type",   "blank"));
+                            nb.put("typeName", "");
+                            nb.put("palette",  String.valueOf(palette));
+                            nb.put("id",       String.valueOf(System.currentTimeMillis()));
+                            nb.put("nextBlock", -1.0);
+                            nb.put("subStack1", -1.0);
+                            nb.put("subStack2", -1.0);
+                            nb.put("color",    "#607D8B");
+                            nb.put("parameters", new ArrayList<>());
+                            all_blocks_list.add(nb); applied++;
+                            break;
+                    }
+                }
+                if (applied > 0) {
+                    _saveBothFiles();
+                    _refreshLists();
+                    SketchwareUtil.toast("✅ Applied " + applied + " change(s)");
+                }
+            })
+            .setNegativeButton("إلغاء", null)
+            .show();
     }
 
     private void _receive_intents() {
@@ -309,9 +623,15 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
         block_list.onRestoreInstanceState(onSaveInstanceState);
     }
 
+    // ── Helper: persist BOTH files atomically ────────────────────────────
+    private void _saveBothFiles() {
+        FileUtil.writeFile(blocks_path, getGson().toJson(all_blocks_list));
+        FileUtil.writeFile(pallet_path, getGson().toJson(pallet_list));
+    }
+
     private void _swapitems(int sourcePosition, int targetPosition) {
         Collections.swap(all_blocks_list, sourcePosition, targetPosition);
-        FileUtil.writeFile(blocks_path, getGson().toJson(all_blocks_list));
+        _saveBothFiles();
         _refreshLists();
     }
 
@@ -399,19 +719,19 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
             }
         }
         all_blocks_list.add(position + 1, block);
-        FileUtil.writeFile(blocks_path, getGson().toJson(all_blocks_list));
+        _saveBothFiles(); // both files atomically
         _refreshLists();
     }
 
     private void _deleteBlock(int position) {
         all_blocks_list.remove(position);
-        FileUtil.writeFile(blocks_path, getGson().toJson(all_blocks_list));
+        _saveBothFiles(); // both files atomically
         _refreshLists();
     }
 
     private void _moveToRecycleBin(int position) {
         all_blocks_list.get(position).put("palette", "-1");
-        FileUtil.writeFile(blocks_path, getGson().toJson(all_blocks_list));
+        _saveBothFiles(); // both files atomically
         _refreshLists();
     }
 
@@ -438,7 +758,7 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
                         if (restoreToChoice.get() != -1) {
                             all_blocks_list.get(position).put("palette", String.valueOf(restoreToChoice.get() + 9));
                             Collections.swap(all_blocks_list, position, all_blocks_list.size() - 1);
-                            FileUtil.writeFile(blocks_path, getGson().toJson(all_blocks_list));
+                            _saveBothFiles(); // both files atomically
                             _refreshLists();
                         }
                     });
@@ -449,7 +769,7 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
                     .setPositiveButton("Move", (dialog, which) -> {
                         all_blocks_list.get(position).put("palette", String.valueOf(moveToChoice.get() + 9));
                         Collections.swap(all_blocks_list, position, all_blocks_list.size() - 1);
-                        FileUtil.writeFile(blocks_path, getGson().toJson(all_blocks_list));
+                        _saveBothFiles(); // both files atomically
                         _refreshLists();
                     });
         }
@@ -486,7 +806,7 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
                                 all_blocks_list.add(map);
                             }
                         }
-                        FileUtil.writeFile(blocks_path, getGson().toJson(all_blocks_list));
+                        _saveBothFiles(); // both files atomically
                         _refreshLists();
                         SketchwareUtil.toast("Imported successfully");
                     })
@@ -498,7 +818,7 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
                                 all_blocks_list.add(map);
                             }
                         }
-                        FileUtil.writeFile(blocks_path, getGson().toJson(all_blocks_list));
+                        _saveBothFiles(); // both files atomically
                         _refreshLists();
                         SketchwareUtil.toast("Imported successfully");
                     })
@@ -508,7 +828,7 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
                             map.put("palette", String.valueOf(palette));
                             all_blocks_list.add(map);
                         }
-                        FileUtil.writeFile(blocks_path, getGson().toJson(all_blocks_list));
+                        _saveBothFiles(); // both files atomically
                         _refreshLists();
                         SketchwareUtil.toast("Imported successfully");
                     })
@@ -549,43 +869,21 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
             return position;
         }
 
-        private class ViewHolder {
-            LinearLayout background;
-            TextView name;
-            TextView spec;
-            CardView upLayout;
-            CardView downLayout;
-            LinearLayout down;
-            LinearLayout up;
-        }
-
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-            ViewHolder holder;
             if (convertView == null) {
                 convertView = getLayoutInflater().inflate(R.layout.block_customview, parent, false);
-                holder = new ViewHolder();
-                holder.background = convertView.findViewById(R.id.background);
-                holder.name = convertView.findViewById(R.id.name);
-                holder.spec = convertView.findViewById(R.id.spec);
-                holder.upLayout = convertView.findViewById(R.id.up_layout);
-                holder.downLayout = convertView.findViewById(R.id.down_layout);
-                holder.down = convertView.findViewById(R.id.down);
-                holder.up = convertView.findViewById(R.id.up);
-                convertView.setTag(holder);
-            } else {
-                holder = (ViewHolder) convertView.getTag();
             }
 
             HashMap<String, Object> block = blocks.get(position);
 
-            LinearLayout background = holder.background;
-            TextView name = holder.name;
-            TextView spec = holder.spec;
-            CardView upLayout = holder.upLayout;
-            CardView downLayout = holder.downLayout;
-            LinearLayout down = holder.down;
-            LinearLayout up = holder.up;
+            LinearLayout background = convertView.findViewById(R.id.background);
+            TextView name = convertView.findViewById(R.id.name);
+            TextView spec = convertView.findViewById(R.id.spec);
+            CardView upLayout = convertView.findViewById(R.id.up_layout);
+            CardView downLayout = convertView.findViewById(R.id.down_layout);
+            LinearLayout down = convertView.findViewById(R.id.down);
+            LinearLayout up = convertView.findViewById(R.id.up);
 
             if (mode.equals("normal")) {
                 downLayout.setVisibility(View.GONE);
@@ -611,18 +909,6 @@ public class BlocksManagerDetailsActivity extends BaseAppCompatActivity {
             } else {
                 spec.setText("");
                 spec.setHint("(Invalid block spec entry)");
-            }
-
-            int defaultSpecTextColor = spec.getCurrentTextColor();
-            String validationError = getLegacyValidationError(block);
-            if (validationError != null) {
-                if (blockName instanceof String blockNameString) {
-                    name.setText(blockNameString + " (needs migration)");
-                }
-                spec.setHint(validationError);
-                spec.setTextColor(getColor(R.color.md_theme_light_error));
-            } else {
-                spec.setTextColor(defaultSpecTextColor);
             }
 
             Object blockType = block.get("type");

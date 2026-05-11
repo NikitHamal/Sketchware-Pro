@@ -52,6 +52,7 @@ import pro.sketchware.utility.UI;
 public class ProjectsFragment extends DA {
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final List<HashMap<String, Object>> projectsList = new ArrayList<>();
+    private volatile boolean isLoading = false;
     private MyprojectsBinding binding;
     private ProjectsAdapter projectsAdapter;
     public final ActivityResultLauncher<Intent> openProjectSettings = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -218,6 +219,10 @@ public class ProjectsFragment extends DA {
             return;
         }
 
+        // Avoid stacking multiple concurrent disk reads which cause ANR
+        if (isLoading) return;
+        isLoading = true;
+
         executorService.execute(() -> {
             List<HashMap<String, Object>> loadedProjects = lC.a();
             loadedProjects.sort(new ProjectComparator(preference.d("sortBy"),preference.a("pinnedProject", "-1")));
@@ -225,6 +230,7 @@ public class ProjectsFragment extends DA {
             DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(new ProjectDiffCallback(projectsList, loadedProjects));
 
             requireActivity().runOnUiThread(() -> {
+                isLoading = false;
                 if (binding.swipeRefresh.isRefreshing()) binding.swipeRefresh.setRefreshing(false);
                 if (binding.loadingContainer.getVisibility() == View.VISIBLE) {
                     binding.loadingContainer.setVisibility(View.GONE);
@@ -237,6 +243,10 @@ public class ProjectsFragment extends DA {
                     projectsAdapter.filterData(projectsSearchView.getQuery().toString());
             });
         });
+    }
+
+    public void resetLoadingState() {
+        isLoading = false;
     }
 
     private void addProject(String sc_id) {

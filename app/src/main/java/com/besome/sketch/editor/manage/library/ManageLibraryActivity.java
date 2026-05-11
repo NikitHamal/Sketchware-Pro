@@ -42,6 +42,10 @@ import pro.sketchware.util.library.BuiltInLibraryCompatibilityMatrix;
 import mod.jbk.editor.manage.library.EnableBuiltInLibrariesLibraryItemView;
 import mod.jbk.editor.manage.library.ExcludeBuiltInLibrariesLibraryItemView;
 import pro.sketchware.R;
+import pro.sketchware.activities.library.extras.FirebaseExtrasActivity;
+import pro.sketchware.activities.library.extras.LibraryExtrasActivity;
+import pro.sketchware.activities.library.extras.NavLibraryItemView;
+import pro.sketchware.activities.library.extras.UiSettingsLibraryActivity;
 import pro.sketchware.utility.UI;
 
 public class ManageLibraryActivity extends BaseAppCompatActivity implements View.OnClickListener {
@@ -52,6 +56,11 @@ public class ManageLibraryActivity extends BaseAppCompatActivity implements View
     private final int REQUEST_CODE_GOOGLE_MAPS_ACTIVITY = 241;
     private final int REQUEST_CODE_MATERIAL3_ACTIVITY = 242;
     private final int REQUEST_CODE_CUSTOM_ITEM_LIBRARY_ACTIVITY = 243;
+
+    // Nav-item tag constants (must not collide with PROJECT_LIB_TYPE_* values 0–8)
+    private static final int NAV_FIREBASE_EXTRAS  = 100;
+    private static final int NAV_EXTRA_LIBS       = 101;
+    private static final int NAV_UI_SETTINGS      = 102;
 
     private String sc_id;
     private LinearLayout libraryItemLayout;
@@ -115,6 +124,24 @@ public class ManageLibraryActivity extends BaseAppCompatActivity implements View
         libraryItemView.setOnClickListener(this);
         parent.addLibraryItem(libraryItemView, addDivider);
         libraryItems.add(libraryItemView);
+    }
+
+    /**
+     * Adds a plain navigation item (no ON/OFF state) to {@code parent}.
+     *
+     * @param navTag     one of the {@code NAV_*} constants
+     * @param iconRes    drawable resource for the icon
+     * @param title      item title
+     * @param desc       item subtitle / description
+     * @param addDivider whether to draw a bottom divider
+     */
+    private void addNavItem(int navTag, int iconRes, String title, String desc,
+                            LibraryCategoryView parent, boolean addDivider) {
+        NavLibraryItemView view = new NavLibraryItemView(this, iconRes, title, desc);
+        view.setTag(navTag);
+        view.setOnClickListener(this);
+        parent.addLibraryItem(view, addDivider);
+        libraryItems.add(view);
     }
 
     private void toCompatActivity(ProjectLibraryBean compatLibraryBean, ProjectLibraryBean firebaseLibraryBean) {
@@ -198,6 +225,13 @@ public class ManageLibraryActivity extends BaseAppCompatActivity implements View
     private void launchActivity(Class<? extends Activity> toLaunch) {
         Intent intent = new Intent(getApplicationContext(), toLaunch);
         intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.putExtra("sc_id", sc_id);
+        startActivity(intent);
+    }
+
+    /** Launches a nav-only extras activity (passes sc_id, no result expected). */
+    private void launchNavActivity(Class<? extends Activity> toLaunch) {
+        Intent intent = new Intent(getApplicationContext(), toLaunch);
         intent.putExtra("sc_id", sc_id);
         startActivity(intent);
     }
@@ -317,6 +351,19 @@ public class ManageLibraryActivity extends BaseAppCompatActivity implements View
 
                     case ProjectLibraryBean.PROJECT_LIB_TYPE_MATERIAL3:
                         toMaterial3Activity();
+                        break;
+
+                    case NAV_FIREBASE_EXTRAS:
+                        launchNavActivity(FirebaseExtrasActivity.class);
+                        break;
+
+                    case NAV_EXTRA_LIBS:
+                        launchNavActivity(LibraryExtrasActivity.class);
+                        break;
+
+                    case NAV_UI_SETTINGS:
+                        launchNavActivity(UiSettingsLibraryActivity.class);
+                        break;
                 }
             }
         }
@@ -399,6 +446,31 @@ public class ManageLibraryActivity extends BaseAppCompatActivity implements View
         addLibraryItem(firebaseLibraryBean, basicCategory);
         addLibraryItem(admobLibraryBean, basicCategory);
         addLibraryItem(googleMapLibraryBean, basicCategory, false);
+
+        // ── Firebase & Google ──────────────────────────────────────────────
+        // Analytics, Android Billing, OneSignal — all require Firebase to be enabled.
+        LibraryCategoryView firebaseGoogleCategory = addCategoryItem("Firebase & Google");
+        addNavItem(NAV_FIREBASE_EXTRAS,
+                R.drawable.ic_mtrl_firebase,
+                "Firebase extras",
+                "Analytics · Android Billing · OneSignal — all require Firebase",
+                firebaseGoogleCategory, false);
+
+        // ── User Interface ─────────────────────────────────────────────────
+        LibraryCategoryView uiCategory = addCategoryItem("User Interface");
+        addNavItem(NAV_UI_SETTINGS,
+                R.drawable.ic_mtrl_devices,
+                "UI settings",
+                "Edge-to-Edge · Window insets · Text color · Predictive back gesture",
+                uiCategory, false);
+
+        // ── Extra Libraries ────────────────────────────────────────────────
+        LibraryCategoryView extraLibsCategory = addCategoryItem("Extra Libraries");
+        addNavItem(NAV_EXTRA_LIBS,
+                R.drawable.ic_mtrl_component,
+                "Additional libraries",
+                "WorkManager · Media3 · Browser · Credential Manager · Glide · Shizuku",
+                extraLibsCategory, false);
 
         LibraryCategoryView externalCategory = addCategoryItem("External libraries");
         addLibraryItem(new ProjectLibraryBean(ProjectLibraryBean.PROJECT_LIB_TYPE_LOCAL_LIB), externalCategory);

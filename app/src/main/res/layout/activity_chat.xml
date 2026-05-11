@@ -1,42 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  AI Chat Activity — styled to match the design mockup:
-  • Light purple background
-  • Centered robot + sparkle empty state
-  • "Start a conversation" title
-  • "Try examples" outlined button
-  • White pill input bar at bottom: attach icon | hint text | mic icon | purple send circle
-  • Model chip in toolbar subtitle (purple pill: "gemini-2.5-flash ▾")
+    activity_chat.xml — Material 3 Chat UI
+    Pixel-perfect match to reference screenshots.
+
+    Toolbar: ← (back) | "Sketchware AI" bold 16sp + "3408" 12sp subtitle | ⋮ (more)
+    RecyclerView: 12dp H padding, clipToPadding=false
+    Input bar: pill shape | [+] | "Ask anything..." | [mic] | [▶ send circle]
+
+    IDs match ActivityChatBinding:
+      toolbar, toolbarTitle, toolbarModel, modelSelectorRow,
+      messagesList, emptyState, emptyDescription,
+      fabScrollDown, inputBarContainer,
+      typingIndicator, typingText,
+      btnAttach, btnTools, btnClear, inputMessage, btnMic, btnSend
 -->
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?attr/colorSurface"
     android:fitsSystemWindows="true">
 
-    <!-- ── Toolbar ────────────────────────────────────────────────────── -->
+    <!-- ── AppBar ─────────────────────────────────────────────────────────── -->
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="?attr/colorSurface"
+        android:elevation="0dp"
         android:fitsSystemWindows="true"
-        app:elevation="0dp">
+        app:liftOnScroll="true"
+        app:liftOnScrollTargetViewId="@+id/messages_list">
 
+        <!--
+            Toolbar height = 56dp
+            Left:   ic_mtrl_arrow_left  (back navigation, 48dp touch)
+            Center: "Sketchware AI" 16sp bold + "3408" subtitle chip
+            Right:  ic_mtrl_more_vertical (⋮, 48dp touch) via menu
+        -->
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            app:navigationIcon="?attr/homeAsUpIndicator">
+            android:layout_height="56dp"
+            app:navigationIcon="@drawable/ic_mtrl_arrow_left"
+            app:navigationContentDescription="Back">
 
-            <!-- Title + model chip row -->
             <LinearLayout
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:layout_marginEnd="48dp">
 
                 <TextView
                     android:id="@+id/toolbar_title"
@@ -44,16 +58,18 @@
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:text="Conversation"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"
-                    android:textStyle="bold" />
+                    android:text="Sketchware AI"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="?attr/colorOnSurface" />
 
-                <!-- Model selector chip: "gemini-2.5-flash ▾" -->
                 <LinearLayout
                     android:id="@+id/model_selector_row"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:background="?attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
+                    android:focusable="true"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
@@ -65,35 +81,37 @@
                         android:ellipsize="end"
                         android:maxLines="1"
                         android:maxWidth="200dp"
-                        android:paddingHorizontal="12dp"
-                        android:paddingVertical="4dp"
-                        android:textAppearance="?attr/textAppearanceLabelSmall"
-                        android:textColor="?attr/colorPrimary"
-                        tools:text="gemini-2.5-flash" />
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="3dp"
+                        android:text="3408"
+                        android:textSize="12sp"
+                        android:textColor="?attr/colorPrimary" />
 
                     <ImageView
                         android:layout_width="14dp"
                         android:layout_height="14dp"
                         android:layout_marginStart="2dp"
+                        android:contentDescription=""
                         app:srcCompat="@drawable/ic_mtrl_arrow_down"
                         app:tint="?attr/colorPrimary" />
+
                 </LinearLayout>
             </LinearLayout>
 
         </com.google.android.material.appbar.MaterialToolbar>
 
-        <com.google.android.material.divider.MaterialDivider
+        <View
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:dividerColor="?attr/colorSurfaceContainerHighest" />
+            android:layout_height="1dp"
+            android:background="?attr/colorSurfaceContainerHighest" />
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- ── Main content ───────────────────────────────────────────────── -->
+    <!-- ── Main content ───────────────────────────────────────────────────── -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="?attr/colorSurfaceContainerLowest"
+        android:background="?attr/colorSurface"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <!-- Messages RecyclerView -->
@@ -103,14 +121,15 @@
             android:layout_height="match_parent"
             android:clipToPadding="false"
             android:overScrollMode="ifContentScrolls"
-            android:paddingHorizontal="8dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
             android:paddingTop="8dp"
-            android:paddingBottom="120dp"
+            android:paddingBottom="112dp"
+            android:scrollbars="none"
             app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-            app:stackFromEnd="true"
-            tools:itemCount="3" />
+            app:stackFromEnd="true" />
 
-        <!-- ── Empty state — matches screenshot exactly ────────────────── -->
+        <!-- Empty state -->
         <LinearLayout
             android:id="@+id/empty_state"
             android:layout_width="match_parent"
@@ -118,30 +137,26 @@
             android:gravity="center"
             android:orientation="vertical"
             android:paddingBottom="120dp"
-            android:paddingHorizontal="32dp">
+            android:paddingHorizontal="32dp"
+            android:visibility="gone">
 
-            <!-- Robot icon in purple circle -->
             <FrameLayout
                 android:layout_width="120dp"
                 android:layout_height="120dp">
 
-                <!-- Circle background -->
                 <View
                     android:layout_width="120dp"
                     android:layout_height="120dp"
                     android:background="@drawable/bg_empty_state_circle" />
 
-                <!-- Robot icon -->
                 <ImageView
                     android:layout_width="64dp"
                     android:layout_height="64dp"
                     android:layout_gravity="center"
-                    android:contentDescription="AI robot"
+                    android:contentDescription=""
                     app:srcCompat="@drawable/ic_ai_robot" />
-
             </FrameLayout>
 
-            <!-- "Start a conversation" -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -149,10 +164,9 @@
                 android:gravity="center"
                 android:text="Start a conversation"
                 android:textAppearance="?attr/textAppearanceHeadlineSmall"
-                android:textStyle="bold"
-                android:textColor="?attr/colorOnSurface" />
+                android:textColor="?attr/colorOnSurface"
+                android:textStyle="bold" />
 
-            <!-- Subtitle -->
             <TextView
                 android:id="@+id/empty_description"
                 android:layout_width="match_parent"
@@ -160,11 +174,10 @@
                 android:layout_marginTop="8dp"
                 android:gravity="center"
                 android:lineSpacingExtra="2dp"
-                android:text="Ask me anything. I'm here to help you\nwith information, answers and ideas."
+                android:text="Ask for a Sketchware-compatible app, feature, fix, or refactor."
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorOnSurfaceVariant" />
 
-            <!-- "Try examples" outlined button -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_try_examples"
                 style="@style/Widget.Material3.Button.OutlinedButton"
@@ -177,41 +190,41 @@
                 app:icon="@drawable/ic_mtrl_bulb"
                 app:iconTint="?attr/colorPrimary"
                 app:strokeColor="?attr/colorPrimary" />
-
         </LinearLayout>
-        <!-- end empty state -->
 
-        <!-- ── FAB scroll to bottom ─────────────────────────────────────── -->
+        <!-- FAB scroll to bottom -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fab_scroll_down"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
             android:layout_marginEnd="16dp"
-            android:layout_marginBottom="96dp"
+            android:layout_marginBottom="116dp"
             android:contentDescription="Scroll to bottom"
             android:visibility="gone"
+            app:backgroundTint="?attr/colorPrimaryContainer"
             app:fabSize="mini"
             app:srcCompat="@drawable/ic_mtrl_arrow_down"
-            app:tint="?attr/colorOnPrimary" />
+            app:tint="?attr/colorOnPrimaryContainer" />
 
-        <!-- ── Input bar — pinned at bottom, white pill ─────────────────── -->
+        <!-- ── Input bar container ────────────────────────────────────── -->
         <LinearLayout
             android:id="@+id/input_bar_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom"
-            android:background="?attr/colorSurfaceContainerLowest"
+            android:background="?attr/colorSurface"
+            android:elevation="8dp"
             android:orientation="vertical"
-            android:paddingHorizontal="12dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
             android:paddingTop="8dp"
-            android:paddingBottom="12dp"
-            android:elevation="4dp">
+            android:paddingBottom="12dp">
 
-            <!-- Typing indicator row -->
+            <!-- Typing indicator -->
             <LinearLayout
                 android:id="@+id/typing_indicator"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
@@ -220,10 +233,10 @@
                 android:visibility="gone">
 
                 <com.google.android.material.progressindicator.CircularProgressIndicator
-                    android:layout_width="14dp"
-                    android:layout_height="14dp"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
                     android:indeterminate="true"
-                    app:indicatorSize="14dp"
+                    app:indicatorSize="16dp"
                     app:trackThickness="2dp" />
 
                 <TextView
@@ -231,108 +244,123 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
-                    android:text="Agent is thinking..."
+                    android:text="Thinking…"
                     android:textAppearance="?attr/textAppearanceLabelSmall"
                     android:textColor="?attr/colorOnSurfaceVariant" />
+
             </LinearLayout>
 
-            <!-- White pill input bar: attach | text | mic | send circle -->
+            <!--
+                Input pill row.
+                Shape: bg_input_bar (28dp radius, surfaceContainerHigh)
+                Height: wrap (min 56dp)
+                From image left-to-right:
+                  [+] attach | [text field] | [mic] | [▶ send circle]
+            -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_chat_input_pill"
-                android:elevation="2dp"
+                android:background="@drawable/bg_input_bar"
                 android:gravity="center_vertical"
-                android:minHeight="52dp"
+                android:minHeight="56dp"
                 android:orientation="horizontal"
-                android:paddingStart="12dp"
-                android:paddingEnd="8dp"
-                android:paddingVertical="6dp">
+                android:paddingStart="8dp"
+                android:paddingEnd="6dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
 
-                <!-- Attach icon (paperclip) -->
+                <!--
+                    btn_attach / btn_tools: the + button on the left.
+                    Image shows a single + icon (not a tools icon).
+                    Using btn_tools ID as the adapter binding expects it,
+                    but displaying as the + icon matching the screenshot.
+                    48dp touch target.
+                -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_tools"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:contentDescription="Attach / Tools"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    app:icon="@drawable/ic_add_plus"
+                    app:iconSize="22dp"
+                    app:iconTint="?attr/colorOnSurfaceVariant" />
+
+                <!-- btn_attach: hidden sentinel — binding requires it -->
                 <ImageView
                     android:id="@+id/btn_attach"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:clickable="true"
-                    android:contentDescription="Attach file"
-                    android:focusable="true"
-                    android:scaleType="fitCenter"
-                    app:srcCompat="@drawable/ic_mtrl_attachment"
-                    app:tint="?attr/colorOnSurfaceVariant" />
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone" />
 
-                <!-- Text input -->
+                <!-- input_message: multi-line EditText -->
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/input_message"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_marginStart="2dp"
+                    android:layout_marginEnd="2dp"
                     android:layout_weight="1"
-                    android:layout_marginHorizontal="8dp"
                     android:background="@android:color/transparent"
-                    android:hint="Type a message..."
+                    android:hint="Ask anything…"
                     android:inputType="textMultiLine|textCapSentences"
-                    android:maxLines="6"
-                    android:minHeight="40dp"
-                    android:paddingHorizontal="0dp"
-                    android:paddingVertical="4dp"
-                    android:textAppearance="?attr/textAppearanceBodyMedium" />
+                    android:maxLines="5"
+                    android:minHeight="48dp"
+                    android:paddingVertical="6dp"
+                    android:textSize="14sp"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textColorHint="?attr/colorOnSurfaceVariant" />
 
-                <!-- Mic icon -->
+                <!-- btn_mic: microphone icon — 48dp touch target -->
                 <ImageView
                     android:id="@+id/btn_mic"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:layout_marginEnd="8dp"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:clickable="true"
                     android:contentDescription="Voice input"
                     android:focusable="true"
+                    android:padding="12dp"
                     android:scaleType="fitCenter"
-                    app:srcCompat="@drawable/ic_mtrl_mic"
+                    app:srcCompat="@drawable/ic_mic_voice"
                     app:tint="?attr/colorOnSurfaceVariant" />
 
-                <!-- Purple circle send button -->
+                <!--
+                    btn_send: circle send button — 48dp, primary background.
+                    Icon: ▶ right-pointing arrow (ic_send_arrow).
+                    MaterialButton required — adapter calls setIconResource().
+                -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_send"
-                    style="@style/Widget.Material3.Button"
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
+                    style="@style/Widget.Material3.Button.Icon"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="4dp"
                     android:contentDescription="Send"
+                    android:enabled="false"
                     android:insetTop="0dp"
                     android:insetBottom="0dp"
                     android:minWidth="0dp"
-                    app:cornerRadius="22dp"
-                    app:icon="@drawable/ic_send"
+                    app:backgroundTint="?attr/colorPrimary"
+                    app:cornerRadius="24dp"
+                    app:icon="@drawable/ic_send_arrow"
                     app:iconGravity="textStart"
                     app:iconPadding="0dp"
-                    app:iconSize="20dp"
+                    app:iconSize="22dp"
                     app:iconTint="?attr/colorOnPrimary" />
 
             </LinearLayout>
 
-            <!-- Hidden clear button (used programmatically) -->
+            <!-- btn_clear: hidden sentinel view (required by binding) -->
             <View
                 android:id="@+id/btn_clear"
                 android:layout_width="0dp"
                 android:layout_height="0dp"
                 android:visibility="gone" />
 
-            <!-- Hidden hint chip (used programmatically) -->
-            <TextView
-                android:id="@+id/input_hint_chip"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_model_chip"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="5dp"
-                android:text="Tools enabled"
-                android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="?attr/colorPrimary"
-                android:visibility="gone" />
-
         </LinearLayout>
-        <!-- end input bar -->
 
     </FrameLayout>
 

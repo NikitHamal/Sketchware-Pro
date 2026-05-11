@@ -48,6 +48,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager.widget.ViewPager;
 
 import com.besome.sketch.adapters.JavaFileAdapter;
+import com.besome.sketch.beans.HistoryViewBean;
 import com.besome.sketch.beans.ProjectFileBean;
 import com.besome.sketch.common.SrcViewerActivity;
 import com.besome.sketch.editor.manage.ManageCollectionActivity;
@@ -144,8 +145,7 @@ import kellinwood.security.zipsigner.ZipSigner;
 import kellinwood.security.zipsigner.optional.CustomKeySigner;
 import kellinwood.security.zipsigner.optional.LoadKeystoreException;
 import pro.sketchware.ai.tools.LayoutTools;
-import pro.sketchware.ai.ui.ViewBean;
-import pro.sketchware.ai.ui.ViewBeanParser;
+import pro.sketchware.ai.uigenerator.AiUiGeneratorDialog;
 
 public class DesignActivity extends BaseAppCompatActivity implements View.OnClickListener {
     public static String sc_id;
@@ -244,14 +244,36 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         public void onReceive(Context context, Intent intent) {
             if (LayoutTools.ACTION_LAYOUT_CHANGED.equals(intent.getAction())) {
                 String scIdFromIntent = intent.getStringExtra(LayoutTools.EXTRA_SC_ID);
-                if (scIdFromIntent != null && scIdFromIntent.equals(sc_id)) {
-                    // Reload view from disk into jC in-memory cache, then refresh Design Editor
+                if (scIdFromIntent == null || !scIdFromIntent.equals(sc_id)) return;
+
+                String layoutXml = intent.getStringExtra("layout_xml");
+                String actXml    = intent.getStringExtra("activity_xml");
+
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                     try {
-                        a.a.a.jC.b();  // clear view cache
-                        a.a.a.jC.a(sc_id, true);  // reload from file
-                    } catch (Exception ignored) {}
-                    runOnUiThread(() -> refreshViewTabAdapter());
-                }
+                        // Switch activity if specified
+                        if (actXml != null && !actXml.isEmpty()) {
+                            com.besome.sketch.beans.ProjectFileBean t = a.a.a.jC.b(sc_id).b(actXml);
+                            if (t != null) projectFile = t;
+                        }
+                        if (projectFile == null) projectFile = getDefaultProjectFile();
+
+                        if (layoutXml != null && !layoutXml.isEmpty()) {
+                            // Proven IA approach: parse XML → update jC directly → refresh UI
+                            new Thread(() -> applyAiGeneratedLayoutToEditor(layoutXml)).start();
+                        } else {
+                            // Tools (LayoutTools) write to disk + flush jC internally.
+                            // jC is already up-to-date — just refresh the canvas.
+                            if (viewTabAdapter != null) {
+                                viewTabAdapter.i();
+                                refreshViewTabAdapter();
+                            }
+                        }
+                    } catch (Exception e) {
+                        android.util.Log.e("DesignActivity",
+                                "layoutChangedReceiver failed: " + e.getMessage());
+                    }
+                }, 150);
             }
         }
     };
@@ -324,6 +346,10 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 xmlLayoutOrientation.setImageResource(R.drawable.ic_screen_rotation_grey600_24dp);
             }
             viewTabAdapter.initialize(projectFile);
+            // Keep the AI BottomSheet aware of which activity is currently open
+            if (aiBottomSheet != null) {
+                aiBottomSheet.setCurrentActivityXmlName(projectFile.getXmlName());
+            }
         }
     }
 
@@ -455,7 +481,9 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
 
     @Override
     public void onBackPressed() {
-        if (drawer.isDrawerOpen(GravityCompat.END)) {
+        if (aiBottomSheet != null && aiBottomSheet.isVisible()) {
+            aiBottomSheet.animateTo(AiProjectBottomSheet.STATE_HIDDEN);
+        } else if (drawer.isDrawerOpen(GravityCompat.END)) {
             drawer.closeDrawer(GravityCompat.END);
         } else if (viewTabAdapter.isPropertyViewVisible()) {
             hideViewPropertyView();
@@ -519,8 +547,15 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         getWindowManager().getDefaultDisplay().getMetrics(dm);
         ViewGroup container = (ViewGroup) findViewById(R.id.container);
         aiBottomSheet = new AiProjectBottomSheet(this, sc_id);
+        // Default to "main.xml" when opening the project
+        String initialActivity = (projectFile != null)
+                ? projectFile.getXmlName()
+                : com.besome.sketch.beans.ProjectFileBean.DEFAULT_XML_NAME;
+        aiBottomSheet.setCurrentActivityXmlName(initialActivity);
         aiBottomSheet.attachToParent(container, dm.heightPixels);
         aiBottomSheet.setFileLauncher(aiFileLauncher);
+
+
 
         Insetter.builder().margin(WindowInsetsCompat.Type.navigationBars()).applyToView(findViewById(R.id.container));
 
@@ -598,10 +633,6 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             resetGeneratedJavaOverride();
             return true;
         });
-        bottomMenu.add(Menu.NONE, 13, Menu.NONE, "Ask AI about this screen").setOnMenuItemClickListener(item -> {
-            openAiForCurrentScreen();
-            return true;
-        });
         bottomMenu.add(Menu.NONE, 14, Menu.NONE, "Project tools").setOnMenuItemClickListener(item -> {
             openProjectToolsHub();
             return true;
@@ -677,6 +708,37 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             registerReceiver(layoutChangedReceiver, layoutFilter, Context.RECEIVER_NOT_EXPORTED);
         } else {
             registerReceiver(layoutChangedReceiver, layoutFilter);
+        }
+
+        // Register undo receiver for AI layout undo (triggered from BottomSheet Undo button)
+        BroadcastReceiver undoReceiver = new BroadcastReceiver() {
+            @Override public void onReceive(android.content.Context ctx, android.content.Intent i) {
+                if (projectFile == null) return;
+                String sid = i.getStringExtra("sc_id");
+                if (sid == null || !sid.equals(sc_id)) return;
+                runOnUiThread(() -> {
+                    try {
+                        // cC.c(sc_id).i() = pop undo (matches ViewEditorFragment.onUndo exactly)
+                        HistoryViewBean h = cC.c(sc_id).i(projectFile.getXmlName());
+                        if (h != null && h.getActionType() == HistoryViewBean.ACTION_TYPE_OVERRIDE) {
+                            jC.a(sc_id).c.remove(projectFile.getXmlName());
+                            jC.a(sc_id).c.put(projectFile.getXmlName(), h.getRemovedData());
+                            if (viewTabAdapter != null) {
+                                viewTabAdapter.i();
+                                refreshViewTabAdapter();
+                            }
+                        }
+                    } catch (Exception ex) {
+                        android.util.Log.e("DesignActivity", "AI undo failed: " + ex.getMessage());
+                    }
+                });
+            }
+        };
+        IntentFilter undoFilter = new IntentFilter("pro.sketchware.ACTION_UNDO_LAYOUT");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(undoReceiver, undoFilter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(undoReceiver, undoFilter);
         }
 
     }
@@ -763,13 +825,6 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         }
     }
 
-    private void applyViewBeansToEditor(java.util.List<ViewBean> beans) {
-        if (viewTabAdapter != null) {
-            // Pass beans to the fragment so it draws them on the canvas
-            viewTabAdapter.applyViewBeans(beans);
-            refreshViewTabAdapter();
-        }
-    }
 
     // ── Live UI reload receiver (AI ViewBean live drawing) ───────────────────
     private BroadcastReceiver liveLayoutReceiver;
@@ -781,55 +836,50 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 String sid = intent.getStringExtra("sc_id");
                 if (sid == null || !sid.equals(sc_id)) return;
 
-                // activity_xml e.g. "main.xml", "second.xml" — may be null (reload current)
                 String activityXml = intent.getStringExtra("activity_xml");
                 String layoutXml   = intent.getStringExtra("layout_xml");
 
-                android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
-                h.postDelayed(() -> {
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                     try {
-                        // ── Step 1: flush Sketchware's in-memory caches so disk writes are visible
-                        a.a.a.jC.b();               // clear view cache
-                        a.a.a.jC.a(sc_id, true);    // full reload from disk
-
-                        // ── Step 2: switch projectFile to the target activity (fixes non-main pages)
+                        // Switch projectFile to the target activity if specified
                         if (activityXml != null && !activityXml.isEmpty()) {
                             com.besome.sketch.beans.ProjectFileBean targetBean =
                                     a.a.a.jC.b(sc_id).b(activityXml);
-                            if (targetBean != null) {
-                                projectFile = targetBean;
+                            if (targetBean != null) projectFile = targetBean;
+                        }
+                        if (projectFile == null) projectFile = getDefaultProjectFile();
+
+                        if (layoutXml != null && !layoutXml.isEmpty()) {
+                            // ── Proven IA approach: XML → ViewBeanParser → jC.c.put → redraw ──
+                            // Must run XML parsing on a background thread;
+                            // applyAiGeneratedLayoutToEditor() uses runOnUiThread internally.
+                            new Thread(() -> applyAiGeneratedLayoutToEditor(layoutXml)).start();
+                        } else {
+                            // ── Standard path: tools already wrote encrypted file, jC reloaded ──
+                            // flushed jC internally via SketchwareFileEncryptor + jC.a(scId,true).
+                            // Do NOT clear jC here — just ask the editor to repaint from memory.
+                            if (viewTabAdapter != null) {
+                                viewTabAdapter.i();
+                                refreshViewTabAdapter();
                             }
                         }
-                        // Ensure projectFile is never null
-                        if (projectFile == null) {
-                            projectFile = getDefaultProjectFile();
-                        }
-
-                        // ── Step 3: if a raw XML layout was sent, parse & apply via ViewBeans
-                        if (layoutXml != null && !layoutXml.isEmpty()) {
-                            java.util.List<ViewBean> beans = ViewBeanParser.parse(layoutXml);
-                            applyViewBeansToEditor(beans);
-                        } else {
-                            // Standard reload path — drives the view editor with the correct file
-                            refreshViewTabAdapter();
-                        }
-
-                        // ── Step 4: tell ViewEditorFragment to redraw its canvas
-                        android.content.Intent refresh =
-                                new android.content.Intent("pro.sketchware.ai.ACTION_REFRESH_EDITOR");
-                        refresh.putExtra("sc_id", sc_id);
-                        sendBroadcast(refresh);
-
                     } catch (Exception e) {
-                        android.util.Log.e("DesignActivity", "AI live reload failed: " + e.getMessage());
+                        android.util.Log.e("DesignActivity",
+                                "AI live reload failed: " + e.getMessage());
                     }
                 }, 150);
             }
         };
         IntentFilter filter = new IntentFilter();
         filter.addAction("pro.sketchware.ai.ACTION_LIVE_LAYOUT_RELOAD");
-        filter.addAction("pro.sketchware.ai.ACTION_LAYOUT_CHANGED");
-        try { registerReceiver(liveLayoutReceiver, filter); } catch (Exception ignored) {}
+        // NOTE: ACTION_LAYOUT_CHANGED is handled by layoutChangedReceiver above
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(liveLayoutReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(liveLayoutReceiver, filter);
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override
@@ -1247,6 +1297,157 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         String projectName = AiProjectIntegrationHelper.resolveProjectName(sc_id, q != null ? q.projectName : null);
         String prompt = "Audit and improve the currently open Sketchware screen '" + projectFile.fileName + "'. Review its generated XML and Java, then propose or apply changes that stay fully compatible with Sketchware Pro.";
         AiProjectIntegrationHelper.openProjectChat(this, sc_id, projectName, "AI • " + projectFile.fileName, prompt);
+    }
+
+    // ── AI UI Generator ───────────────────────────────────────────────────────
+
+    /**
+     * Opens the AI → UI Generator bottom sheet.
+     * The user types a screen description; the AI returns layout XML that is
+     * applied to the current activity file and reloaded live in the Design Editor.
+     */
+    private void showAiUiGeneratorDialog() {
+        if (projectFile == null) {
+            SketchwareUtil.toast("No screen is selected.");
+            return;
+        }
+        AiUiGeneratorDialog dialog = AiUiGeneratorDialog.newInstance();
+        dialog.setOnApplyListener((xml, components) ->
+                new Thread(() -> applyAiGeneratedLayoutToEditor(xml)).start());
+        dialog.show(getSupportFragmentManager(), AiUiGeneratorDialog.TAG);
+    }
+
+    /**
+     * Applies AI-generated XML directly into Sketchware's in-memory ViewBean model
+     * and refreshes the Design Editor canvas — mirrors the working flow from IA fork.
+     * Must be called on a background thread; uses runOnUiThread for UI updates.
+     */
+    private void applyAiGeneratedLayoutToEditor(String xml) {
+        if (projectFile == null) {
+            android.util.Log.e("AI_FLOW", "applyAiGeneratedLayoutToEditor: projectFile is null");
+            runOnUiThread(() -> SketchwareUtil.toastError("No screen selected."));
+            return;
+        }
+        final String xmlName = projectFile.getXmlName();
+        android.util.Log.d("AI_FLOW", "applyAiGeneratedLayoutToEditor start: xmlName=" + xmlName);
+
+        // Validate XML has a root element before parsing
+        if (xml == null || xml.trim().isEmpty() || !xml.trim().contains("<")) {
+            android.util.Log.e("AI_FLOW", "XML is empty or invalid");
+            runOnUiThread(() -> SketchwareUtil.toastError("AI returned invalid XML."));
+            return;
+        }
+
+        // Ensure XML has required attributes (ai sometimes omits them)
+        String safeXml = ensureXmlAttributes(xml);
+
+        try {
+            // Step 1: Parse XML → ViewBeans (on background thread)
+            android.util.Log.d("AI_FLOW", "Parsing XML...");
+            pro.sketchware.tools.ViewBeanParser parser =
+                    new pro.sketchware.tools.ViewBeanParser(safeXml);
+            parser.setSkipRoot(true);
+            java.util.ArrayList<com.besome.sketch.beans.ViewBean> parsedLayout = parser.parse();
+            android.util.Pair<String, java.util.Map<String, String>> rootAttr =
+                    parser.getRootAttributes();
+
+            android.util.Log.d("AI_FLOW", "Parsed " + (parsedLayout != null ? parsedLayout.size() : 0) + " views");
+            if (parsedLayout == null || parsedLayout.isEmpty()) {
+                android.util.Log.e("AI_FLOW", "Parser returned empty list — XML may be missing android:id attributes");
+                runOnUiThread(() -> SketchwareUtil.toastError(
+                        "Layout generated but no views found. Check that views have android:id."));
+                return;
+            }
+
+            // Step 2: Apply on UI thread — matches IA DesignActivity exactly
+            runOnUiThread(() -> {
+                try {
+                    // 2a. Root layout attributes (LinearLayout/RelativeLayout wrapper)
+                    if (rootAttr != null) {
+                        android.util.Log.d("AI_FLOW", "Setting root layout: " + rootAttr.first);
+                        pro.sketchware.managers.inject.InjectRootLayoutManager rootMgr =
+                                new pro.sketchware.managers.inject.InjectRootLayoutManager(sc_id);
+                        rootMgr.set(xmlName,
+                                pro.sketchware.managers.inject.InjectRootLayoutManager.toRoot(rootAttr));
+                    }
+
+                    // 2b. Undo/redo history
+                    com.besome.sketch.beans.HistoryViewBean histBean =
+                            new com.besome.sketch.beans.HistoryViewBean();
+                    histBean.actionOverride(parsedLayout, jC.a(sc_id).d(xmlName));
+                    a.a.a.cC cc = cC.c(sc_id);
+                    if (!cc.c.containsKey(xmlName)) cc.e(xmlName);
+                    cc.a(xmlName);
+                    cc.a(xmlName, histBean);
+
+                    // 2c. Clear cache then update (avoids "no change" stale cache)
+                    jC.a(sc_id).c.remove(xmlName);
+                    jC.a(sc_id).c.put(xmlName, parsedLayout);
+                    android.util.Log.d("AI_FLOW", "jC.c updated with " + parsedLayout.size() + " beans");
+
+                    // 2d. Redraw canvas
+                    if (viewTabAdapter != null) {
+                        viewTabAdapter.i();
+                        refreshViewTabAdapter();
+                        android.util.Log.d("AI_FLOW", "Canvas refreshed");
+                    } else {
+                        android.util.Log.e("AI_FLOW", "viewTabAdapter is null — cannot refresh canvas");
+                    }
+
+                    Toast.makeText(DesignActivity.this,
+                            getString(R.string.ai_ui_gen_success_applied),
+                            Toast.LENGTH_SHORT).show();
+
+                    if (aiBottomSheet != null) aiBottomSheet.showUndoButton();
+
+                } catch (Exception uiEx) {
+                    android.util.Log.e("AI_FLOW", "Apply UI failed: " + uiEx.getMessage(), uiEx);
+                    Toast.makeText(DesignActivity.this,
+                            getString(R.string.ai_ui_gen_error_apply_failed, uiEx.getMessage()),
+                            Toast.LENGTH_LONG).show();
+                }
+            });
+
+        } catch (Exception parseEx) {
+            android.util.Log.e("AI_FLOW", "Parse failed: " + parseEx.getMessage(), parseEx);
+            runOnUiThread(() -> Toast.makeText(DesignActivity.this,
+                    getString(R.string.ai_ui_gen_error_apply_failed, parseEx.getMessage()),
+                    Toast.LENGTH_LONG).show());
+        }
+    }
+
+    /**
+     * Ensures every view in the XML has required attributes so ViewBeanParser
+     * doesn't skip them. Adds match_parent to views missing layout_width/height.
+     * Also wraps bare XMLs that lack a root ViewGroup.
+     */
+    private String ensureXmlAttributes(String xml) {
+        if (xml == null) return "";
+        String trimmed = xml.trim();
+        // Remove markdown fences if AI returned them despite system prompt
+        trimmed = trimmed.replace("```xml", "").replace("```", "").trim();
+        // Remove <?xml?> declaration
+        trimmed = trimmed.replaceFirst("^<[?]xml[^>]*[?]>\\s*", "").trim();
+
+        // If XML doesn't start with a ViewGroup, wrap it
+        if (!trimmed.startsWith("<LinearLayout") && !trimmed.startsWith("<RelativeLayout")
+                && !trimmed.startsWith("<FrameLayout") && !trimmed.startsWith("<ScrollView")
+                && !trimmed.startsWith("<ConstraintLayout") && !trimmed.startsWith("<CoordinatorLayout")) {
+            trimmed = "<LinearLayout xmlns:android=\"http://schemas.android.com/apk/res/android\"\n"
+                    + "    android:layout_width=\"match_parent\"\n"
+                    + "    android:layout_height=\"match_parent\"\n"
+                    + "    android:orientation=\"vertical\">\n"
+                    + trimmed
+                    + "\n</LinearLayout>";
+        }
+
+        // Add xmlns if missing (required for parser)
+        if (!trimmed.contains("xmlns:android")) {
+            trimmed = trimmed.replaceFirst(
+                "<([A-Za-z][A-Za-z0-9_]*)",
+                "<$1 xmlns:android=\"http://schemas.android.com/apk/res/android\"");
+        }
+        return trimmed;
     }
 
     private void showSignedApkBuildDialog() {

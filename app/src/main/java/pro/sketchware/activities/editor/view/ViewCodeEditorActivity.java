@@ -31,7 +31,7 @@ import pro.sketchware.managers.inject.InjectRootLayoutManager;
 import pro.sketchware.tools.ViewBeanParser;
 import pro.sketchware.utility.EditorUtils;
 import pro.sketchware.utility.SketchwareUtil;
-import pro.sketchware.utility.relativelayout.CircularDependencyDetector;
+import pro.sketchware.utility.relativelayout.RelativeLayoutCycleDetector;
 
 public class ViewCodeEditorActivity extends BaseAppCompatActivity {
     private ViewCodeEditorBinding binding;
@@ -219,7 +219,7 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
 
                 var parsedLayout = parser.parse();
                 for (ViewBean viewBean : parsedLayout) {
-                    CircularDependencyDetector detector = new CircularDependencyDetector(parsedLayout, viewBean);
+                    RelativeLayoutCycleDetector detector = new RelativeLayoutCycleDetector(parsedLayout, viewBean);
                     for (String attr : viewBean.parentAttributes.keySet()) {
                         String targetId = viewBean.parentAttributes.get(attr);
                         if (!detector.isLegalAttribute(targetId, attr)) {

@@ -31,6 +31,16 @@
         android:title="AI Settings" />
 
     <item
+        android:id="@+id/theme_manager"
+        android:icon="@drawable/ic_mtrl_palette"
+        android:title="Theme Manager" />
+
+    <item
+        android:id="@+id/project_cleanup"
+        android:icon="@drawable/ic_mtrl_delete_sweep"
+        android:title="Clean Project Cache" />
+
+    <item
         android:id="@+id/app_settings"
         android:icon="@drawable/ic_mtrl_settings"
         android:title="Settings" />

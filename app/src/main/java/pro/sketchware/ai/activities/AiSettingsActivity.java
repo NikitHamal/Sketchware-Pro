@@ -51,14 +51,12 @@ public class AiSettingsActivity extends AppCompatActivity {
     private static final String URL_NVIDIA           = "https://build.nvidia.com/explore/discover";
     private static final String URL_OPENROUTER       = "https://openrouter.ai/keys";
     private static final String URL_DEEPINFRA        = "https://deepinfra.com/dash/api_keys";
-    private static final String URL_PAXSENIX         = "https://api.paxsenix.org";
-    private static final String URL_AIRFORCE         = "https://api.airforce";
     private static final String URL_GROQ             = "https://console.groq.com/keys";
-    private static final String URL_MANUS            = "https://manus.im/settings/api";
     private static final String URL_TOGETHER         = "https://api.together.ai/settings/api-keys";
     private static final String URL_HUGGINGFACE      = "https://huggingface.co/settings/tokens";
     private static final String URL_CEREBRAS         = "https://cloud.cerebras.ai/platform";
     private static final String URL_GOOGLE_AI_STUDIO = "https://aistudio.google.com/app/apikey";
+    private static final String URL_SAMBANOVA        = "https://cloud.sambanova.ai/apis";
 
     private static final String PREF_ENABLED     = "provider_enabled_";
     private static final String PREF_LOCAL_URL   = "ai_local_llm_url";
@@ -102,6 +100,8 @@ public class AiSettingsActivity extends AppCompatActivity {
         setupLocalLlm();
         setupAiProfiles();
         setupFailoverBanner();
+        setupLayoutGenerationSettings();
+        setupMorphSettings();
         setupSystemPrompt();
         handleIncomingIntent();
     }
@@ -114,7 +114,7 @@ public class AiSettingsActivity extends AppCompatActivity {
         for (AiProvider p : AiProvider.values()) {
             if (p == AiProvider.LOCAL_LLM) continue;
             boolean enabled = preferences.prefs().getBoolean(PREF_ENABLED + p.name(),
-                    p == AiProvider.DEEPINFRA || p == AiProvider.AIRFORCE);
+                    p == AiProvider.GOOGLE_AI_STUDIO || p == AiProvider.SAMBANOVA);
             String  key     = p.requiresApiKey() ? preferences.getApiKey(p) : "";
             String  count   = buildModelCountText(p);
             states.add(new AiProviderAdapter.ProviderState(p, enabled, key, count));
@@ -127,19 +127,7 @@ public class AiSettingsActivity extends AppCompatActivity {
                 preferences.prefs().edit()
                         .putBoolean(PREF_ENABLED + provider.name(), enabled).apply();
                 // Manus special case
-                if (enabled && provider == AiProvider.MANUS) {
-                    // revert and show dialog
-                    providerAdapter.setEnabled(provider, false);
-                    new MaterialAlertDialogBuilder(AiSettingsActivity.this)
-                            .setTitle("Manus AI — Agent API")
-                            .setMessage("Manus uses a task-based async API (not compatible with standard chat).\n\n"
-                                    + "Use Manus directly at manus.im — it cannot be integrated as a "
-                                    + "standard chat provider in the current version.")
-                            .setPositiveButton("Open manus.im",
-                                    (d, w) -> openUrl("https://manus.im"))
-                            .setNegativeButton("Cancel", null)
-                            .show();
-                }
+
             }
 
             @Override
@@ -225,8 +213,8 @@ public class AiSettingsActivity extends AppCompatActivity {
         if (all.size() > 25
                 || provider == AiProvider.OPENROUTER
                 || provider == AiProvider.DEEPINFRA
-                || provider == AiProvider.AIRFORCE
-                || provider == AiProvider.TOGETHER
+                                || provider == AiProvider.TOGETHER
+                || provider == AiProvider.SAMBANOVA
                 || provider == AiProvider.HUGGINGFACE) {
             return all;
         }
@@ -310,14 +298,13 @@ public class AiSettingsActivity extends AppCompatActivity {
             case NVIDIA:           return URL_NVIDIA;
             case OPENROUTER:       return URL_OPENROUTER;
             case DEEPINFRA:        return URL_DEEPINFRA;
-            case PAXSENIX:         return URL_PAXSENIX;
-            case AIRFORCE:         return URL_AIRFORCE;
+
             case GROQ:             return URL_GROQ;
-            case MANUS:            return URL_MANUS;
             case TOGETHER:         return URL_TOGETHER;
             case HUGGINGFACE:      return URL_HUGGINGFACE;
             case CEREBRAS:         return URL_CEREBRAS;
             case GOOGLE_AI_STUDIO: return URL_GOOGLE_AI_STUDIO;
+            case SAMBANOVA:        return URL_SAMBANOVA;
             default:               return "";
         }
     }
@@ -542,6 +529,119 @@ public class AiSettingsActivity extends AppCompatActivity {
     }
 
     // ── System Prompt ─────────────────────────────────────────────────────────
+
+    // ── Layout Generation Provider ─────────────────────────────────────────────
+
+    private void setupLayoutGenerationSettings() {
+        // Build provider label list — "Same as Chat" + all supported providers
+        java.util.List<String> providerLabels = new java.util.ArrayList<>();
+        providerLabels.add("Same as Chat (default)");
+        for (pro.sketchware.ai.models.AiProvider p :
+                pro.sketchware.ai.models.AiProvider.values()) {
+            providerLabels.add(p.getDisplayName());
+        }
+
+        android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
+                this, android.R.layout.simple_dropdown_item_1line, providerLabels);
+        binding.dropdownLayoutProvider.setAdapter(adapter);
+
+        // Restore saved selection
+        String saved = preferences.prefs().getString(
+                pro.sketchware.ai.storage.AiPreferences.KEY_LAYOUT_AI_PROVIDER, "");
+        if (saved.isEmpty()) {
+            binding.dropdownLayoutProvider.setText(providerLabels.get(0), false);
+        } else {
+            pro.sketchware.ai.models.AiProvider savedProvider =
+                    pro.sketchware.ai.models.AiProvider.fromName(saved);
+            binding.dropdownLayoutProvider.setText(
+                    savedProvider != null ? savedProvider.getDisplayName()
+                            : providerLabels.get(0), false);
+        }
+        updateLayoutProviderHint(saved);
+
+        binding.dropdownLayoutProvider.setOnItemClickListener((parent, view, position, id) -> {
+            if (position == 0) {
+                // "Same as Chat" — clear override
+                preferences.prefs().edit()
+                        .remove(pro.sketchware.ai.storage.AiPreferences.KEY_LAYOUT_AI_PROVIDER)
+                        .apply();
+                updateLayoutProviderHint("");
+            } else {
+                pro.sketchware.ai.models.AiProvider selected =
+                        pro.sketchware.ai.models.AiProvider.values()[position - 1];
+                preferences.prefs().edit()
+                        .putString(pro.sketchware.ai.storage.AiPreferences.KEY_LAYOUT_AI_PROVIDER,
+                                selected.name())
+                        .apply();
+                updateLayoutProviderHint(selected.name());
+            }
+        });
+    }
+
+    private void updateLayoutProviderHint(String providerName) {
+        if (providerName.isEmpty()
+                || providerName.equalsIgnoreCase("GROQ")
+                || providerName.equalsIgnoreCase("Groq")) {
+            binding.tvLayoutProviderHint.setText(
+                    "★ Groq — fastest (LPU hardware, high rate limits, great XML output)");
+            binding.tvLayoutProviderHint.setVisibility(View.VISIBLE);
+        } else if (providerName.isEmpty()) {
+            binding.tvLayoutProviderHint.setVisibility(View.GONE);
+        } else {
+            binding.tvLayoutProviderHint.setVisibility(View.GONE);
+        }
+    }
+
+    // ── Morph (MORF) Layout Refinement ───────────────────────────────────────
+
+    private void setupMorphSettings() {
+        // Restore saved state
+        boolean morphOn = preferences.prefs().getBoolean(
+                AiPreferences.KEY_MORPH_ENABLED, false);
+        binding.switchMorphEnabled.setChecked(morphOn);
+        binding.layoutMorphConfig.setVisibility(morphOn ? View.VISIBLE : View.GONE);
+
+        String savedKey = preferences.getMorphApiKey();
+        if (!savedKey.isEmpty()) binding.inputMorphApiKey.setText(savedKey);
+
+        binding.switchMorphForLayout.setChecked(
+                preferences.prefs().getBoolean(AiPreferences.KEY_MORPH_FOR_LAYOUT, false));
+
+        // Enable/disable toggle
+        binding.switchMorphEnabled.setOnCheckedChangeListener((btn, checked) -> {
+            preferences.prefs().edit()
+                    .putBoolean(AiPreferences.KEY_MORPH_ENABLED, checked)
+                    .apply();
+            binding.layoutMorphConfig.setVisibility(checked ? View.VISIBLE : View.GONE);
+        });
+
+        // API key field — save on every character change
+        binding.inputMorphApiKey.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int st, int c, int a) {}
+            @Override public void onTextChanged(CharSequence s, int st, int b, int c) {}
+            @Override
+            public void afterTextChanged(Editable s) {
+                preferences.setMorphApiKey(s.toString());
+            }
+        });
+
+        // "Refine layouts" sub-toggle
+        binding.switchMorphForLayout.setOnCheckedChangeListener((btn, checked) ->
+                preferences.prefs().edit()
+                        .putBoolean(AiPreferences.KEY_MORPH_FOR_LAYOUT, checked)
+                        .apply());
+
+        // Link to get an API key
+        binding.btnMorphGetKey.setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW,
+                        android.net.Uri.parse("https://morphllm.com")));
+            } catch (Exception ignored) {
+                Toast.makeText(this, "Visit morphllm.com to get an API key",
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
 
     private void setupSystemPrompt() {
         String cur = preferences.getSystemPrompt();

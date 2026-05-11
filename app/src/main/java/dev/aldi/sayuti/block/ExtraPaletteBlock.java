@@ -24,6 +24,7 @@ import a.a.a.kq;
 import mod.agus.jcoderz.beans.ViewBeans;
 import mod.hey.studios.editor.view.IdGenerator;
 import mod.hey.studios.moreblock.ReturnMoreblockManager;
+import dev.aldi.sayuti.block.DRPaletteBlock;
 import mod.hilal.saif.activities.tools.ConfigActivity;
 import mod.hilal.saif.blocks.BlocksHandler;
 import mod.pranav.viewbinding.ViewBindingBuilder;
@@ -539,6 +540,7 @@ public class ExtraPaletteBlock {
                 logicEditor.a(" ", "setCornerRadiusView");
                 logicEditor.a(" ", "setGradientBackground");
                 logicEditor.a(" ", "setRadiusAndStrokeView");
+                DRPaletteBlock.addViewBlocks(logicEditor);
             {
                 boolean editTextUsed = isWidgetUsed("EditText")
                         || extraBlocks.isCustomVarUsed("EditText");
@@ -806,6 +808,75 @@ public class ExtraPaletteBlock {
                 boolean lottieAnimationViewUsed = isWidgetUsed("LottieAnimationView");
                 boolean otpViewUsed = isWidgetUsed("OTPView");
 
+                // ── Material 3 Widgets ───────────────────────────────────────
+                boolean chipUsed = isWidgetUsed("Chip") || extraBlocks.isCustomVarUsed("Chip");
+                boolean searchBarUsed = isWidgetUsed("SearchBar") || extraBlocks.isCustomVarUsed("SearchBar");
+                boolean navigationRailUsed = isWidgetUsed("NavigationRail") || extraBlocks.isCustomVarUsed("NavigationRail");
+                boolean segmentedButtonUsed = isWidgetUsed("SegmentedButton") || extraBlocks.isCustomVarUsed("SegmentedButton");
+                boolean extendedFABUsed = isWidgetUsed("ExtendedFAB") || extraBlocks.isCustomVarUsed("ExtendedFAB");
+                boolean sliderUsed = isWidgetUsed("Slider") || extraBlocks.isCustomVarUsed("Slider");
+                boolean rangeSliderUsed = isWidgetUsed("RangeSlider") || extraBlocks.isCustomVarUsed("RangeSlider");
+
+                if (chipUsed || searchBarUsed || navigationRailUsed || segmentedButtonUsed
+                        || extendedFABUsed || sliderUsed || rangeSliderUsed) {
+                    logicEditor.a("Material 3", getTitleBgColor());
+
+                    if (chipUsed) {
+                        logicEditor.a(" ", "setText");
+                        logicEditor.a("s", "getText");
+                        logicEditor.a(" ", "setChecked");
+                        logicEditor.a("b", "getChecked");
+                        logicEditor.a(" ", "setChipIconResource");
+                        logicEditor.a(" ", "setCloseIconVisible");
+                        logicEditor.a("c", "chipOnCheckedChanged");
+                        logicEditor.a("c", "chipOnCloseClick");
+                    }
+
+                    if (searchBarUsed) {
+                        logicEditor.a(" ", "setText");
+                        logicEditor.a("s", "getText");
+                        logicEditor.a(" ", "setHint");
+                        logicEditor.a("c", "searchBarOnTextChanged");
+                    }
+
+                    if (navigationRailUsed) {
+                        logicEditor.a(" ", "bottomMenuAddItem");
+                        logicEditor.a("d", "navRailGetSelectedItemId");
+                        logicEditor.a(" ", "navRailSetSelectedItemId");
+                        logicEditor.a("c", "navRailOnItemSelected");
+                    }
+
+                    if (segmentedButtonUsed) {
+                        logicEditor.a("d", "segmentedGetCheckedId");
+                        logicEditor.a(" ", "segmentedCheck");
+                        logicEditor.a("c", "segmentedOnButtonChecked");
+                    }
+
+                    if (extendedFABUsed) {
+                        logicEditor.a(" ", "setText");
+                        logicEditor.a(" ", "extFabExtend");
+                        logicEditor.a(" ", "extFabShrink");
+                        logicEditor.a("b", "extFabIsExtended");
+                        logicEditor.a(" ", "setImage");
+                    }
+
+                    if (sliderUsed) {
+                        logicEditor.a("d", "sliderGetValue");
+                        logicEditor.a(" ", "sliderSetValue");
+                        logicEditor.a(" ", "sliderSetValueFrom");
+                        logicEditor.a(" ", "sliderSetValueTo");
+                        logicEditor.a(" ", "sliderSetStepSize");
+                        logicEditor.a("c", "sliderOnValueChanged");
+                    }
+
+                    if (rangeSliderUsed) {
+                        logicEditor.a(" ", "rangeSliderSetValues");
+                        logicEditor.a(" ", "rangeSliderSetValueFrom");
+                        logicEditor.a(" ", "rangeSliderSetValueTo");
+                        logicEditor.a("c", "rangeSliderOnValueChanged");
+                    }
+                }
+
                 if (waveSideBarUsed || badgeViewUsed || bubbleLayoutUsed || patternLockViewUsed || codeViewUsed || lottieAnimationViewUsed) {
                     logicEditor.a("Library", getTitleBgColor());
 
@@ -946,6 +1017,7 @@ public class ExtraPaletteBlock {
                 logicEditor.a(" ", "setTitle");
                 logicEditor.a("b", "intentHasExtra");
                 logicEditor.a("s", "intentGetString");
+                DRPaletteBlock.addBasicComponentBlocks(logicEditor);
                 logicEditor.a("f", "finishActivity");
                 logicEditor.a("f", "finishAffinity");
                 if (extraBlocks.isComponentUsed(ComponentBean.COMPONENT_TYPE_INTENT)
@@ -957,6 +1029,7 @@ public class ExtraPaletteBlock {
                     logicEditor.a(" ", "intentSetScreen");
                     logicEditor.a(" ", "launchApp");
                     logicEditor.a(" ", "intentPutExtra");
+                    DRPaletteBlock.addIntentPutExtraBlocks(logicEditor);
                     logicEditor.a(" ", "intentRemoveExtra");
                     logicEditor.a(" ", "intentSetFlags");
                     logicEditor.a(" ", "startActivity");
@@ -976,6 +1049,7 @@ public class ExtraPaletteBlock {
                     logicEditor.a("b", "fileContainsData");
                     logicEditor.a("s", "fileGetData");
                     logicEditor.a(" ", "fileSetData");
+                    DRPaletteBlock.addSharedPreferencesBlocks(logicEditor);
                     logicEditor.a(" ", "fileRemoveData");
                 }
                 if (extraBlocks.isComponentUsed(ComponentBean.COMPONENT_TYPE_DATE_PICKER_DIALOG)) {

@@ -49,6 +49,10 @@ public class ViewEvents extends LinearLayout {
         wB.a(context, this, R.layout.view_events);
         RecyclerView eventsList = findViewById(R.id.list_events);
         eventsList.setHasFixedSize(true);
+        // Use GridLayoutManager with 3 columns for proper visibility
+        androidx.recyclerview.widget.GridLayoutManager gridLayoutManager =
+                new androidx.recyclerview.widget.GridLayoutManager(context, 3);
+        eventsList.setLayoutManager(gridLayoutManager);
         eventsList.setAdapter(eventAdapter);
         eventsList.setItemAnimator(new DefaultItemAnimator());
     }

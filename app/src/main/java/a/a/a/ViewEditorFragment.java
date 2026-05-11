@@ -145,49 +145,26 @@ public class ViewEditorFragment extends qA {
     }
 
     public void applyViewBeans(java.util.List<pro.sketchware.ai.ui.ViewBean> aiBeans) {
-        if (aiBeans == null || aiBeans.isEmpty()) return;
+        // This method is now a no-op — AI layout is applied directly through
+        // DesignActivity.applyAiGeneratedLayoutToEditor() which updates jC in-memory
+        // model and then calls viewTabAdapter.i() + refreshViewTabAdapter().
+        // Kept for binary compatibility only.
+    }
 
-        java.util.ArrayList<com.besome.sketch.beans.ViewBean> skBeans = new java.util.ArrayList<>();
-        for (pro.sketchware.ai.ui.ViewBean aiBean : aiBeans) {
-            com.besome.sketch.beans.ViewBean skBean = new com.besome.sketch.beans.ViewBean();
-            
-            // 1. Core properties
-            skBean.id = aiBean.id;
-            skBean.parent = aiBean.parentId;
-            skBean.type = com.besome.sketch.beans.ViewBean.getViewTypeByTypeName(aiBean.type);
-            
-            // 2. Layout settings (LayoutBean)
-            if (skBean.layout == null) skBean.layout = new com.besome.sketch.beans.LayoutBean();
-            skBean.layout.width = aiBean.width;
-            skBean.layout.height = aiBean.height;
-            
-            try {
-                if (aiBean.backgroundColor != null && !aiBean.backgroundColor.isEmpty()) {
-                    skBean.layout.backgroundColor = android.graphics.Color.parseColor(aiBean.backgroundColor);
-                    skBean.layout.hasBackgroundColor = true;
-                }
-            } catch (Exception ignored) {}
-
-            // 3. Text settings (TextBean)
-            if (skBean.text == null) skBean.text = new com.besome.sketch.beans.TextBean();
-            skBean.text.text = aiBean.text;
-            skBean.text.textSize = aiBean.textSize;
-            
-            try {
-                if (aiBean.textColor != null && !aiBean.textColor.isEmpty()) {
-                    skBean.text.textColor = android.graphics.Color.parseColor(aiBean.textColor);
-                    skBean.text.hasTextColor = true;
-                }
-            } catch (Exception ignored) {}
-
-            skBeans.add(skBean);
+    /**
+     * Reloads the canvas from the Sketchware in-memory model (jC).
+     * Called by DesignActivity after AI layout is applied.
+     */
+    public void reloadFromMemory() {
+        if (projectFileBean == null) return;
+        viewEditor.h();
+        java.util.ArrayList<com.besome.sketch.beans.ViewBean> beans =
+                jC.a(sc_id).d(projectFileBean.getXmlName());
+        if (beans != null) {
+            viewEditor.a(eC.a(beans));
         }
-
-        // تنفيذ الرسم على الـ Canvas
-        viewEditor.h(); // مسح الواجهة
-        viewEditor.a(skBeans, false); // رسم العناصر
-        
-        n(); // Refresh properties panel
+        a(jC.a(sc_id).h(projectFileBean.getXmlName()));
+        n();
         invalidateOptionsMenu();
     }
 

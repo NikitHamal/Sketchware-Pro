@@ -2294,4 +2294,62 @@ Please try again later"</string>
     <string name="link_sw_assist">https://play.google.com/store/apps/details?id=com.w3wide.swassist</string>
 
 
+
+    <!-- ══ Merged from separate string files ══ -->
+    <string name="ai_ui_gen_title">AI UI Generator</string>
+    <string name="ai_ui_gen_prompt_hint">Describe the screen you want to create…\nExample: Login screen with email, password fields and a blue button</string>
+    <string name="ai_ui_gen_btn_generate">Generate</string>
+    <string name="ai_ui_gen_btn_apply">Apply to Editor</string>
+    <string name="ai_ui_gen_btn_regenerate">Regenerate</string>
+    <string name="ai_ui_gen_status_sending">Sending to AI…</string>
+    <string name="ai_ui_gen_status_parsing">Parsing result…</string>
+    <string name="ai_ui_gen_status_ready">Ready — review and apply</string>
+    <string name="ai_ui_gen_preview_title">Generated layout: %1$d components</string>
+    <string name="ai_ui_gen_menu_label">Generate UI with AI</string>
+    <string name="ai_ui_gen_error_api">AI request failed: %1$s</string>
+    <string name="ai_ui_gen_error_already_generating">Generation already in progress</string>
+    <string name="ai_ui_gen_error_no_api_key">No API key configured. Go to AI Settings first.</string>
+    <string name="ai_ui_gen_error_no_client">Unsupported AI provider: %1$s</string>
+    <string name="ai_ui_gen_error_empty_response">AI returned an empty response</string>
+    <string name="ai_ui_gen_error_missing_layout">AI response missing \'layout\' field</string>
+    <string name="ai_ui_gen_error_invalid_xml">Generated XML is not valid: %1$s</string>
+    <string name="ai_ui_gen_error_parse_json">Failed to parse AI response: %1$s</string>
+    <string name="ai_ui_gen_error_nothing_to_apply">No layout to apply yet</string>
+    <string name="ai_ui_gen_error_prompt_too_short">Please describe the screen in more detail</string>
+    <string name="ai_ui_gen_error_apply_failed">Failed to apply layout: %1$s</string>
+    <string name="ai_ui_gen_success_applied">AI layout applied successfully</string>
+    <string name="model_test_idle">Tap to test the selected model</string>
+    <string name="model_test_running">Testing model…</string>
+    <string name="model_test_success">Model is working ✓</string>
+    <string name="model_test_failed">Test failed — check API key</string>
+    <string name="model_test_run">Run Test</string>
+    <string name="model_test_dismiss">Dismiss</string>
+    <string name="model_test_no_key">Enter an API key first</string>
+    <string name="model_test_fallback">Falling back to default model</string>
+    <string name="dialog_orphan_libs_body">The following libraries are not referenced by any project. They may be safe to delete:</string>
+    <string name="dialog_orphan_libs_none">No orphaned libraries found.</string>
+    <string name="dialog_orphan_libs_title">Orphaned Libraries</string>
+    <string name="dialog_repo_add_title">Add Repository</string>
+    <string name="dialog_repo_delete_confirm">Delete repository \"%s\"?</string>
+    <string name="dialog_repo_edit_title">Edit Repository</string>
+    <string name="dialog_repo_error_name_required">Name is required</string>
+    <string name="dialog_repo_error_url_invalid">URL must start with http:// or https://</string>
+    <string name="dialog_repo_error_url_required">URL is required</string>
+    <string name="dialog_repo_name_hint">Name</string>
+    <string name="dialog_repo_name_placeholder">e.g. RuStore</string>
+    <string name="dialog_repo_title">Maven Repositories</string>
+    <string name="dialog_repo_url_hint">URL</string>
+    <string name="dialog_repo_url_placeholder">e.g. https://artifactory-external.vkpartner.ru/artifactory/maven</string>
+    <string name="dialog_repo_builtin">Built-in</string>
+    <string name="dialog_repo_custom">Custom</string>
+    <string name="dialog_repo_empty">No repositories found.</string>
+    <string name="lib_current_version">Current: %s</string>
+    <string name="lib_latest_version">Latest: %s</string>
+    <string name="lib_up_to_date">Up to date ✓</string>
+
+    <!-- ══ Merged plurals from strings_Local Libraries_Block Manager.xml ══ -->
+    <plurals name="lib_used_in_projects">
+        <item quantity="one">Used in %d project</item>
+        <item quantity="other">Used in %d projects</item>
+    </plurals>
 </resources>

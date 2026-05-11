@@ -1,76 +1,99 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  AI Assistant Bottom Sheet — same visual style as the Chat screen.
-  • Light purple background (#F0EFF8-ish via colorSurfaceContainerLowest)
-  • Robot empty state in middle
-  • White pill input bar at bottom: attach | "Ask the agent..." | mic | purple send circle
+  AI Assistant Bottom Sheet — redesigned (v5)
+  Layout: horizontal split — collapsible sidebar (tools) + chat area
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/ai_bottom_sheet"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurfaceContainerLowest"
-    android:elevation="8dp"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="?attr/colorSurfaceContainerLowest">
 
-    <!-- ── Header row ────────────────────────────────────────────────── -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!--  TOP HEADER ROW                                               -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <LinearLayout
         android:id="@+id/ai_sheet_handle_row"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="64dp"
         android:background="?attr/colorSurface"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="12dp"
-        android:paddingEnd="4dp">
+        android:paddingEnd="4dp"
+        android:elevation="2dp">
 
-        <!-- Drag pill -->
-        <View
-            android:layout_width="32dp"
-            android:layout_height="4dp"
-            android:layout_gravity="center_vertical"
-            android:layout_marginEnd="12dp"
-            android:background="@drawable/ai_sheet_drag_handle" />
-
-        <!-- Title / subtitle -->
+        <!-- ── LEFT: Project name + page spinner ── -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:paddingStart="4dp">
 
+            <!-- Project name -->
             <TextView
                 android:id="@+id/ai_sheet_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:text="AI Assistant"
+                android:text="Project"
                 android:textAppearance="?attr/textAppearanceTitleSmall"
                 android:textStyle="bold"
-                android:textColor="?attr/colorOnSurface" />
-
-            <TextView
-                android:id="@+id/ai_sheet_subtitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
                 android:maxLines="1"
-                android:text="Working on current project"
-                android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+                android:ellipsize="end"
+                android:textColor="?attr/colorOnSurface"/>
+
+            <!-- Activity / Page spinner row -->
+            <LinearLayout
+                android:id="@+id/ai_sheet_activity_selector"
+                android:layout_width="wrap_content"
+                android:layout_height="26dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:background="@drawable/bg_model_chip"
+                android:paddingStart="8dp"
+                android:paddingEnd="6dp"
+                android:layout_marginTop="2dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="12dp"
+                    android:layout_height="12dp"
+                    android:layout_marginEnd="4dp"
+                    app:srcCompat="@drawable/ic_mtrl_screen"
+                    app:tint="?attr/colorPrimary"/>
+
+                <TextView
+                    android:id="@+id/ai_sheet_activity_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="main"
+                    android:textAppearance="?attr/textAppearanceLabelSmall"
+                    android:textColor="?attr/colorPrimary"
+                    android:maxWidth="100dp"
+                    android:maxLines="1"
+                    android:ellipsize="end"/>
+
+                <ImageView
+                    android:layout_width="12dp"
+                    android:layout_height="12dp"
+                    android:layout_marginStart="2dp"
+                    app:srcCompat="@drawable/ic_mtrl_arrow_down"
+                    app:tint="?attr/colorPrimary"/>
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- Model chip: purple pill with dropdown arrow -->
+        <!-- ── CENTRE: Provider name + model name ── -->
         <LinearLayout
             android:id="@+id/ai_sheet_model_selector"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
+            android:orientation="vertical"
+            android:gravity="center"
             android:background="@drawable/bg_model_chip"
             android:paddingHorizontal="10dp"
             android:paddingVertical="4dp"
@@ -79,124 +102,347 @@
             android:focusable="true">
 
             <TextView
-                android:id="@+id/ai_sheet_model_chip"
+                android:id="@+id/ai_sheet_provider_name"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:maxWidth="120dp"
-                android:text="Select model"
+                android:text="AI Provider"
                 android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="?attr/colorPrimary" />
+                android:textStyle="bold"
+                android:textColor="?attr/colorPrimary"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:maxWidth="110dp"/>
 
-            <ImageView
-                android:layout_width="12dp"
-                android:layout_height="12dp"
-                android:layout_marginStart="4dp"
-                app:srcCompat="@drawable/ic_mtrl_arrow_down"
-                app:tint="?attr/colorPrimary" />
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/ai_sheet_model_chip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Models"
+                    android:textAppearance="?attr/textAppearanceLabelSmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:maxWidth="100dp"/>
+
+                <ImageView
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:layout_marginStart="2dp"
+                    app:srcCompat="@drawable/ic_mtrl_arrow_down"
+                    app:tint="?attr/colorOnSurfaceVariant"/>
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- Settings button -->
+        <!-- ── RIGHT: Action buttons ── -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/ai_sheet_btn_settings"
             style="@style/Widget.Material3.Button.IconButton"
             android:layout_width="36dp"
             android:layout_height="36dp"
-            android:contentDescription="AI Settings"
             android:insetTop="0dp"
             android:insetBottom="0dp"
+            android:contentDescription="Settings"
             app:icon="@drawable/ic_mtrl_settings"
-            app:iconSize="18dp" />
+            app:iconSize="18dp"/>
 
-        <!-- Collapse / close button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/ai_sheet_btn_clear_real"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:contentDescription="Clear chat"
+            app:icon="@drawable/ic_mtrl_delete"
+            app:iconSize="18dp"/>
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/ai_sheet_btn_close"
             style="@style/Widget.Material3.Button.IconButton"
             android:layout_width="36dp"
             android:layout_height="36dp"
-            android:contentDescription="Collapse"
             android:insetTop="0dp"
             android:insetBottom="0dp"
-            app:icon="@drawable/ic_mtrl_arrow_down"
-            app:iconSize="20dp" />
+            android:contentDescription="Collapse"
+            app:icon="@drawable/ic_mtrl_close"
+            app:iconSize="20dp"/>
+
     </LinearLayout>
 
+    <!-- Divider below header -->
     <com.google.android.material.divider.MaterialDivider
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:dividerColor="?attr/colorSurfaceContainerHighest" />
+        app:dividerColor="?attr/colorSurfaceContainerHighest"/>
 
-    <!-- ── Messages area (weight=1 fills all remaining space) ────────── -->
-    <RelativeLayout
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!--  BODY: Sidebar (left) + Chat (right)                         -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:orientation="horizontal">
 
-        <!-- Messages RecyclerView -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/ai_sheet_messages"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:overScrollMode="ifContentScrolls"
-            android:paddingHorizontal="8dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-            app:stackFromEnd="true" />
-
-        <!-- Empty state — centred, same style as full chat screen -->
+        <!-- ── LEFT SIDEBAR (tools) ── -->
+        <!-- Width toggled between 48dp (icon-only) and 220dp (expanded) -->
         <LinearLayout
-            android:id="@+id/ai_sheet_empty"
-            android:layout_width="match_parent"
+            android:id="@+id/ai_sidebar_container"
+            android:layout_width="48dp"
             android:layout_height="match_parent"
-            android:gravity="center"
             android:orientation="vertical"
-            android:paddingHorizontal="32dp"
-            android:visibility="gone">
+            android:background="?attr/colorSurface"
+            android:elevation="1dp"
+            android:clipChildren="true"
+            android:clipToPadding="true">
 
-            <!-- Robot icon in purple circle -->
-            <FrameLayout
-                android:layout_width="96dp"
-                android:layout_height="96dp">
-
-                <View
-                    android:layout_width="96dp"
-                    android:layout_height="96dp"
-                    android:background="@drawable/bg_empty_state_circle" />
+            <!-- Expand / collapse toggle at top -->
+            <LinearLayout
+                android:id="@+id/ai_sidebar_toggle"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:gravity="center"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackground">
 
                 <ImageView
-                    android:layout_width="52dp"
-                    android:layout_height="52dp"
-                    android:layout_gravity="center"
-                    android:contentDescription="AI robot"
-                    app:srcCompat="@drawable/ic_ai_robot" />
-            </FrameLayout>
+                    android:id="@+id/ai_sidebar_toggle_icon"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    app:srcCompat="@drawable/ic_mtrl_sidebar"
+                    app:tint="?attr/colorPrimary"/>
+            </LinearLayout>
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:gravity="center"
-                android:text="Ask the agent"
-                android:textAppearance="?attr/textAppearanceTitleMedium"
-                android:textStyle="bold"
-                android:textColor="?attr/colorOnSurface" />
-
-            <TextView
+            <View
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:gravity="center"
-                android:text="I can edit layouts, fix code, add features, and create entire apps."
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+                android:layout_height="1dp"
+                android:background="?attr/colorOutlineVariant"/>
+
+            <!-- Tools RecyclerView -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/ai_tools_sidebar_rv"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:overScrollMode="ifContentScrolls"
+                android:clipToPadding="false"
+                android:paddingBottom="8dp"/>
+
         </LinearLayout>
 
-    </RelativeLayout>
+        <!-- Sidebar / Chat divider -->
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="?attr/colorOutlineVariant"/>
 
-    <!-- ── Input area — always at bottom ─────────────────────────────── -->
+        <!-- ── RIGHT CHAT AREA ── -->
+        <RelativeLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+
+            <!-- Messages RecyclerView -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/ai_sheet_messages"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:overScrollMode="ifContentScrolls"
+                android:paddingHorizontal="8dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                app:stackFromEnd="true"/>
+
+            <!-- Scroll-to-bottom FAB -->
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/ai_sheet_fab_scroll_down"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentBottom="true"
+                android:layout_alignParentEnd="true"
+                android:layout_marginEnd="12dp"
+                android:layout_marginBottom="8dp"
+                android:contentDescription="Scroll to bottom"
+                android:visibility="gone"
+                app:backgroundTint="?attr/colorPrimaryContainer"
+                app:fabSize="mini"
+                app:srcCompat="@drawable/ic_mtrl_arrow_down"
+                app:tint="?attr/colorOnPrimaryContainer"/>
+
+            <!-- Empty state -->
+            <LinearLayout
+                android:id="@+id/ai_sheet_empty"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingHorizontal="32dp"
+                android:visibility="gone">
+
+                <FrameLayout
+                    android:layout_width="96dp"
+                    android:layout_height="96dp">
+
+                    <View
+                        android:layout_width="96dp"
+                        android:layout_height="96dp"
+                        android:background="@drawable/bg_empty_state_circle"/>
+
+                    <ImageView
+                        android:layout_width="52dp"
+                        android:layout_height="52dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="AI"
+                        app:srcCompat="@drawable/ic_ai_robot"/>
+                </FrameLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:gravity="center"
+                    android:text="AI Assistant"
+                    android:textAppearance="?attr/textAppearanceTitleMedium"
+                    android:textStyle="bold"
+                    android:textColor="?attr/colorOnSurface"/>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center"
+                    android:text="Ask me to edit layouts, fix bugs, add features,\nor generate entire screens."
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"/>
+
+                <!-- Quick-start suggestion chips -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginTop="24dp"
+                    android:gravity="center">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/ai_chip_generate_ui"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Generate UI"
+                            android:layout_marginEnd="8dp"
+                            style="@style/Widget.Material3.Chip.Suggestion"/>
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/ai_chip_fix_bugs"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Fix bugs"
+                            style="@style/Widget.Material3.Chip.Suggestion"/>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="8dp">
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/ai_chip_add_feature"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Add feature"
+                            android:layout_marginEnd="8dp"
+                            style="@style/Widget.Material3.Chip.Suggestion"/>
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/ai_chip_explain"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Explain code"
+                            style="@style/Widget.Material3.Chip.Suggestion"/>
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+        </RelativeLayout>
+    </LinearLayout>
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!--  CONTEXT STRIP — subtle pill showing active screen + undo   -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <LinearLayout
+        android:id="@+id/ai_context_banner"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="10dp"
+        android:paddingEnd="6dp"
+        android:background="?attr/colorSurfaceContainerHigh">
+
+        <!-- Active screen pill -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="28dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_model_chip"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp">
+
+            <ImageView
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:layout_marginEnd="5dp"
+                app:srcCompat="@drawable/ic_mtrl_screen"
+                app:tint="?attr/colorPrimary"/>
+
+            <TextView
+                android:id="@+id/ai_context_banner_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="main"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textStyle="bold"
+                android:textColor="?attr/colorPrimary"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:maxWidth="140dp"/>
+        </LinearLayout>
+
+        <!-- Undo button — visible after AI layout change -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/ai_btn_undo_layout"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:contentDescription="Undo last layout"
+            android:visibility="gone"
+            app:icon="@drawable/ic_mtrl_undo"
+            app:iconSize="18dp"
+            app:iconTint="?attr/colorError"/>
+
+    </LinearLayout>
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!--  BOTTOM INPUT AREA                                           -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -223,21 +469,21 @@
                 android:layout_height="14dp"
                 android:indeterminate="true"
                 app:indicatorSize="14dp"
-                app:trackThickness="2dp" />
+                app:trackThickness="2dp"/>
 
             <TextView
                 android:id="@+id/ai_sheet_typing_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:ellipsize="end"
-                android:maxLines="1"
                 android:text="Agent is thinking..."
                 android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:maxLines="1"
+                android:ellipsize="end"/>
         </LinearLayout>
 
-        <!-- White pill input: attach | text | mic | send circle -->
+        <!-- Input pill -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -246,22 +492,23 @@
             android:gravity="center_vertical"
             android:minHeight="52dp"
             android:orientation="horizontal"
-            android:paddingStart="12dp"
+            android:paddingStart="4dp"
             android:paddingEnd="8dp"
             android:paddingVertical="6dp">
 
-            <!-- Attach icon -->
+            <!-- Attach -->
             <ImageView
                 android:id="@+id/ai_sheet_btn_attach"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
+                android:layout_marginStart="8dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:clickable="true"
-                android:contentDescription="Attach file"
                 android:focusable="true"
+                android:contentDescription="Attach file"
                 android:scaleType="fitCenter"
-                app:srcCompat="@drawable/ic_mtrl_attachment"
-                app:tint="?attr/colorOnSurfaceVariant" />
+                app:srcCompat="@drawable/ic_chat_attach"
+                app:tint="?attr/colorOnSurfaceVariant"/>
 
             <!-- Text input -->
             <com.google.android.material.textfield.TextInputEditText
@@ -271,55 +518,53 @@
                 android:layout_weight="1"
                 android:layout_marginHorizontal="8dp"
                 android:background="@android:color/transparent"
-                android:hint="Ask the agent..."
+                android:hint="Ask anything about your project..."
                 android:inputType="textMultiLine|textCapSentences"
                 android:maxLines="4"
                 android:minHeight="40dp"
                 android:paddingHorizontal="0dp"
                 android:paddingVertical="4dp"
-                android:textAppearance="?attr/textAppearanceBodyMedium" />
+                android:textAppearance="?attr/textAppearanceBodyMedium"/>
 
-            <!-- Mic icon -->
-            <ImageView
+            <!-- Mic — MaterialButton.IconButton matching ChatActivity style -->
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/ai_sheet_btn_mic"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_marginEnd="8dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
                 android:contentDescription="Voice input"
-                android:focusable="true"
-                android:scaleType="fitCenter"
-                app:srcCompat="@drawable/ic_mtrl_mic"
-                app:tint="?attr/colorOnSurfaceVariant" />
+                app:icon="@drawable/ic_chat_mic"
+                app:iconSize="24dp"
+                app:iconTint="?attr/colorOnSurfaceVariant" />
 
-            <!-- Purple circle send button -->
+            <!-- Send -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/ai_sheet_btn_send"
-                style="@style/Widget.Material3.Button"
+                style="@style/Widget.Material3.Button.Icon"
                 android:layout_width="44dp"
                 android:layout_height="44dp"
-                android:contentDescription="Send"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:minWidth="0dp"
+                android:contentDescription="Send"
+                app:backgroundTint="?attr/colorPrimary"
                 app:cornerRadius="22dp"
-                app:icon="@drawable/ic_send"
+                app:icon="@drawable/ic_chat_send"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
                 app:iconSize="20dp"
-                app:iconTint="?attr/colorOnPrimary" />
-
+                app:iconTint="?attr/colorOnPrimary"/>
         </LinearLayout>
 
-        <!-- Hidden buttons — used programmatically by AiProjectBottomSheet -->
-        <View
-            android:id="@+id/ai_sheet_btn_clear"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:visibility="gone" />
-
+        <!-- Hidden compat views (used by existing code) -->
+        <View android:id="@+id/ai_sheet_btn_clear"
+            android:layout_width="0dp" android:layout_height="0dp"
+            android:visibility="gone"/>
+        <View android:id="@+id/ai_sheet_btn_tools"
+            android:layout_width="0dp" android:layout_height="0dp"
+            android:visibility="gone"/>
     </LinearLayout>
-    <!-- end input area -->
 
 </LinearLayout>

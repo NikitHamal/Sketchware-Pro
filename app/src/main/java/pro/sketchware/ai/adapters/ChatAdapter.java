@@ -945,15 +945,12 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-
     /**
      * Decodes Base64-encoded text that sometimes arrives from AI API responses.
      * Returns the original text unchanged if it is not valid Base64.
      */
     private static String decodeIfBase64(@Nullable String text) {
         if (text == null || text.length() < 8) return text != null ? text : "";
-        // Quick heuristic: if the string is long, has no spaces/newlines and looks
-        // like Base64 alphabet, attempt to decode it.
         String trimmed = text.trim();
         boolean looksBase64 = trimmed.length() > 20
                 && trimmed.matches("[A-Za-z0-9+/=]+")
@@ -963,7 +960,6 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         try {
             byte[] decoded = Base64.decode(trimmed, Base64.DEFAULT);
             String decodedStr = new String(decoded, java.nio.charset.StandardCharsets.UTF_8).trim();
-            // Only use decoded result if it looks like human-readable text
             if (decodedStr.length() > 2 && isPrintable(decodedStr)) {
                 return decodedStr;
             }
@@ -1006,6 +1002,8 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 .show();
     }
 
+    // ── UserViewHolder ────────────────────────────────────────────────────
+
     static class UserViewHolder extends RecyclerView.ViewHolder {
         private final ItemChatMessageUserBinding binding;
 
@@ -1020,16 +1018,16 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             binding.messageContent.setText(text);
             binding.messageMeta.setText(item.message != null ? formatTimestamp(item.message.getTimestamp()) : "");
 
-            // Copy button
             binding.btnCopyMessage.setOnClickListener(v -> copyToClipboard(v.getContext(), text));
 
-            // Long-press → options dialog
             binding.messageContent.setOnLongClickListener(v -> {
                 showMessageOptions(v.getContext(), text);
                 return true;
             });
         }
     }
+
+    // ── AssistantViewHolder ───────────────────────────────────────────────
 
     static class AssistantViewHolder extends RecyclerView.ViewHolder {
         private final ItemChatMessageAssistantBinding binding;
@@ -1046,6 +1044,7 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             binding.messageMeta.setText(message != null ? formatTimestamp(message.getTimestamp()) : "");
             binding.streamingBadge.setVisibility(message != null && message.isStreaming() ? View.VISIBLE : View.GONE);
 
+            // Reasoning / thinking card
             String thoughtSummary = extractThoughtSummary(item);
             boolean hasThoughtSummary = !TextUtils.isEmpty(thoughtSummary);
             binding.reasoningCard.setVisibility(hasThoughtSummary ? View.VISIBLE : View.GONE);
@@ -1058,92 +1057,102 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             binding.messageContent.setVisibility(hasMessageContent ? View.VISIBLE : View.GONE);
             binding.messageContent.setTextIsSelectable(true);
 
+            // ── Expand / collapse logic (now driven by btn_expand_message in actions row) ──
+            // The floating btn_expand_message inside the bubble is REMOVED from the layout.
+            // expand is wired below via the actions row btn_expand_message.
             if (hasMessageContent) {
                 boolean isCurrentlyStreaming = message != null && message.isStreaming();
-                // Decode Base64-encoded content that sometimes arrives from the AI API
                 String displayContent = decodeIfBase64(content);
+
                 if (isCurrentlyStreaming) {
-                    // Plain text during streaming — avoids garbled/encoded output
                     binding.messageContent.setMaxLines(Integer.MAX_VALUE);
                     binding.messageContent.setEllipsize(null);
                     binding.messageContent.setText(displayContent);
-                    binding.btnExpandMessage.setVisibility(View.GONE);
                 } else {
-                    // Full Markwon rendering after streaming completes
                     markwon.setMarkdown(binding.messageContent, displayContent);
-                    // Collapsible: start at 8 lines, expand on tap
-                    if (!item.messageExpanded) {
-                        binding.messageContent.setMaxLines(8);
-                        binding.messageContent.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                    } else {
-                        binding.messageContent.setMaxLines(Integer.MAX_VALUE);
-                        binding.messageContent.setEllipsize(null);
-                    }
-                    // Show expand button when text is long enough to be truncated
-                    binding.messageContent.post(() -> {
-                        android.text.Layout layout = binding.messageContent.getLayout();
-                        if (layout != null && layout.getLineCount() >= 8 && !item.messageExpanded) {
-                            binding.btnExpandMessage.setVisibility(View.VISIBLE);
-                            binding.btnExpandMessage.setText("Show more ▾");
-                        } else if (item.messageExpanded) {
-                            binding.btnExpandMessage.setVisibility(View.VISIBLE);
-                            binding.btnExpandMessage.setText("Show less ▴");
-                        } else {
-                            binding.btnExpandMessage.setVisibility(View.GONE);
-                        }
-                    });
-                    binding.btnExpandMessage.setOnClickListener(v -> {
-                        item.messageExpanded = !item.messageExpanded;
-                        if (item.messageExpanded) {
-                            binding.messageContent.setMaxLines(Integer.MAX_VALUE);
-                            binding.messageContent.setEllipsize(null);
-                            binding.btnExpandMessage.setText("Show less ▴");
-                        } else {
-                            binding.messageContent.setMaxLines(8);
-                            binding.messageContent.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                            binding.btnExpandMessage.setText("Show more ▾");
-                        }
-                    });
+                    applyExpandState(item);
                 }
-            } else {
-                binding.btnExpandMessage.setVisibility(View.GONE);
             }
 
+            // Tool cards
             binding.toolsContainer.removeAllViews();
             LayoutInflater inflater = LayoutInflater.from(binding.getRoot().getContext());
             int cardSpacing = (int) TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP,
-                    10,
+                    TypedValue.COMPLEX_UNIT_DIP, 10,
                     binding.getRoot().getResources().getDisplayMetrics());
             for (int i = 0; i < item.toolStates.size(); i++) {
                 ToolUiState state = item.toolStates.get(i);
                 ItemChatToolCallBinding toolBinding = ItemChatToolCallBinding.inflate(inflater, binding.toolsContainer, false);
                 View toolView = toolBinding.getRoot();
-                ViewGroup.LayoutParams layoutParams = toolView.getLayoutParams();
-                if (layoutParams instanceof ViewGroup.MarginLayoutParams) {
-                    ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) layoutParams;
-                    margins.topMargin = i == 0 ? 0 : cardSpacing;
-                    toolView.setLayoutParams(margins);
+                ViewGroup.LayoutParams lp = toolView.getLayoutParams();
+                if (lp instanceof ViewGroup.MarginLayoutParams) {
+                    ((ViewGroup.MarginLayoutParams) lp).topMargin = i == 0 ? 0 : cardSpacing;
+                    toolView.setLayoutParams(lp);
                 }
                 bindToolCard(toolBinding, state, artifactActionListener);
                 binding.toolsContainer.addView(toolView);
             }
             binding.toolsContainer.setVisibility(item.toolStates.isEmpty() ? View.GONE : View.VISIBLE);
 
-            // Show action row only when there is visible text content
+            // Actions row
             boolean showActions = hasMessageContent && (message == null || !message.isStreaming());
             binding.messageActionsRow.setVisibility(showActions ? View.VISIBLE : View.GONE);
+
             if (showActions) {
                 String finalContent = decodeIfBase64(content);
+
+                // Copy
                 binding.btnCopyMessage.setOnClickListener(v ->
                         copyToClipboard(v.getContext(), finalContent));
+
+                // Share
                 binding.btnShareMessage.setOnClickListener(v ->
                         shareText(v.getContext(), finalContent));
+
+                // Expand — wired to btn_expand_message in the actions row
+                // Shows after layout pass to know line count
+                binding.messageContent.post(() -> {
+                    android.text.Layout layout = binding.messageContent.getLayout();
+                    boolean needsExpand = layout != null && layout.getLineCount() >= 8;
+                    binding.btnExpandMessage.setVisibility(needsExpand || item.messageExpanded ? View.VISIBLE : View.GONE);
+                    binding.labelExpand.setVisibility(needsExpand || item.messageExpanded ? View.VISIBLE : View.GONE);
+                    updateExpandIcon(item);
+                });
+
+                binding.btnExpandMessage.setOnClickListener(v -> {
+                    item.messageExpanded = !item.messageExpanded;
+                    applyExpandState(item);
+                    updateExpandIcon(item);
+                    // Animate icon rotation: collapsed=0°, expanded=180°
+                    float rotation = item.messageExpanded ? 180f : 0f;
+                    binding.btnExpandMessage.animate().rotation(rotation).setDuration(200).start();
+                });
+
+                // Long-press for options dialog
                 binding.messageContent.setOnLongClickListener(v -> {
                     showMessageOptions(v.getContext(), finalContent);
                     return true;
                 });
             }
+        }
+
+        /** Apply max-lines and ellipsize based on item.messageExpanded */
+        private void applyExpandState(@NonNull ChatItem item) {
+            if (item.messageExpanded) {
+                binding.messageContent.setMaxLines(Integer.MAX_VALUE);
+                binding.messageContent.setEllipsize(null);
+            } else {
+                binding.messageContent.setMaxLines(8);
+                binding.messageContent.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            }
+        }
+
+        /** Sync the expand icon drawable direction */
+        private void updateExpandIcon(@NonNull ChatItem item) {
+            binding.btnExpandMessage.setImageResource(
+                    item.messageExpanded
+                            ? R.drawable.ic_mtrl_arrow_up
+                            : R.drawable.ic_mtrl_expand);
         }
 
         @Nullable
@@ -1164,21 +1173,21 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             return null;
         }
 
-        private void bindToolCard(@NonNull ItemChatToolCallBinding binding,
+        private void bindToolCard(@NonNull ItemChatToolCallBinding toolBinding,
                                   @NonNull ToolUiState state,
                                   @Nullable OnArtifactActionListener artifactActionListener) {
             ToolVisualSpec visualSpec = buildToolVisualSpec(state);
-            binding.toolName.setText(visualSpec.title);
-            binding.toolIcon.setImageResource(visualSpec.toolIconRes);
-            binding.toolStatusIcon.setImageResource(visualSpec.statusIconRes);
-            binding.toolPreview.setText("");
-            binding.toolPreview.setVisibility(View.GONE);
-            binding.toolDetails.setText(visualSpec.details);
-            binding.toolDetails.setVisibility(state.expanded ? View.VISIBLE : View.GONE);
-            binding.expandIcon.setRotation(state.expanded ? 180f : 0f);
+            toolBinding.toolName.setText(visualSpec.title);
+            toolBinding.toolIcon.setImageResource(visualSpec.toolIconRes);
+            toolBinding.toolStatusIcon.setImageResource(visualSpec.statusIconRes);
+            toolBinding.toolPreview.setText("");
+            toolBinding.toolPreview.setVisibility(View.GONE);
+            toolBinding.toolDetails.setText(visualSpec.details);
+            toolBinding.toolDetails.setVisibility(state.expanded ? View.VISIBLE : View.GONE);
+            toolBinding.expandIcon.setRotation(state.expanded ? 180f : 0f);
 
             ToolResult result = state.toolResult;
-            LinearProgressIndicator progress = binding.toolProgress;
+            LinearProgressIndicator progress = toolBinding.toolProgress;
             if (result == null || state.indeterminate || (state.progress >= 0 && state.progress < 100)) {
                 progress.setVisibility(View.VISIBLE);
                 progress.setIndeterminate(result == null || state.indeterminate || state.progress < 0);
@@ -1189,7 +1198,7 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 progress.setVisibility(View.GONE);
             }
 
-            MaterialButton installButton = binding.btnInstallArtifact;
+            MaterialButton installButton = toolBinding.btnInstallArtifact;
             String artifactPath = extractInstallableArtifactPath(result);
             if (!TextUtils.isEmpty(artifactPath) && artifactActionListener != null && state.expanded) {
                 installButton.setVisibility(View.VISIBLE);
@@ -1199,9 +1208,9 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 installButton.setOnClickListener(null);
             }
 
-            binding.getRoot().setOnClickListener(v -> {
+            toolBinding.getRoot().setOnClickListener(v -> {
                 state.expanded = !state.expanded;
-                bindToolCard(binding, state, artifactActionListener);
+                bindToolCard(toolBinding, state, artifactActionListener);
             });
         }
     }

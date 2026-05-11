@@ -98,6 +98,8 @@ public class AiProjectBottomSheet
     private RecyclerView      messagesList;
     private boolean           userScrolledUp = false;
     private TextView          titleView;
+    /** @deprecated v5: replaced by ai_sheet_provider_name. Kept for compat. */
+    @Deprecated
     private TextView          subtitleView;
     private TextView          modelChipView;
     private LinearLayout      typingIndicator;
@@ -109,6 +111,30 @@ public class AiProjectBottomSheet
     // AI
     private ChatAdapter         chatAdapter;
     private AgentExecutor       agentExecutor;
+
+    // ── v5 redesign fields ────────────────────────────────────────────────────
+    /** Currently selected activity XML name (e.g. "main.xml"). Kept in sync with DesignActivity. */
+    private String currentActivityXmlName  = null;
+    /** Sidebar RecyclerView for tools. */
+    private androidx.recyclerview.widget.RecyclerView toolsSidebarRv;
+    /** Sidebar container view (width toggled for expand/collapse). */
+    private android.view.ViewGroup sidebarContainer;
+    /** Toggle button icon for sidebar. */
+    private android.widget.ImageView sidebarToggleIcon;
+    /** Context banner text (shows active screen). */
+    private android.widget.TextView contextBannerText;
+    /** Undo last AI layout change button. */
+    private android.view.View undoLayoutBtn;
+    /** Sidebar adapter. */
+    private SidebarToolsAdapter sidebarAdapter;
+    /** True when sidebar is in expanded (label-visible) state. */
+    private boolean sidebarExpanded = false;
+    /** Activity spinner row. */
+    private android.view.View activitySelectorRow;
+    /** Current activity name label. */
+    private android.widget.TextView activityNameView;
+    /** Provider name label. */
+    private android.widget.TextView providerNameView;
     private AiPreferences       preferences;
     private ConversationManager conversationManager;
     private WorkspaceManager    workspaceManager;
@@ -152,6 +178,7 @@ public class AiProjectBottomSheet
 
         applyBackground();
         bindViews();
+        setupToolsSidebar();
         setupAi();
         setupInput();
         setupButtons();
@@ -179,19 +206,244 @@ public class AiProjectBottomSheet
     // ── Bind views ────────────────────────────────────────────────────────
 
     private void bindViews() {
-        titleView       = sheetRoot.findViewById(R.id.ai_sheet_title);
-        subtitleView    = sheetRoot.findViewById(R.id.ai_sheet_subtitle);
-        modelChipView   = sheetRoot.findViewById(R.id.ai_sheet_model_chip);
-        typingIndicator = sheetRoot.findViewById(R.id.ai_sheet_typing_indicator);
-        typingText      = sheetRoot.findViewById(R.id.ai_sheet_typing_text);
-        emptyState      = sheetRoot.findViewById(R.id.ai_sheet_empty);
-        inputView       = sheetRoot.findViewById(R.id.ai_sheet_input);
-        btnSend         = sheetRoot.findViewById(R.id.ai_sheet_btn_send);
-        messagesList    = sheetRoot.findViewById(R.id.ai_sheet_messages);
+        titleView            = sheetRoot.findViewById(R.id.ai_sheet_title);
+        modelChipView        = sheetRoot.findViewById(R.id.ai_sheet_model_chip);
+        typingIndicator      = sheetRoot.findViewById(R.id.ai_sheet_typing_indicator);
+        typingText           = sheetRoot.findViewById(R.id.ai_sheet_typing_text);
+        emptyState           = sheetRoot.findViewById(R.id.ai_sheet_empty);
+        inputView            = sheetRoot.findViewById(R.id.ai_sheet_input);
+        btnSend              = sheetRoot.findViewById(R.id.ai_sheet_btn_send);
+        messagesList         = sheetRoot.findViewById(R.id.ai_sheet_messages);
+        // v5 redesign views
+        activitySelectorRow  = sheetRoot.findViewById(R.id.ai_sheet_activity_selector);
+        activityNameView     = sheetRoot.findViewById(R.id.ai_sheet_activity_name);
+        providerNameView     = sheetRoot.findViewById(R.id.ai_sheet_provider_name);
+        sidebarContainer     = sheetRoot.findViewById(R.id.ai_sidebar_container);
+        toolsSidebarRv       = sheetRoot.findViewById(R.id.ai_tools_sidebar_rv);
+        sidebarToggleIcon    = sheetRoot.findViewById(R.id.ai_sidebar_toggle_icon);
+        contextBannerText    = sheetRoot.findViewById(R.id.ai_context_banner_text);
+        undoLayoutBtn        = sheetRoot.findViewById(R.id.ai_btn_undo_layout);
 
-        String name = AiProjectIntegrationHelper.resolveProjectName(scId, null);
-        titleView.setText("AI \u2014 " + name);
-        subtitleView.setText("Project " + scId);
+        // Undo button: trigger Sketchware's built-in undo via broadcast
+        if (undoLayoutBtn != null) {
+            undoLayoutBtn.setOnClickListener(v -> {
+                try {
+                    android.content.Intent undoIntent =
+                            new android.content.Intent("pro.sketchware.ACTION_UNDO_LAYOUT");
+                    undoIntent.putExtra("sc_id", scId);
+                    context.sendBroadcast(undoIntent);
+                    undoLayoutBtn.setVisibility(android.view.View.GONE);
+                } catch (Exception ignored) {}
+            });
+        }
+
+        // v6: title = sc_id (project number) — as requested
+        titleView.setText(scId);
+
+        // Populate current activity chip
+        updateActivityChip(currentActivityXmlName);
+
+        // Setup activity selector dropdown
+        if (activitySelectorRow != null) {
+            activitySelectorRow.setOnClickListener(v -> showActivitySelector());
+        }
+
+        // Setup sidebar toggle
+        android.view.View toggleRow = sheetRoot.findViewById(R.id.ai_sidebar_toggle);
+        if (toggleRow != null) {
+            toggleRow.setOnClickListener(v -> toggleSidebar());
+        }
+
+        // Setup quick-suggestion chips on empty state
+        setupSuggestionChips();
+    }
+
+    /** Shows a dialog to pick the target activity. */
+    private void showActivitySelector() {
+        // Read activities from disk via ActivityTools-style file read
+        java.util.List<String> actNames = loadProjectActivityNames();
+        if (actNames.isEmpty()) {
+            actNames.add("main");
+        }
+        String[] items = actNames.toArray(new String[0]);
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(context)
+                .setTitle("Select screen to target")
+                .setItems(items, (d, which) -> {
+                    String picked = items[which];
+                    setCurrentActivityXmlName(picked.endsWith(".xml") ? picked : picked + ".xml");
+                })
+                .show();
+    }
+
+    /** Reads activity names from Sketchware's "file" data file. */
+    /**
+     * Loads activity names from Sketchware's in-memory FileManager (jC.b(sc_id)).
+     * This is the correct approach — jC is already loaded and avoids any
+     * encrypted file parsing issues.
+     */
+    /**
+     * Returns the list of activity/screen names from Sketchware's in-memory FileManager.
+     * Uses jC.b(sc_id).b() — exactly the same API as ViewSelectorActivity.
+     */
+    private java.util.List<String> loadProjectActivityNames() {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        try {
+            // Activities
+            java.util.ArrayList<com.besome.sketch.beans.ProjectFileBean> activities =
+                    a.a.a.jC.b(scId).b();
+            if (activities != null) {
+                for (com.besome.sketch.beans.ProjectFileBean bean : activities) {
+                    if (bean != null && bean.fileName != null && !bean.fileName.isEmpty()) {
+                        names.add(bean.fileName);
+                    }
+                }
+            }
+            // Custom views / fragments
+            java.util.ArrayList<com.besome.sketch.beans.ProjectFileBean> customs =
+                    a.a.a.jC.b(scId).c();
+            if (customs != null) {
+                for (com.besome.sketch.beans.ProjectFileBean bean : customs) {
+                    if (bean != null && bean.fileName != null && !bean.fileName.isEmpty()) {
+                        names.add(bean.fileName);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            android.util.Log.w("AiBottomSheet", "loadProjectActivityNames: " + e.getMessage());
+        }
+        if (names.isEmpty()) names.add("main");
+        return names;
+    }
+
+    /** Updates the activity chip text to reflect the currently targeted screen. */
+    private void updateActivityChip(String xmlName) {
+        String actName = (xmlName == null || xmlName.isEmpty()) ? "main" : xmlName.replace(".xml", "");
+        if (activityNameView != null) activityNameView.setText(actName);
+        // Banner shows just the activity name as a pill — clean, no extra text
+        if (contextBannerText != null) contextBannerText.setText(actName);
+    }
+
+    /** Shows the Undo button in the context banner after an AI layout change. */
+    public void showUndoButton() {
+        if (undoLayoutBtn != null) {
+            undoLayoutBtn.setVisibility(android.view.View.VISIBLE);
+        }
+    }
+
+    /** Toggle sidebar between icon-only (48dp) and expanded (220dp). */
+    private void toggleSidebar() {
+        sidebarExpanded = !sidebarExpanded;
+        android.animation.ValueAnimator anim = android.animation.ValueAnimator.ofInt(
+                sidebarExpanded ? dpToPx(48) : dpToPx(220),
+                sidebarExpanded ? dpToPx(220) : dpToPx(48));
+        anim.setDuration(220);
+        anim.setInterpolator(new android.view.animation.DecelerateInterpolator());
+        anim.addUpdateListener(va -> {
+            android.view.ViewGroup.LayoutParams lp = sidebarContainer.getLayoutParams();
+            lp.width = (int) va.getAnimatedValue();
+            sidebarContainer.setLayoutParams(lp);
+        });
+        anim.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator a) {
+                if (sidebarAdapter != null) sidebarAdapter.setSidebarExpanded(sidebarExpanded);
+                if (sidebarToggleIcon != null) {
+                    sidebarToggleIcon.setRotation(sidebarExpanded ? 180f : 0f);
+                }
+            }
+        });
+        anim.start();
+    }
+
+    private int dpToPx(int dp) {
+        return Math.round(dp * context.getResources().getDisplayMetrics().density);
+    }
+
+    /** Wires the quick-suggestion chips on the empty state. */
+    private void setupSuggestionChips() {
+        if (emptyState == null) return;
+        bindChip(R.id.ai_chip_generate_ui,
+                "Generate a modern UI for the current screen");
+        bindChip(R.id.ai_chip_fix_bugs,
+                "Fix build errors and review the code");
+        bindChip(R.id.ai_chip_add_feature,
+                "Add a new feature to the current screen");
+        bindChip(R.id.ai_chip_explain,
+                "Explain the code on the current screen");
+    }
+
+    private void bindChip(int chipId, String prompt) {
+        android.view.View chip = emptyState.findViewById(chipId);
+        if (chip == null) return;
+        chip.setOnClickListener(v -> {
+            if (inputView != null) {
+                inputView.setText(prompt);
+                inputView.setSelection(inputView.getText().length());
+            }
+        });
+    }
+
+    /** Initialises the tools sidebar RecyclerView. */
+    private void setupToolsSidebar() {
+        if (toolsSidebarRv == null) return;
+        java.util.List<SidebarToolsAdapter.CategoryEntry> cats =
+                SidebarToolsAdapter.buildCategories();
+        sidebarAdapter = new SidebarToolsAdapter(context, cats);
+        sidebarAdapter.setOnToolClickListener(tool -> {
+            // Build a smart prompt for the chosen tool
+            String prompt = buildToolPrompt(tool);
+            if (prompt != null && inputView != null) {
+                inputView.setText(prompt);
+                inputView.setSelection(inputView.getText().length());
+            }
+            // Collapse sidebar after pick
+            if (sidebarExpanded) toggleSidebar();
+        });
+        toolsSidebarRv.setLayoutManager(
+                new androidx.recyclerview.widget.LinearLayoutManager(context));
+        toolsSidebarRv.setAdapter(sidebarAdapter);
+    }
+
+    /** Builds a context-aware prompt for a sidebar tool click. */
+    private String buildToolPrompt(SidebarToolsAdapter.ToolEntry tool) {
+        String actName = currentActivityXmlName != null
+                ? currentActivityXmlName.replace(".xml", "") : "main";
+        switch (tool.name) {
+            case "generate_layout":
+                // Don't put text in input — trigger the inline Dialog-style generator directly
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                        () -> showInlineLayoutGenerator(actName), 100);
+                return null;  // signal: don't fill input
+
+            case "edit_ui":
+                // Edit Layout: first read current layout, then let user describe the edit
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                        () -> showInlineLayoutEditor(actName), 100);
+                return null;
+            case "describe_layout":
+                return "Describe the current layout of the '" + actName + "' screen";
+            case "add_view_xml":
+                return "Add the following view to the '" + actName + "' screen: ";
+            case "edit_layout":
+                return "Edit the layout of the '" + actName + "' screen: ";
+            case "remove_view":
+                return "Remove the view with id '' from the '" + actName + "' screen";
+            case "get_activity_events":
+                return "List all events on the '" + actName + "' screen";
+            case "get_event_blocks":
+                return "Show the logic blocks for event '' on '" + actName + "'";
+            case "add_block":
+                return "Add a block to event '' on '" + actName + "': ";
+            case "build_project":
+                return "Build the project and fix any errors";
+            case "build_project_clean":
+                return "Build the project with a clean cache (use when there are unexplained build errors)";
+            case "get_compile_logs":
+                return "Show the latest compile logs and fix any errors";
+            case "analyze_code":
+                return "Analyze the code quality and suggest improvements";
+            default:
+                return "Use " + tool.name + " to help me: ";
+        }
     }
 
     // ── Keyboard handling ─────────────────────────────────────────────────
@@ -280,7 +532,7 @@ public class AiProjectBottomSheet
         }
     }
 
-    private void animateTo(int state) {
+    public void animateTo(int state) {
         currentState = state;
         lastKeyboardH = 0;
         float target = targetTranslationY(state);
@@ -472,11 +724,74 @@ public class AiProjectBottomSheet
     }
 
     private void updateModelChip() {
-        if (currentModelId == null) { modelChipView.setText("Select model"); return; }
-        String label = currentModelId.contains("/")
-                ? currentModelId.substring(currentModelId.lastIndexOf('/') + 1)
-                : currentModelId;
-        modelChipView.setText(label);
+        if (currentModelId == null) {
+            if (modelChipView != null) modelChipView.setText("Model");
+            if (providerNameView != null) providerNameView.setText("Select provider");
+            return;
+        }
+        // Show compact model name (last segment after / or the full id if short)
+        String label = currentModelId;
+        if (label.contains("/")) label = label.substring(label.lastIndexOf('/') + 1);
+        if (label.length() > 22) label = label.substring(0, 20) + "…";
+        if (modelChipView != null) modelChipView.setText(label);
+        if (providerNameView != null && currentProvider != null) {
+            providerNameView.setText(currentProvider.getDisplayName());
+        }
+    }
+
+    /**
+     * Sets the currently open activity's XML name so the AI knows which
+     * screen to target when the user asks for UI changes.
+     * Call this from DesignActivity whenever projectFile changes.
+     */
+    public void setCurrentActivityXmlName(String xmlName) {
+        if (xmlName == null || xmlName.isEmpty()) xmlName = "main.xml";
+        if (xmlName.equals(this.currentActivityXmlName)) return;  // no change
+        this.currentActivityXmlName = xmlName;
+        updateActivityChip(xmlName);
+        // Switch to the per-activity conversation (or create one)
+        if (conversationManager != null && workspace != null) {
+            switchToActivityConversation(xmlName);
+        }
+    }
+
+    /**
+     * Switches the chat area to the conversation dedicated to the given activity.
+     * Each activity in the project gets its own conversation saved in the workspace.
+     * Conversation title = activity name (e.g. "main").
+     */
+    private void switchToActivityConversation(String xmlName) {
+        String actTitle = xmlName.replace(".xml", "");
+        // Look for existing conversation for this activity
+        List<Conversation> all = conversationManager.getConversationsForWorkspace(workspaceId);
+        Conversation found = null;
+        for (Conversation cv : all) {
+            if (actTitle.equals(cv.getTitle())) {
+                found = cv;
+                break;
+            }
+        }
+        if (found == null) {
+            // Create new conversation named after the activity
+            found = AiProjectIntegrationHelper.createConversation(context, workspace, actTitle);
+        }
+        conversation   = found;
+        conversationId = conversation.getId();
+        // Reload messages for this conversation
+        List<ChatMessage> history = conversationManager.getMessages(conversationId);
+        if (chatAdapter != null) {
+            chatAdapter.setMessages(history);
+            // For new (empty) conversations, show the system context banner
+            if (history.isEmpty()) {
+                showSystemContextMessage(xmlName);
+            }
+        }
+        // Show/hide empty state
+        if (emptyState != null) {
+            emptyState.setVisibility(history.isEmpty()
+                    ? android.view.View.VISIBLE : android.view.View.GONE);
+        }
+        scrollToBottom();
     }
 
     // ── Input ─────────────────────────────────────────────────────────────
@@ -509,6 +824,33 @@ public class AiProjectBottomSheet
 
         // Mic button — direct SpeechRecognizer (no onActivityResult needed)
         sheetRoot.findViewById(R.id.ai_sheet_btn_mic).setOnClickListener(v -> startListening());
+
+        // Tools button — shows the AI tools catalogue
+        View btnTools = sheetRoot.findViewById(R.id.ai_sheet_btn_tools);
+        if (btnTools != null) {
+            btnTools.setOnClickListener(v ->
+                    pro.sketchware.ai.bottomsheet.AiToolsBottomSheet.show(context, tool -> {
+                        String prompt = "Use the \"" + tool.name + "\" tool to help me: ";
+                        inputView.setText(prompt);
+                        inputView.setSelection(inputView.getText().length());
+                        if (currentState == STATE_HIDDEN) animateTo(STATE_HALF);
+                    })
+            );
+        }
+
+        // Clear chat button (real visible button in header)
+        View btnClearReal = sheetRoot.findViewById(R.id.ai_sheet_btn_clear_real);
+        if (btnClearReal != null) {
+            btnClearReal.setOnClickListener(v -> confirmClearSheet());
+        }
+
+        // FAB scroll-to-bottom
+        com.google.android.material.floatingactionbutton.FloatingActionButton fabDown =
+                sheetRoot.findViewById(R.id.ai_sheet_fab_scroll_down);
+        if (fabDown != null) {
+            fabDown.setOnClickListener(v -> scrollToBottom());
+            setupFabScrollListener(fabDown);
+        }
 
         // Clear button
         sheetRoot.findViewById(R.id.ai_sheet_btn_clear).setOnClickListener(v ->
@@ -548,12 +890,25 @@ public class AiProjectBottomSheet
     // ── Direct SpeechRecognizer ───────────────────────────────────────────
 
     private void startListening() {
+        // Request RECORD_AUDIO permission if not granted
+        if (context instanceof android.app.Activity) {
+            android.app.Activity activity = (android.app.Activity) context;
+            if (android.content.pm.PackageManager.PERMISSION_GRANTED !=
+                    activity.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)) {
+                activity.requestPermissions(
+                    new String[]{android.Manifest.permission.RECORD_AUDIO}, 0x1234);
+                return;
+            }
+        }
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             // Toast removed: "Speech recognition not available on this device."
             return;
         }
         stopListening();
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context);
+        // SpeechRecognizer REQUIRES Activity context, not Application context
+        android.content.Context speechCtx = (context instanceof android.app.Activity)
+                ? context : context.getApplicationContext();
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(speechCtx);
         speechRecognizer.setRecognitionListener(new RecognitionListener() {
             @Override public void onReadyForSpeech(Bundle params) {
                 // Toast removed: "Listening…"
@@ -617,6 +972,21 @@ public class AiProjectBottomSheet
         String text = inputView.getText().toString().trim();
         if (text.isEmpty() || isAgentRunning) return;
 
+        // ── Intercept: if waiting for layout description, use GeradorDeLayoutPro directly ──
+        if (isAwaitingLayoutPrompt) {
+            isAwaitingLayoutPrompt = false;
+            inputView.setText("");
+            // Show user message in chat
+            pro.sketchware.ai.models.ChatMessage userMsg =
+                    new pro.sketchware.ai.models.ChatMessage(conversationId, text);
+            conversationManager.saveMessage(conversationId, userMsg);
+            chatAdapter.addUserMessage(userMsg);
+            scrollToBottom();
+            // Run the Dialog-style layout generation flow
+            handleLayoutGenerationPrompt(text);
+            return;
+        }
+
         if (currentModelId == null || currentModelId.isEmpty()) {
             // Toast removed: "Please select a model first"
             showModelSelector();
@@ -655,12 +1025,356 @@ public class AiProjectBottomSheet
 
         List<ChatMessage> history    = conversationManager.getMessages(conversationId);
         List<String>      projectIds = workspace.getProjectIds();
-        agentExecutor = new AgentExecutor(context, projectIds, workspaceId);
+
+        // Build rich page context so AI uses generate_layout (not Python/write_file)
+        String pageCtx = buildDesignEditorContext(scId, currentActivityXmlName, projectIds);
+
+        agentExecutor = new AgentExecutor(context, projectIds, workspaceId,
+                AgentExecutor.SCOPE_PROJECT, scId);
+        // Wire pulse: after every N tool steps, show Continue/Cancel with 10s countdown
+        agentExecutor.setPulseCallback((stepSummary, onContinue, onCancel) ->
+                showPulseConfirmation(stepSummary, onContinue, onCancel));
         agentExecutor.execute(history, currentModelId, currentProvider,
-                preferences.getSystemPrompt(), projectIds, workspaceId, this);
+                preferences.getSystemPrompt(), projectIds, workspaceId, pageCtx, this);
+    }
+
+    /**
+     * Builds the design_editor page context string injected into the system prompt.
+     * This tells the AI to use generate_layout (not write_file or Python) for UI edits.
+     */
+    private String buildDesignEditorContext(String scId, String xmlName, java.util.List<String> projectIds) {
+        StringBuilder ctx = new StringBuilder("design_editor");
+        ctx.append("\nsc_id: ").append(scId != null ? scId : "");
+        if (xmlName != null && !xmlName.isEmpty()) {
+            String actName = xmlName.replace(".xml", "");
+            ctx.append("\ncurrent_activity: ").append(actName);
+            ctx.append("\ncurrent_xml: ").append(xmlName);
+        }
+        ctx.append("\nproject_count: ")
+           .append((projectIds != null && projectIds.size() == 1) ? "1" : "multiple");
+        return ctx.toString();
+    }
+
+    /**
+     * Shows the active system context as an informational assistant message at the
+     * top of a new conversation — helps the user see what the AI knows and why
+     * generate_layout (not Python/write_file) is the correct tool for UI edits.
+     */
+    private void showSystemContextMessage(String activityName) {
+        if (chatAdapter == null) return;
+        String actName = (activityName != null) ? activityName.replace(".xml", "") : "main";
+        // Plain readable text — no markdown symbols (they render as ** ` etc. in some builds)
+        pro.sketchware.ai.models.ChatMessage sysMsg =
+                pro.sketchware.ai.models.ChatMessage.assistantMessage(
+                    "📋 Ready for screen: " + actName + "\n"
+                    + "Project: " + scId + "\n"
+                    + "Tip: Use the sidebar to pick a tool, or just describe what you want.",
+                    null);
+        chatAdapter.addAssistantMessage(sysMsg);
+    }
+
+
+    // ─── Inline Layout Generator (Dialog flow inside BottomSheet) ──────────────
+
+    private String pendingGeneratedXml = null;
+    private volatile boolean isAwaitingLayoutPrompt = false;
+    private boolean isEditMode = false;
+    private String cachedCurrentLayout = null;
+
+    private void showInlineLayoutGenerator(String actName) {
+        if (inputView == null || chatAdapter == null) return;
+        pendingGeneratedXml = null;
+        isAwaitingLayoutPrompt = true;
+        pro.sketchware.ai.models.ChatMessage promptMsg =
+                pro.sketchware.ai.models.ChatMessage.assistantMessage(
+                    "🎨 Generate Layout for: " + actName + "\n\n"
+                    + "Describe what you want. Be specific about widgets and layout.\n\n"
+                    + "Example: A calculator with a display at top and 4x4 button grid.",
+                    null);
+        chatAdapter.addAssistantMessage(promptMsg);
+        scrollToBottom();
+        inputView.setText("Layout for " + actName + ": ");
+        inputView.setSelection(inputView.getText().length());
+        inputView.requestFocus();
+    }
+
+    private void handleLayoutGenerationPrompt(String prompt) {
+        String actName = currentActivityXmlName != null
+                ? currentActivityXmlName.replace(".xml", "") : "main";
+        android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+        main.post(() -> {
+            if (typingText != null) typingText.setText("Generating layout…");
+            if (typingIndicator != null) typingIndicator.setVisibility(android.view.View.VISIBLE);
+        });
+        new Thread(() -> {
+            String xml = null; String error = null;
+            try {
+                xml = new pro.sketchware.ia.GeradorDeLayoutPro(context, prompt).generateLayout();
+            } catch (Exception e) { error = e.getMessage(); }
+            final String finalXml = xml; final String finalError = error;
+            main.post(() -> {
+                if (typingIndicator != null)
+                    typingIndicator.setVisibility(android.view.View.GONE);
+                if (finalError != null || finalXml == null || finalXml.isEmpty()) {
+                    chatAdapter.addAssistantMessage(
+                        pro.sketchware.ai.models.ChatMessage.assistantMessage(
+                            "❌ Generation failed: " + (finalError != null ? finalError
+                                : "empty result") + "\n\nTry a more detailed description.", null));
+                    scrollToBottom(); return;
+                }
+                pendingGeneratedXml = finalXml;
+                // Parse component names from XML
+                java.util.List<String> comps = new java.util.ArrayList<>();
+                try {
+                    org.xmlpull.v1.XmlPullParserFactory fac =
+                            org.xmlpull.v1.XmlPullParserFactory.newInstance();
+                    fac.setFeature(org.xmlpull.v1.XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
+                    org.xmlpull.v1.XmlPullParser p = fac.newPullParser();
+                    p.setInput(new java.io.StringReader(finalXml));
+                    int ev = p.getEventType();
+                    while (ev != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                        if (ev == org.xmlpull.v1.XmlPullParser.START_TAG) {
+                            String id = p.getAttributeValue(null, "android:id");
+                            if (id != null) {
+                                String tag = p.getName();
+                                int dot = tag.lastIndexOf('.');
+                                comps.add("• " + (dot >= 0 ? tag.substring(dot+1) : tag)
+                                        + "  @" + id.replace("@+id/", ""));
+                            }
+                        }
+                        ev = p.next();
+                    }
+                } catch (Exception ignored) {}
+                // Preview (mirrors AiUiGeneratorDialog.showPreview)
+                StringBuilder sb = new StringBuilder();
+                sb.append("✅ ").append(comps.size()).append(" views generated for ")
+                  .append(actName).append("\n\n");
+                for (String s : comps) sb.append(s).append("\n");
+                sb.append("\nTap Apply to update the canvas.");
+                chatAdapter.addAssistantMessage(
+                        pro.sketchware.ai.models.ChatMessage.assistantMessage(
+                                sb.toString(), null));
+                showLayoutActionButtons(actName, prompt);
+                scrollToBottom();
+            });
+        }, "GeradorLayout-BS").start();
+    }
+
+    private void showLayoutActionButtons(String actName, String originalPrompt) {
+        if (sheetRoot == null) return;
+        android.widget.LinearLayout row = new android.widget.LinearLayout(context);
+        row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        row.setPadding(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6));
+        row.setTag("layout_action_row");
+
+        com.google.android.material.button.MaterialButton btnApply =
+                new com.google.android.material.button.MaterialButton(context);
+        btnApply.setText("✅  Apply to Canvas");
+        btnApply.setIconResource(0); // no icon — text only
+        android.widget.LinearLayout.LayoutParams lp1 =
+                new android.widget.LinearLayout.LayoutParams(0,
+                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        lp1.setMarginEnd(dpToPx(8)); btnApply.setLayoutParams(lp1);
+
+        com.google.android.material.button.MaterialButton btnRegen =
+                new com.google.android.material.button.MaterialButton(context,
+                        null, com.google.android.material.R.attr.materialButtonOutlinedStyle);
+        btnRegen.setText("🔄  Retry");
+
+        row.addView(btnApply); row.addView(btnRegen);
+
+        android.view.View typingArea = sheetRoot.findViewById(R.id.ai_sheet_typing_indicator);
+        if (typingArea != null && typingArea.getParent() instanceof android.view.ViewGroup) {
+            android.view.ViewGroup parent = (android.view.ViewGroup) typingArea.getParent();
+            android.view.View ex = parent.findViewWithTag("layout_action_row");
+            if (ex != null) parent.removeView(ex);
+            parent.addView(row, parent.indexOfChild(typingArea));
+        }
+
+        btnApply.setOnClickListener(v -> applyPendingLayout(actName, row));
+        btnRegen.setOnClickListener(v -> {
+            if (row.getParent() instanceof android.view.ViewGroup)
+                ((android.view.ViewGroup) row.getParent()).removeView(row);
+            pendingGeneratedXml = null;
+            handleLayoutGenerationPrompt(originalPrompt);
+        });
+    }
+
+    /**
+     * Applies the pending XML via the exact same path as AiUiGeneratorDialog → DesignActivity:
+     *   broadcast layout_xml → applyAiGeneratedLayoutToEditor()
+     *   → ViewBeanParser.parse → InjectRootLayoutManager.set → HistoryViewBean.actionOverride
+     *   → jC.a(sc_id).c.put → viewTabAdapter.i() + refreshViewTabAdapter()
+     */
+    private void applyPendingLayout(String actName, android.view.View actionRow) {
+        if (pendingGeneratedXml == null) return;
+        if (actionRow.getParent() instanceof android.view.ViewGroup)
+            ((android.view.ViewGroup) actionRow.getParent()).removeView(actionRow);
+        String xmlKey = actName.endsWith(".xml") ? actName : actName + ".xml";
+        try {
+            android.content.Intent i =
+                    new android.content.Intent("pro.sketchware.ai.ACTION_LIVE_LAYOUT_RELOAD");
+            i.putExtra("sc_id", scId);
+            i.putExtra("activity_xml", xmlKey);
+            i.putExtra("layout_xml", pendingGeneratedXml);
+            context.sendBroadcast(i);
+        } catch (Exception ignored) {}
+        chatAdapter.addAssistantMessage(
+            pro.sketchware.ai.models.ChatMessage.assistantMessage(
+                "✅ Layout applied to " + actName + ". Canvas updated.\n"
+                + "Use the Undo button ↩ in the banner to revert.", null));
+        scrollToBottom();
+        showUndoButton();
+        pendingGeneratedXml = null;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PULSE SYSTEM — Continue / Cancel after each step group
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private android.os.CountDownTimer pulseCountdownTimer;
+    private android.view.View pulseRowView;
+
+    /**
+     * Shows Continue / Cancel row with animated 10-second countdown.
+     * If user doesn't tap Continue within 10s, auto-continues.
+     * Called on main thread by AgentExecutor.
+     */
+    private void showPulseConfirmation(String stepSummary, Runnable onContinue, Runnable onCancel) {
+        if (sheetRoot == null) return;
+
+        // Remove any previous pulse row
+        dismissPulseRow();
+
+        android.widget.LinearLayout row = new android.widget.LinearLayout(context);
+        row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6));
+        row.setTag("pulse_row");
+        pulseRowView = row;
+
+        // Step label
+        android.widget.TextView label = new android.widget.TextView(context);
+        label.setText("✓ " + stepSummary);
+        label.setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_LabelSmall);
+        android.widget.LinearLayout.LayoutParams llp =
+                new android.widget.LinearLayout.LayoutParams(0,
+                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        llp.setMarginEnd(dpToPx(8));
+        label.setLayoutParams(llp);
+
+        // Continue button with countdown badge
+        com.google.android.material.button.MaterialButton btnContinue =
+                new com.google.android.material.button.MaterialButton(context);
+        btnContinue.setText("Continue (10)");
+        android.widget.LinearLayout.LayoutParams lp1 =
+                new android.widget.LinearLayout.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp1.setMarginEnd(dpToPx(6));
+        btnContinue.setLayoutParams(lp1);
+
+        // Cancel button
+        com.google.android.material.button.MaterialButton btnCancel =
+                new com.google.android.material.button.MaterialButton(context,
+                        null, com.google.android.material.R.attr.materialButtonOutlinedStyle);
+        btnCancel.setText("Stop");
+
+        row.addView(label);
+        row.addView(btnContinue);
+        row.addView(btnCancel);
+
+        // Insert above typing indicator
+        android.view.View typingArea = sheetRoot.findViewById(R.id.ai_sheet_typing_indicator);
+        if (typingArea != null && typingArea.getParent() instanceof android.view.ViewGroup) {
+            android.view.ViewGroup parent = (android.view.ViewGroup) typingArea.getParent();
+            parent.addView(row, parent.indexOfChild(typingArea));
+        }
+
+        // Countdown timer — auto continues after 10s
+        pulseCountdownTimer = new android.os.CountDownTimer(10_000L, 1_000L) {
+            @Override public void onTick(long ms) {
+                long secs = ms / 1000L;
+                btnContinue.setText("Continue (" + secs + ")");
+            }
+            @Override public void onFinish() {
+                dismissPulseRow();
+                onContinue.run();
+            }
+        }.start();
+
+        btnContinue.setOnClickListener(v -> {
+            if (pulseCountdownTimer != null) pulseCountdownTimer.cancel();
+            dismissPulseRow();
+            onContinue.run();
+        });
+        btnCancel.setOnClickListener(v -> {
+            if (pulseCountdownTimer != null) pulseCountdownTimer.cancel();
+            dismissPulseRow();
+            onCancel.run();
+        });
+    }
+
+    private void dismissPulseRow() {
+        if (pulseCountdownTimer != null) { pulseCountdownTimer.cancel(); pulseCountdownTimer = null; }
+        if (pulseRowView != null && pulseRowView.getParent() instanceof android.view.ViewGroup) {
+            ((android.view.ViewGroup) pulseRowView.getParent()).removeView(pulseRowView);
+        }
+        pulseRowView = null;
+    }
+
+    /**
+     * Edit Layout mode: reads the current layout XML from jC memory,
+     * shows it as context in the chat, then lets the user describe the change.
+     * Next message is intercepted → GeradorDeLayoutPro(desc, currentLayout).
+     */
+    private void showInlineLayoutEditor(String actName) {
+        if (inputView == null || chatAdapter == null) return;
+        pendingGeneratedXml = null;
+        isAwaitingLayoutPrompt = false;
+
+        // Read current layout from jC
+        String xmlName = actName.endsWith(".xml") ? actName : actName + ".xml";
+        String currentXml = null;
+        try {
+            java.util.ArrayList<com.besome.sketch.beans.ViewBean> beans =
+                    a.a.a.jC.a(scId).d(xmlName);
+            if (beans != null && !beans.isEmpty()) {
+                // Convert beans back to simple XML summary
+                StringBuilder xmlSb = new StringBuilder();
+                for (com.besome.sketch.beans.ViewBean b : beans) {
+                    if ("root".equals(b.parent)) {
+                        xmlSb.append("<").append(b.id).append("/>");
+                    }
+                }
+                currentXml = xmlSb.length() > 0 ? xmlSb.toString() : null;
+            }
+        } catch (Exception ignored) {}
+
+        final String capturedXml = currentXml;
+        chatAdapter.addAssistantMessage(
+                pro.sketchware.ai.models.ChatMessage.assistantMessage(
+                    "✏️ Edit Layout: " + actName + "\n\n"
+                    + (capturedXml != null
+                        ? "Current views: " + capturedXml + "\n\n"
+                        : "")
+                    + "Describe the change you want (e.g. 'change the button color to blue' "
+                    + "or 'add a search bar at the top').",
+                    null));
+        scrollToBottom();
+
+        // Set edit mode — next message passes currentLayout to GeradorDeLayoutPro
+        isAwaitingLayoutPrompt = true;
+        isEditMode = capturedXml != null;
+        cachedCurrentLayout = capturedXml;
+
+        inputView.setText("Edit " + actName + ": ");
+        inputView.setSelection(inputView.getText().length());
+        inputView.requestFocus();
     }
 
     private void stopAgent() {
+        dismissPulseRow();
         if (agentExecutor != null) agentExecutor.cancel();
         setAgentRunning(false);
     }
@@ -761,15 +1475,25 @@ public class AiProjectBottomSheet
     }
     @Override public void onToolCallCompleted(ToolCall tc, ToolResult r) {
         chatAdapter.updateToolCallResult(tc.getId(), r); scrollToBottom();
+        // When generate_layout / add_view_xml succeeds, show the Undo button
+        if (r != null && r.isSuccess() && tc.getName() != null
+                && (tc.getName().equals("generate_layout")
+                    || tc.getName().equals("generate_layout_from_description")
+                    || tc.getName().equals("add_view_xml"))) {
+            showUndoButton();
+        }
     }
     @Override public void onToolMessage(ChatMessage msg) {
         conversationManager.saveMessage(conversationId, msg);
     }
     @Override public void onResponseComplete(ChatMessage msg) { setAgentRunning(false); }
     @Override public void onCancelled() {
-        setAgentRunning(false); typingText.setText("Stopped");
+        dismissPulseRow();
+        setAgentRunning(false);
+        if (typingText != null) typingText.setText("Stopped");
     }
     @Override public void onError(String error) {
+        dismissPulseRow();
         setAgentRunning(false);
         // Build user-friendly message — shown inline in the chat, no Toast
         String displayError = (error != null && !error.isEmpty()) ? error : "An unexpected error occurred.";
@@ -869,6 +1593,47 @@ public class AiProjectBottomSheet
         if (!userScrolledUp && chatAdapter.getItemCount() > 0)
             messagesList.post(() ->
                     messagesList.smoothScrollToPosition(chatAdapter.getItemCount() - 1));
+    }
+
+    private void confirmClearSheet() {
+        String actName = currentActivityXmlName != null
+                ? currentActivityXmlName.replace(".xml", "") : "this screen";
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(context)
+                .setTitle("Clear \"" + actName + "\" chat")
+                .setMessage("Delete all messages for the \"" + actName + "\" screen? This cannot be undone.")
+                .setPositiveButton("Clear", (d, w) -> {
+                    // Delete only messages for the currently selected activity conversation
+                    if (conversationManager != null && conversationId != null) {
+                        conversationManager.deleteMessages(conversationId);
+                    }
+                    if (chatAdapter != null) chatAdapter.setMessages(new java.util.ArrayList<>());
+                    if (emptyState != null) emptyState.setVisibility(android.view.View.VISIBLE);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void setupFabScrollListener(
+            com.google.android.material.floatingactionbutton.FloatingActionButton fab) {
+        messagesList.addOnScrollListener(new androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull androidx.recyclerview.widget.RecyclerView rv, int dx, int dy) {
+                androidx.recyclerview.widget.LinearLayoutManager lm =
+                        (androidx.recyclerview.widget.LinearLayoutManager) rv.getLayoutManager();
+                if (lm == null) return;
+                int last  = lm.findLastCompletelyVisibleItemPosition();
+                int total = rv.getAdapter() != null ? rv.getAdapter().getItemCount() : 0;
+                boolean atBottom = (total == 0) || (last >= total - 1);
+                if (dy < 0) userScrolledUp = true;
+                if (atBottom) userScrolledUp = false;
+                fab.setVisibility(atBottom ? android.view.View.GONE : android.view.View.VISIBLE);
+            }
+        });
+        fab.setOnClickListener(v -> {
+            userScrolledUp = false;
+            if (chatAdapter.getItemCount() > 0)
+                messagesList.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+        });
     }
 
     /** Call from DesignActivity.onResume() */

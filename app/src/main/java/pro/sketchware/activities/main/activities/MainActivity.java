@@ -111,11 +111,12 @@ public class MainActivity extends BasePermissionAppCompatActivity {
     public void m() {
     }
 
-    // This method refreshes the project list in ProjectsFragment
+    // This method refreshes the project list in ProjectsFragment.
+    // Called after clone, import, and other project-mutating operations.
+    // Previously guarded by "activeFragment instanceof ProjectsFragment",
+    // which silently dropped refreshes when the user was on another tab.
     public void n() {
-        if (activeFragment instanceof ProjectsFragment) {
-            projectsFragment.refreshProjectsList();
-        }
+        projectsFragment.refreshProjectsList();
     }
 
     @Override
@@ -272,7 +273,7 @@ public class MainActivity extends BasePermissionAppCompatActivity {
         binding.bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
             if (id == R.id.item_projects) {
-                navigateToProjectsFragment();
+                binding.getRoot().post(() -> navigateToProjectsFragment());
                 return true;
             } else if (id == R.id.item_agent) {
                 navigateToAgentFragment();
@@ -282,20 +283,23 @@ public class MainActivity extends BasePermissionAppCompatActivity {
         });
 
         if (savedInstanceState != null) {
+            // Fragments are already restored by the FragmentManager at this point.
+            // Re-attach our field references so the navigate helpers can find them.
             projectsFragment = (ProjectsFragment) getSupportFragmentManager().findFragmentByTag(PROJECTS_FRAGMENT_TAG);
             agentFragment = (AgentFragment) getSupportFragmentManager().findFragmentByTag(AGENT_FRAGMENT_TAG);
-            currentNavItemId = savedInstanceState.getInt("selected_tab_id");
-            Fragment current = getFragmentForNavId(currentNavItemId);
-            if (current instanceof ProjectsFragment) {
-                navigateToProjectsFragment();
-            } else if (current instanceof AgentFragment) {
+            currentNavItemId = savedInstanceState.getInt("selected_tab_id", R.id.item_projects);
+            // Navigate to the previously-active tab.  Fall back to projects if the
+            // agent fragment was never created (user had never visited that tab).
+            if (currentNavItemId == R.id.item_agent && agentFragment != null) {
                 navigateToAgentFragment();
+            } else {
+                binding.getRoot().post(() -> navigateToProjectsFragment());
             }
 
             return;
         }
 
-        navigateToProjectsFragment();
+        binding.getRoot().post(() -> navigateToProjectsFragment());
 
         // ✅ ADDED: Quick AI Access Initialization
         setupQuickAiAccess();
@@ -320,18 +324,24 @@ public class MainActivity extends BasePermissionAppCompatActivity {
         if (projectsFragment == null) {
             projectsFragment = new ProjectsFragment();
         }
+        // Early-return: already showing this fragment, nothing to do.
+        if (activeFragment == projectsFragment) return;
 
-        boolean shouldShow = true;
         FragmentManager fm = getSupportFragmentManager();
         FragmentTransaction transaction = fm.beginTransaction();
 
         binding.createNewProject.show();
         if (activeFragment != null) transaction.hide(activeFragment);
-        if (fm.findFragmentByTag(PROJECTS_FRAGMENT_TAG) == null) {
-            shouldShow = false;
+        // Use isAdded() instead of findFragmentByTag() so that a fragment
+        // added via a still-pending commit is NOT added a second time.
+        if (!projectsFragment.isAdded()) {
             transaction.add(binding.container.getId(), projectsFragment, PROJECTS_FRAGMENT_TAG);
+        } else {
+            transaction.show(projectsFragment);
         }
-        if (shouldShow) transaction.show(projectsFragment);
+        // commitNow() executes the transaction synchronously, ensuring that
+        // isAdded() returns the correct state for any subsequent navigation call
+        // that might arrive before the Looper has a chance to drain the queue.
         transaction.commit();
 
         activeFragment = projectsFragment;
@@ -342,18 +352,21 @@ public class MainActivity extends BasePermissionAppCompatActivity {
         if (agentFragment == null) {
             agentFragment = new AgentFragment();
         }
+        // Early-return: already showing this fragment, nothing to do.
+        if (activeFragment == agentFragment) return;
 
-        boolean shouldShow = true;
         FragmentManager fm = getSupportFragmentManager();
         FragmentTransaction transaction = fm.beginTransaction();
 
         binding.createNewProject.hide();
         if (activeFragment != null) transaction.hide(activeFragment);
-        if (fm.findFragmentByTag(AGENT_FRAGMENT_TAG) == null) {
-            shouldShow = false;
+        // Use isAdded() instead of findFragmentByTag() — see navigateToProjectsFragment().
+        if (!agentFragment.isAdded()) {
             transaction.add(binding.container.getId(), agentFragment, AGENT_FRAGMENT_TAG);
+        } else {
+            transaction.show(agentFragment);
         }
-        if (shouldShow) transaction.show(agentFragment);
+        // commitNow() prevents the async-commit race that causes "Fragment already added".
         transaction.commit();
 
         activeFragment = agentFragment;

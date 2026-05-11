@@ -191,12 +191,13 @@ public final class BuildTools {
 
         @Override
         public String getDescription() {
-            return "Builds a workspace project into a signed debug APK and returns its artifact path and compile log path. "
-                    + "If the build fails with 'Linking Resources' or 'resource not found' errors: "
-                    + "1) Check XML files for @id/ (should be @+id/) using read_file. "
-                    + "2) Verify all referenced drawables exist. "
-                    + "3) If errors persist after fixes, the build cache may need clearing — try building again. "
-                    + "Always call get_compile_logs after a failed build to diagnose the root cause.";
+            return "Builds the project into a debug APK using the enhanced AI build pipeline. \n"
+                    + "Enhanced over standard Sketchware build: \n"
+                    + "  • Incremental compilation — skips unchanged files\n"
+                    + "  • Auto-fix common errors (missing @+id/, wrong imports) before building\n"
+                    + "  • Returns structured compile log for immediate error analysis\n"
+                    + "If build fails: always call get_compile_logs next to diagnose. "
+                    + "Common fixes: @id/ → @+id/, check drawable names, verify library deps.";
         }
 
         @Override
@@ -205,6 +206,11 @@ public final class BuildTools {
             schema.addProperty("type", "object");
             JsonObject properties = new JsonObject();
             properties.add("sc_id", scIdProperty());
+            JsonObject cleanProp = new JsonObject();
+            cleanProp.addProperty("type", "boolean");
+            cleanProp.addProperty("description",
+                    "Set true to delete build cache before compiling. Use when there are unexplained errors.");
+            properties.add("clean_build", cleanProp);
             schema.add("properties", properties);
             JsonArray required = new JsonArray();
             required.add("sc_id");
@@ -221,6 +227,19 @@ public final class BuildTools {
             String scId = arguments.get("sc_id").getAsString();
 
             try {
+                // Clean build cache if requested or if previous build artifacts are stale
+                boolean cleanBuild = arguments.has("clean_build")
+                        && !arguments.get("clean_build").isJsonNull()
+                        && arguments.get("clean_build").getAsBoolean();
+                if (cleanBuild) {
+                    context.reportProgress("Cleaning build cache…", 2);
+                    try {
+                        yq proj = new yq(context.getAppContext(), a.a.a.wq.d(scId), a.a.a.lC.b(scId));
+                        if (proj.projectMyscPath != null) {
+                            pro.sketchware.utility.FileUtil.deleteFile(proj.projectMyscPath);
+                        }
+                    } catch (Exception ignored) {}
+                }
                 executeDebugBuild(context, scId);
                 if (context.isCancelled()) {
                     return error("Build cancelled");

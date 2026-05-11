@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import pro.sketchware.ai.models.ToolResult;
+import pro.sketchware.util.SketchwareFileDecryptor;
 
 /**
  * CodeAnalysisTools — أدوات تحليل جودة الكود وفحص المشاكل البرمجية.
@@ -263,14 +264,39 @@ public final class CodeAnalysisTools {
             String actName = req(args, "activity_name");
             if (scId == null || actName == null) return err("sc_id and activity_name are required");
             if (!ctx.isProjectAllowed(scId)) return err("Access denied: project " + scId);
-            ctx.reportProgress("Validating RTL compatibility...", -1, true);
+            String xmlName = actName.endsWith(".xml") ? actName.replace(".xml","") : actName;
+            ctx.reportProgress("Validating RTL compatibility for " + xmlName + "...", -1, true);
 
-            File viewFile = new File(ctx.getProjectDataDir(scId), "view");
-            if (!viewFile.exists()) return err("No view file found for project " + scId);
+            // Read from jC in-memory first (most accurate — reflects live canvas state)
+            String raw = null;
+            try {
+                java.util.ArrayList<com.besome.sketch.beans.ViewBean> liveBeans =
+                        a.a.a.jC.a(scId).d(xmlName + ".xml");
+                if (liveBeans != null && !liveBeans.isEmpty()) {
+                    StringBuilder sb2 = new StringBuilder();
+                    for (com.besome.sketch.beans.ViewBean b : liveBeans) {
+                        if (b.layout != null) {
+                            sb2.append("\"marginLeft\":").append(b.layout.marginLeft)
+                               .append(",\"marginRight\":").append(b.layout.marginRight)
+                               .append(",\"paddingLeft\":").append(b.layout.paddingLeft)
+                               .append(",\"paddingRight\":").append(b.layout.paddingRight)
+                               .append(",\"gravity\":").append(b.layout.gravity)
+                               .append(",");
+                        }
+                    }
+                    raw = sb2.toString();
+                }
+            } catch (Exception ignored) {}
 
-            String raw;
-            try { raw = readFile(viewFile); }
-            catch (IOException e) { return err("Could not read view file: " + e.getMessage()); }
+            // Fallback: read encrypted disk file
+            if (raw == null || raw.isEmpty()) {
+                try {
+                    raw = SketchwareFileDecryptor.decryptFile(scId, "view");
+                } catch (Exception e) {
+                    raw = null;
+                }
+            }
+            if (raw == null || raw.isEmpty()) return err("Cannot read layout for project " + scId);
 
             List<String> issues = new ArrayList<>();
             if (raw.contains("\"marginLeft\"") && !raw.contains("\"marginStart\""))

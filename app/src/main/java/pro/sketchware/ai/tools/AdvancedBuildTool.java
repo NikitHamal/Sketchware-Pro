@@ -49,7 +49,7 @@ public final class AdvancedBuildTool {
                     + "  dexer 'D8'  → modern dexer, no shrinking (default for Java 1.8+)\n"
                     + "  dexer 'Dx'  → legacy dexer (only for very old projects)\n"
                     + "  parallel_ecj true → compile Java in parallel threads (faster builds)\n"
-                    + "  java_version: '1.7' | '1.8' | '1.9' | '10' | '11'\n"
+                    + "  java_version: '1.7' | '1.8' | '11' | '15' | '16' | '17' | '20'\n"
                     + "After calling this, run build_project or build_with_r8.";
         }
 
@@ -77,7 +77,7 @@ public final class AdvancedBuildTool {
             JsonObject javaVer = new JsonObject();
             javaVer.addProperty("type", "string");
             javaVer.addProperty("description",
-                    "Java source/target version: '1.7', '1.8', '1.9', '10', '11'");
+                    "Java source/target version: '1.7', '1.8', '11', '15', '16', '17', '20'");
             props.add("java_version", javaVer);
 
             schema.add("properties", props);
@@ -139,12 +139,14 @@ public final class AdvancedBuildTool {
                 switch (jv) {
                     case "1.7": settingValue = BuildSettings.SETTING_JAVA_VERSION_1_7; break;
                     case "1.8": settingValue = BuildSettings.SETTING_JAVA_VERSION_1_8; break;
-                    case "1.9": settingValue = BuildSettings.SETTING_JAVA_VERSION_1_9; break;
-                    case "10":  settingValue = BuildSettings.SETTING_JAVA_VERSION_10;  break;
                     case "11":  settingValue = BuildSettings.SETTING_JAVA_VERSION_11;  break;
+                    case "15":  settingValue = BuildSettings.SETTING_JAVA_VERSION_15;  break;
+                    case "16":  settingValue = BuildSettings.SETTING_JAVA_VERSION_16;  break;
+                    case "17":  settingValue = BuildSettings.SETTING_JAVA_VERSION_17;  break;
+                    case "20":  settingValue = BuildSettings.SETTING_JAVA_VERSION_20;  break;
                     default:
                         return ToolResult.failure(null,
-                                "Invalid java_version '" + jv + "'. Use: 1.7 / 1.8 / 1.9 / 10 / 11");
+                                "Invalid java_version '" + jv + "'. Use: 1.7 / 1.8 / 11 / 15 / 16 / 17 / 20");
                 }
                 settings.setValue(BuildSettings.SETTING_JAVA_VERSION, settingValue);
                 changes.append("Java version: ").append(jv).append("\n");

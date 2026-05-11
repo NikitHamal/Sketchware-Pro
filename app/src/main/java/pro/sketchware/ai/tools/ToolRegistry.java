@@ -11,13 +11,12 @@ import pro.sketchware.ai.api.ToolDefinition;
 /**
  * Registry that holds all available AI agent tools.
  *
- * Tool organization (post-refactor):
- *   - Phase3Tools.java was dissolved; its tools are now in dedicated files:
- *       CodeAnalysisTools    → analyze_code, review_source_code, validate_rtl_layout
- *       ProjectTemplateTools → create_from_template, add_locale_strings
- *       LibraryDiscoveryTools→ search_maven, scan_dependencies
- *   - DevTools.DependencyScanTool replaced by LibraryDiscoveryTools.DependencyScanTool
- *   - FileSearchTools adds the new search_in_file (grep-like) tool
+ * Tool organization:
+ *   - CodeAnalysisTools    → analyze_code, review_source_code, validate_rtl_layout
+ *   - ProjectTemplateTools → create_from_template, add_locale_strings
+ *   - LibraryDiscoveryTools→ search_maven, scan_dependencies
+ *   - FileSearchTools      → search_in_file (grep-like, token-efficient)
+ *   - DevTools             → web_search, logcat_filter, resource_optimizer
  */
 public class ToolRegistry {
 
@@ -94,8 +93,6 @@ public class ToolRegistry {
         registry.register(new ActivityTools.DeleteActivityTool());
 
         // ── UI Layout ─────────────────────────────────────────────────────
-        registry.register(new LayoutTools.GetLayoutTool());
-        registry.register(new LayoutTools.EditLayoutTool());
 
         // ── Resources ────────────────────────────────────────────────────
         registry.register(new ResourceTools.AddStringResourceTool());
@@ -103,11 +100,17 @@ public class ToolRegistry {
         registry.register(new ResourceTools.ListResourcesTool());
         registry.register(new ResourceTools.ReadRawResourceFileTool());
         registry.register(new ResourceTools.WriteRawResourceFileTool());
+        // Unused resource scanner + cleaner
+        registry.register(new UnusedResourcesTool.ScanUnusedResourcesTool());
+        registry.register(new UnusedResourcesTool.DeleteUnusedResourcesTool());
 
         // ── Build & Compile ───────────────────────────────────────────────
         registry.register(new CompileTools.GetCompileLogsTool());
         registry.register(new CompileTools.GetProjectStructureTool());
         registry.register(new BuildTools.BuildProjectTool());
+        // Enhanced build: R8 minification, parallel ECJ, dexer configuration
+        registry.register(new AdvancedBuildTool.SetBuildCompilerTool());
+        registry.register(new AdvancedBuildTool.BuildWithR8Tool());
 
         // ── Library Management ────────────────────────────────────────────
         registry.register(new LibraryTools.ListLibrariesTool());
@@ -144,26 +147,17 @@ public class ToolRegistry {
         registry.register(new pro.sketchware.ai.tools.blocks.BlockApiTools.CreateMoreBlockTool());
         registry.register(new pro.sketchware.ai.tools.blocks.BlockApiTools.DeleteMoreBlockTool());
 
-        // ── Design XML Editor ─────────────────────────────────────────────
+        // ── UI Layout — 4 tools ONLY (describe, generate, add_xml, remove) ──────
         registry.register(new DesignXmlEditorTool.DescribeLayoutTool());
-        registry.register(new DesignXmlEditorTool.AddViewTool());
-        registry.register(new DesignXmlEditorTool.ModifyViewTool());
-        registry.register(new DesignXmlEditorTool.RemoveViewTool());
         // Preferred: XML-based tools using ViewBeanParser (matches Sketchware-IA approach)
         registry.register(new DesignXmlEditorTool.AddViewXmlTool());
         registry.register(new DesignXmlEditorTool.GenerateLayoutTool());
 
         // ── Live UI Drawing (ViewBean — real-time DesignActivity reload) ──
-        registry.register(new LiveUiPreviewTool.DescribeLayoutLiveTool());
-        registry.register(new LiveUiPreviewTool.BuildScreenLayoutTool());
-        registry.register(new LiveUiPreviewTool.AddViewLiveTool());
-        registry.register(new LiveUiPreviewTool.ModifyViewLiveTool());
-        registry.register(new LiveUiPreviewTool.RemoveViewLiveTool());
 
         // ── Developer Utilities (web search, shell, logcat, resource scan) ─
-        // Note: DependencyScanTool moved to LibraryDiscoveryTools (scan_dependencies)
+
         registry.register(new DevTools.WebSearchTool());
-        registry.register(new DevTools.ShellExecutorTool());
         registry.register(new DevTools.LogcatFilterTool());
         registry.register(new DevTools.ResourceOptimizerTool());
 
@@ -212,8 +206,6 @@ public class ToolRegistry {
         registry.register(new ActivityTools.DeleteActivityTool());
 
         // ── UI Layout ─────────────────────────────────────────────────────
-        registry.register(new LayoutTools.GetLayoutTool());
-        registry.register(new LayoutTools.EditLayoutTool());
 
         // ── Resources ────────────────────────────────────────────────────
         registry.register(new ResourceTools.AddStringResourceTool());
@@ -226,6 +218,9 @@ public class ToolRegistry {
         registry.register(new CompileTools.GetCompileLogsTool());
         registry.register(new CompileTools.GetProjectStructureTool());
         registry.register(new BuildTools.BuildProjectTool());
+        // Enhanced build: R8 minification, parallel ECJ, dexer configuration
+        registry.register(new AdvancedBuildTool.SetBuildCompilerTool());
+        registry.register(new AdvancedBuildTool.BuildWithR8Tool());
 
         // ── Library Management ────────────────────────────────────────────
         registry.register(new LibraryTools.ListLibrariesTool());
@@ -255,15 +250,12 @@ public class ToolRegistry {
         registry.register(new pro.sketchware.ai.tools.blocks.BlockApiTools.CreateMoreBlockTool());
         registry.register(new pro.sketchware.ai.tools.blocks.BlockApiTools.DeleteMoreBlockTool());
 
-        // ── Design XML Editor ─────────────────────────────────────────────
+        // ── UI Layout — 4 tools ONLY (describe, generate, add_xml, remove) ──────
         registry.register(new DesignXmlEditorTool.DescribeLayoutTool());
-        registry.register(new DesignXmlEditorTool.AddViewTool());
-        registry.register(new DesignXmlEditorTool.ModifyViewTool());
-        registry.register(new DesignXmlEditorTool.RemoveViewTool());
         // Preferred: XML-based tools using ViewBeanParser (matches Sketchware-IA approach)
         registry.register(new DesignXmlEditorTool.AddViewXmlTool());
-                registry.register(new DesignXmlEditorTool.GenerateLayoutTool());
-        
+        registry.register(new DesignXmlEditorTool.GenerateLayoutTool());
+
         // ── GitHub Intelligence Tools ────────────────────────────────────────
         registry.register(new AI_GitHub_Analyzer.GitHubCompareTool());
         registry.register(new AI_GitHub_Analyzer.GitHubSearchTool());

@@ -212,6 +212,32 @@
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/project_clone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:minHeight="56dp"
+                android:orientation="horizontal"
+                android:paddingHorizontal="16dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="16dp"
+                    app:srcCompat="@drawable/ic_mtrl_copy"
+                    app:tint="?attr/colorOnSurface" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Clone project"
+                    android:textAppearance="?attr/textAppearanceBodyLarge" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/project_delete"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

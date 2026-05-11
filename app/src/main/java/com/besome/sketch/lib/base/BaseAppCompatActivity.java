@@ -26,6 +26,7 @@ import a.a.a.MA;
 import a.a.a.lC;
 import dev.chrisbanes.insetter.Insetter;
 import pro.sketchware.dialogs.ProgressDialog;
+import pro.sketchware.utility.theme.ThemeManager;
 
 public abstract class BaseAppCompatActivity extends AppCompatActivity {
 
@@ -107,6 +108,13 @@ public abstract class BaseAppCompatActivity extends AppCompatActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Apply color-preset overlay BEFORE super.onCreate() so AppCompat
+        // resolves the correct theme attributes before inflating any views.
+        // Android automatically picks the light/dark variant via resource qualifiers.
+        int presetRes = ThemeManager.presetStyleRes(ThemeManager.getPreset(this));
+        if (presetRes != 0) {
+            getTheme().applyStyle(presetRes, true);
+        }
         super.onCreate(savedInstanceState);
         e = getApplicationContext();
         taskList = new ArrayList<>();

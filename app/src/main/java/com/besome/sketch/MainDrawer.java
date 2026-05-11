@@ -29,6 +29,9 @@ import dev.chrisbanes.insetter.Side;
 import mod.hilal.saif.activities.tools.AppSettings;
 import pro.sketchware.R;
 import pro.sketchware.activities.about.AboutActivity;
+import pro.sketchware.activities.settings.ThemeSettingsActivity;
+import pro.sketchware.activities.tools.ProjectCleanUpActivity;
+import pro.sketchware.activities.projecttools.ProjectLifecycleActivity;
 import pro.sketchware.utility.UI;
 
 public class MainDrawer extends NavigationView {
@@ -117,7 +120,18 @@ public class MainDrawer extends NavigationView {
             Intent intent = new Intent(activity, AiSettingsActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
             activity.startActivity(intent);
+        } else if (id == R.id.theme_manager) {
+            // Open Theme Manager - shows preset selector dialog
+            showThemeSelectorDialog(activity);
+        } else if (id == R.id.project_cleanup) {
+            activity.startActivity(new Intent(activity, ProjectCleanUpActivity.class));
         }
+    }
+
+    private void showThemeSelectorDialog(Activity activity) {
+        Intent intent = new Intent(activity, ThemeSettingsActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        activity.startActivity(intent);
     }
 
     private void openUrl(String url) {

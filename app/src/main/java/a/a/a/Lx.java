@@ -27,8 +27,30 @@ public class Lx {
     /**
      * @return Content of a <code>settings.gradle</code> file, with indentation
      */
+    /**
+     * Generates a modern settings.gradle with pluginManagement and
+     * dependencyResolutionManagement blocks compatible with AGP 8.x+.
+     */
     public static String a() {
-        return "include ':app'\r\n";
+        return "pluginManagement {\r\n" +
+                "    repositories {\r\n" +
+                "        google()\r\n" +
+                "        mavenCentral()\r\n" +
+                "        gradlePluginPortal()\r\n" +
+                "    }\r\n" +
+                "}\r\n" +
+                "\r\n" +
+                "dependencyResolutionManagement {\r\n" +
+                "    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)\r\n" +
+                "    repositories {\r\n" +
+                "        google()\r\n" +
+                "        mavenCentral()\r\n" +
+                "        maven { url 'https://jitpack.io' }\r\n" +
+                "    }\r\n" +
+                "}\r\n" +
+                "\r\n" +
+                "rootProject.name = \"SketchwareProject\"\r\n" +
+                "include ':app'\r\n";
     }
 
     /**
@@ -56,10 +78,10 @@ public class Lx {
                 .append("namespace \"")
                 .append(metadata.packageName)
                 .append("\"\r\n")
-                .append("minSdkVersion ")
+                .append("minSdk ")
                 .append(minSdkVersion)
                 .append("\r\n")
-                .append("targetSdkVersion ")
+                .append("targetSdk ")
                 .append(targetSdkVersion)
                 .append("\r\n")
                 .append("versionCode ")
@@ -1593,31 +1615,16 @@ public class Lx {
     /**
      * @return A generated top-level <code>build.gradle</code> file, with indentation
      */
-    public static String c(String androidGradlePluginVersion, String
-            googleMobileServicesVersion) {
-        return "// Top-level build file where you can add configuration options common to all sub-projects/modules.\r\n" +
-                "buildscript {\r\n" +
-                "    repositories {\r\n" +
-                "        google()\r\n" +
-                "        mavenCentral()\r\n" +
-                "    }\r\n" +
-                "    dependencies {\r\n" +
-                "        classpath 'com.android.tools.build:gradle:" + androidGradlePluginVersion + "'\r\n" +
-                "        classpath 'com.google.gms:google-services:" + googleMobileServicesVersion + "'\r\n" +
-                "        // NOTE: Do not place your application dependencies here; they belong\r\n" +
-                "        // in the individual module build.gradle files\r\n" +
-                "    }\r\n" +
-                "}\r\n" +
-                "\r\n" +
-                "allprojects {\r\n" +
-                "    repositories {\r\n" +
-                "        google()\r\n" +
-                "        mavenCentral()\r\n" +
-                "    }\r\n" +
-                "}\r\n" +
-                "\r\n" +
-                "tasks.register(\"clean\", Delete) {\r\n" +
-                "    delete rootProject.buildDir\r\n" +
+    /**
+     * Returns a modern top-level build.gradle using the plugins{} DSL,
+     * compatible with AGP 8.x and Android Studio Ladybug+.
+     */
+    public static String c(String androidGradlePluginVersion, String googleMobileServicesVersion) {
+        return "// Top-level build file — do not place application dependencies here.\r\n" +
+                "// Use the plugins block in app/build.gradle instead.\r\n" +
+                "plugins {\r\n" +
+                "    id 'com.android.application' version '" + androidGradlePluginVersion + "' apply false\r\n" +
+                "    id 'com.google.gms.google-services' version '" + googleMobileServicesVersion + "' apply false\r\n" +
                 "}\r\n";
     }
 

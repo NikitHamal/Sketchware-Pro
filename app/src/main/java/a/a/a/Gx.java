@@ -282,6 +282,14 @@ public class Gx {
                 classInfos = "View.ViewGroup.RecyclerView";
                 break;
 
+            case "CoordinatorLayout":
+                classInfos = "View.Clickable.ViewGroup.CoordinatorLayout";
+                break;
+
+            case "AppBarLayout":
+                classInfos = "View.Clickable.ViewGroup.AppBarLayout";
+                break;
+
             case "TextToSpeech":
                 classInfos = "Component.TextToSpeech";
                 break;
