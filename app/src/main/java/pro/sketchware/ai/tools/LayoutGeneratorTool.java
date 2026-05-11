@@ -4,12 +4,14 @@ import android.content.Context;
 import android.content.Intent;
 
 import com.besome.sketch.beans.ViewBean;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import java.util.ArrayList;
 
 import pro.sketchware.ai.models.ToolResult;
 import pro.sketchware.tools.ViewBeanParser;
+import pro.sketchware.utility.GsonUtils;
 
 public final class LayoutGeneratorTool implements AgentTool {
 
@@ -106,7 +108,7 @@ public final class LayoutGeneratorTool implements AgentTool {
 
             java.util.List<String> beanLines = new java.util.ArrayList<>();
             for (ViewBean b : parsedBeans) {
-                beanLines.add(com.google.gson.GsonUtils.getGson().toJson(b));
+                beanLines.add(GsonUtils.getGson().toJson(b));
             }
             sections.put(xmlName, beanLines);
             SketchwareViewBridge.ensureFabSection(sections, xmlName);

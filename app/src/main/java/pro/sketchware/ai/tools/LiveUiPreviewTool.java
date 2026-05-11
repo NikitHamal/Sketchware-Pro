@@ -1,9 +1,5 @@
 package pro.sketchware.ai.tools;
 
-import android.content.Context;
-
-import com.besome.sketch.beans.LayoutBean;
-import com.besome.sketch.beans.TextBean;
 import com.besome.sketch.beans.ViewBean;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -13,9 +9,6 @@ import com.google.gson.JsonParser;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.HashSet;
-import java.util.LinkedList;
 
 import pro.sketchware.ai.models.ToolResult;
 
@@ -35,6 +28,21 @@ public final class LiveUiPreviewTool {
     private static int getInt(JsonObject o, String k, int def) {
         try { return o.has(k) && !o.get(k).isJsonNull() ? o.get(k).getAsInt() : def; }
         catch (Exception e) { return def; }
+    }
+
+    private static void addStr(JsonObject p, String k, String d) {
+        JsonObject o = new JsonObject(); o.addProperty("type","string"); o.addProperty("description",d);
+        p.add(k, o);
+    }
+    private static void addIntP(JsonObject p, String k, String d) {
+        JsonObject o = new JsonObject(); o.addProperty("type","integer"); o.addProperty("description",d);
+        p.add(k, o);
+    }
+    private static JsonObject schema(JsonObject props) {
+        JsonObject s = new JsonObject(); s.addProperty("type","object"); s.add("properties", props); return s;
+    }
+    private static void req(JsonObject s, String... keys) {
+        JsonArray r = new JsonArray(); for (String k : keys) r.add(k); s.add("required", r);
     }
 
     public static class DescribeLayoutLiveTool implements AgentTool {
@@ -229,13 +237,6 @@ public final class LiveUiPreviewTool {
             JsonArray r = new JsonArray(); r.add("sc_id"); r.add("activity_xml"); r.add("parent_id"); r.add("view_id"); r.add("type");
             s.add("required", r);
             return s;
-        }
-
-        private static void addStr(JsonObject p, String k, String d) {
-            JsonObject o = new JsonObject(); o.addProperty("type","string"); o.addProperty("description",d); p.add(k, o);
-        }
-        private static void addIntP(JsonObject p, String k, String d) {
-            JsonObject o = new JsonObject(); o.addProperty("type","integer"); o.addProperty("description",d); p.add(k, o);
         }
 
         @Override

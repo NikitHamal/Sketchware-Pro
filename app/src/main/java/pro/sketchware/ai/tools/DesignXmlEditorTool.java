@@ -1,13 +1,11 @@
 package pro.sketchware.ai.tools;
 
-import android.content.Context;
-
 import com.besome.sketch.beans.ViewBean;
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import pro.sketchware.ai.models.ToolResult;

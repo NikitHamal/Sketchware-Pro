@@ -1,9 +1,5 @@
 package pro.sketchware.ai.tools;
 
-import android.content.Context;
-
-import com.besome.sketch.beans.LayoutBean;
-import com.besome.sketch.beans.TextBean;
 import com.besome.sketch.beans.ViewBean;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -17,6 +13,9 @@ import java.util.Map;
 import pro.sketchware.ai.models.ToolResult;
 
 public final class LayoutTools {
+
+    public static final String ACTION_LAYOUT_CHANGED = "pro.sketchware.ai.ACTION_LAYOUT_CHANGED";
+    public static final String EXTRA_SC_ID = "sc_id";
 
     private static final String TYPE_REF = SketchwareViewBridge.buildTypeReference();
 
@@ -327,6 +326,7 @@ public final class LayoutTools {
             String newParent = op.has("new_parent") ? op.get("new_parent").getAsString() : null;
             int newIndex = op.has("new_index") ? op.get("new_index").getAsInt() : -1;
 
+            boolean found = false;
             for (int i = 0; i < lines.size(); i++) {
                 try {
                     JsonObject b = JsonParser.parseString(lines.get(i)).getAsJsonObject();
@@ -355,7 +355,5 @@ public final class LayoutTools {
             r.addProperty("message", "View '" + viewId + "' reordered");
             return r;
         }
-
-        private boolean found = false;
     }
 }
