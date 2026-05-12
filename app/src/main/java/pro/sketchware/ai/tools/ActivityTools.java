@@ -21,6 +21,8 @@ import a.a.a.jC;
 import a.a.a.yq;
 import pro.sketchware.activities.projecttools.ProjectToolPaths;
 import pro.sketchware.ai.models.ToolResult;
+import pro.sketchware.util.SketchwareFileDecryptor;
+import pro.sketchware.util.SketchwareFileEncryptor;
 
 public final class ActivityTools {
 
@@ -475,52 +477,42 @@ public final class ActivityTools {
 
                 writeFileContent(fileFile, updated.toString());
 
-                File logicFile = new File(dataDir, "logic");
-                if (logicFile.exists()) {
-                    try {
-                        String logicContent = readFileContent(logicFile);
-                        if (!logicContent.trim().isEmpty()) {
-                            JsonArray logicArray = JsonParser.parseString(logicContent).getAsJsonArray();
-                            JsonArray updatedLogic = new JsonArray();
-                            String prefix = activityName + ".java_";
-                            for (JsonElement element : logicArray) {
-                                if (element.isJsonObject()) {
-                                    JsonObject logicEntry = element.getAsJsonObject();
-                                    if (logicEntry.has("name")
-                                            && logicEntry.get("name").getAsString().startsWith(prefix)) {
-                                        continue;
-                                    }
+                // Clean up logic file (AES encrypted) via SketchwareFileDecryptor/Encryptor
+                try {
+                    String logicDecrypted = SketchwareFileDecryptor.decryptFile(scId, "logic");
+                    if (logicDecrypted != null && !logicDecrypted.trim().isEmpty()) {
+                        JsonArray logicArray = JsonParser.parseString(logicDecrypted).getAsJsonArray();
+                        JsonArray updatedLogic = new JsonArray();
+                        String prefix = activityName + ".java_";
+                        for (JsonElement element : logicArray) {
+                            if (element.isJsonObject()) {
+                                JsonObject logicEntry = element.getAsJsonObject();
+                                if (logicEntry.has("name")
+                                        && logicEntry.get("name").getAsString().startsWith(prefix)) {
+                                    continue;
                                 }
-                                updatedLogic.add(element);
                             }
-                            writeFileContent(logicFile, updatedLogic.toString());
+                            updatedLogic.add(element);
                         }
-                    } catch (JsonSyntaxException ignored) {
+                        SketchwareFileEncryptor.encryptAndSaveFile(scId, "logic", updatedLogic.toString());
                     }
+                } catch (Exception ignored) {
                 }
 
-                File viewFile = new File(dataDir, "view");
-                if (viewFile.exists()) {
-                    try {
-                        String viewContent = readFileContent(viewFile);
-                        if (!viewContent.trim().isEmpty()) {
-                            JsonArray viewArray = JsonParser.parseString(viewContent).getAsJsonArray();
-                            JsonArray updatedView = new JsonArray();
-                            String viewId = activityName + ".xml";
-                            for (JsonElement element : viewArray) {
-                                if (element.isJsonObject()) {
-                                    JsonObject viewEntry = element.getAsJsonObject();
-                                    if (viewEntry.has("id")
-                                            && viewEntry.get("id").getAsString().equals(viewId)) {
-                                        continue;
-                                    }
-                                }
-                                updatedView.add(element);
-                            }
-                            writeFileContent(viewFile, updatedView.toString());
-                        }
-                    } catch (JsonSyntaxException ignored) {
+                // Clean up view file (AES encrypted @section format) via SketchwareViewBridge
+                try {
+                    String viewDecrypted = SketchwareViewBridge.readViewFile(scId);
+                    if (viewDecrypted != null && !viewDecrypted.isEmpty()) {
+                        java.util.Map<String, java.util.List<String>> sections =
+                                SketchwareViewBridge.parseSections(viewDecrypted);
+                        String xmlName = SketchwareViewBridge.normalizeXmlName(activityName);
+                        sections.remove(xmlName);
+                        sections.remove(xmlName + "_fab");
+                        SketchwareViewBridge.writeViewFile(scId,
+                                SketchwareViewBridge.serializeSections(sections));
+                        SketchwareViewBridge.flushCache(scId);
                     }
+                } catch (Exception ignored) {
                 }
 
                 JsonObject result = new JsonObject();

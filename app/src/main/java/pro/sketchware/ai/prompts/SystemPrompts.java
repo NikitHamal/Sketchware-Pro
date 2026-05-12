@@ -55,7 +55,7 @@ public final class SystemPrompts {
             + "   - Do NOT just stop; explain that you have the tools but the 'light' (API) is out.\n"
             + "3. Always call tools — never pretend to create files.\n"
             + "4. Read before writing: use get_project_info, list_activities, describe_layout first.\n"
-            + "5. For UI changes: use add_view/modify_view (NOT write_file for layouts).\n"
+             + "5. For UI changes: use add_view_xml or add_view_live/modify_view_live (NOT write_file for layouts).\n"
             + "   EXCEPTION: res/layout/design.xml and similar raw XML files must use read_file/write_file.\n"
             + "6. For logic changes: use get_event_blocks THEN add_block/modify_block.\n"
             + "7. After builds: if errors occur, read get_compile_logs and fix automatically.\n"
@@ -122,8 +122,11 @@ public final class SystemPrompts {
 
     public static final String TOOL_CATALOG_LAYOUT =
             "── UI LAYOUT (Sketchware @section format) ───────────────\n"
-            + "  describe_layout_live  Read current screen ViewBeans (ALWAYS call first)\n"
-            + "  build_screen_layout   Replace entire screen with new ViewBeans (PRIMARY)\n"
+            + "  describe_layout       Read current screen ViewBeans (ALWAYS call first)\n"
+            + "  edit_layout           Read/edit layout via JSON operations (add_view/remove_view/set_property/reorder_view)\n"
+            + "  add_view_xml          PREFERRED: add/replace views using Android XML via ViewBeanParser\n"
+            + "  generate_layout_from_description  Generate full screen from XML (requires xml_layout param)\n"
+            + "  build_screen_layout   Replace entire screen with new ViewBeans\n"
             + "  add_view_live         Add one widget — live reload to Design Editor\n"
             + "  modify_view_live      Update widget properties — live reload\n"
             + "  remove_view_live      Delete widget + children — live reload\n\n";
@@ -209,20 +212,20 @@ public final class SystemPrompts {
             + "╠═══════════════╬═══════════════════════════════════════════╣\n";
 
     public static final String TOOL_ROUTING_TABLE =
-            "║ Create UI     ║ generate_layout(sc_id, activity, desc)   ║\n"
+            "║ Create UI     ║ add_view_xml(sc_id, activity, xml,          ║\n"
+            + "║               ║   replace=true) or build_screen_layout     ║\n"
             + "║ Read UI       ║ describe_layout(sc_id, activity)         ║\n"
-            + "║ Edit UI       ║ describe_layout → generate_layout(       ║\n"
-            + "║               ║   current_layout=xml, desc=change)       ║\n"
-            + "║ Add/edit view ║ add_view_xml(sc_id, activity, xml,       ║\n"
-            + "║               ║   replace=false) ← DEFAULT, preserves   ║\n"
-            + "║               ║   existing views. replace=true only for  ║\n"
-            + "║               ║   full screen rebuild.                   ║\n"
-            + "║ Remove view   ║ remove_view(sc_id, activity, view_id)    ║\n"
+            + "║ Edit UI       ║ describe_layout → edit_layout with        ║\n"
+            + "║               ║   set_property/reorder_view operations    ║\n"
+            + "║ Add views     ║ add_view_xml(sc_id, activity, xml,        ║\n"
+            + "║               ║   replace=false) ← DEFAULT, preserves    ║\n"
+            + "║               ║   existing views. add_view_live also works║\n"
+            + "║ Remove view   ║ remove_view_live(sc_id, activity, view_id)║\n"
             + "║ Check RTL     ║ validate_rtl_layout(sc_id, activity)     ║\n"
             + "╠═══════════════╬═══════════════════════════════════════════╣\n"
             + "║ Read file     ║ read_file(path)                          ║\n"
             + "║ Write file    ║ write_file(path, content)                ║\n"
-            + "║ Find in file  ║ execute_shell('grep -r ...')             ║\n"
+            + "║ Find in file  ║ search_in_file(sc_id, path, query)       ║\n"
             + "║ List files    ║ list_files(directory)                    ║\n"
             + "╠═══════════════╬═══════════════════════════════════════════╣\n"
             + "║ Read logic    ║ get_event_blocks(sc_id, activity, event) ║\n"
@@ -238,11 +241,9 @@ public final class SystemPrompts {
             + "║ Add library   ║ add_library(sc_id, name, version)        ║\n"
             + "╠═══════════════╬═══════════════════════════════════════════╣\n"
             + "║ FORBIDDEN     ║ write_file for UI edits                  ║\n"
-            + "║ FORBIDDEN     ║ generate_layout for partial edits →      ║\n"
-            + "║               ║   use add_view_xml(replace=false) instead ║\n"
+            + "║ FORBIDDEN     ║ generate_layout (use add_view_xml instead)║\n"
             + "║ FORBIDDEN     ║ Python / shell scripts                   ║\n"
             + "║ FORBIDDEN     ║ <|python_tag|> or any custom tags        ║\n"
-            + "║ FORBIDDEN     ║ get_layout / edit_layout (removed)       ║\n"
             + "╚═══════════════╩═══════════════════════════════════════════╝\n";
 
     // ── UI workflow ────────────────────────────────────────────────────────────
@@ -250,12 +251,12 @@ public final class SystemPrompts {
     public static final String WORKFLOW_UI_EDIT =
             "\nWORKFLOW FOR UI EDIT:\n"
             + "  1. describe_layout(sc_id=X, activity_name=Y)\n"
-            + "  2. generate_layout(sc_id=X, activity_name=Y, description='the change', current_layout=<xml from step 1>)\n"
+            + "  2. edit_layout with set_property operations OR add_view_xml(replace=false)\n"
             + "  Done. Canvas updates automatically. No file writes needed.\n";
 
     public static final String WORKFLOW_UI_NEW =
             "\nWORKFLOW FOR NEW UI:\n"
-            + "  1. generate_layout(sc_id=X, activity_name=Y, description='full description')\n"
+            + "  1. add_view_xml(sc_id=X, activity_name=Y, xml=<Android XML>, replace=true)\n"
             + "  Done. No describe_layout needed for new screens.\n";
 
     // ── Build pipeline ─────────────────────────────────────────────────────────
