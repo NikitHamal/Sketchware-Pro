@@ -205,26 +205,39 @@ public class GeminiApiClient extends AiApiClient {
         }
 
         JsonArray contents = new JsonArray();
+        JsonObject currentContent = null;
+        JsonArray currentParts = null;
+        String currentRole = null;
+
         for (ChatMessage message : messages) {
             String role = message.getRole();
             String msgContent = message.getContent();
 
-            // ✅ FIX: Gemini does not support 'system' role in contents array.
-            // Map system feedback messages (e.g. auto-fix build errors) to 'user' role
-            // with a [SYSTEM NOTE] prefix so they reach the model and are not silently dropped.
+            // Map system feedback messages to 'user' role
             if ("system".equals(role)) {
                 role = "user";
                 msgContent = pro.sketchware.ai.prompts.SystemPrompts.ANTHROPIC_SYSTEM_NOTE_PREFIX + (msgContent != null ? msgContent : "");
             }
 
-            JsonObject content = new JsonObject();
-            content.addProperty("role", mapRoleToGemini(role));
-            JsonArray parts = new JsonArray();
+            String mappedRole = mapRoleToGemini(role);
 
-            if (msgContent != null && !msgContent.isEmpty()) {
+            // Gemini requires strictly alternating user/model turns.
+            // Merge consecutive messages of the same role.
+            if (currentRole == null || !currentRole.equals(mappedRole)) {
+                if (currentContent != null && currentParts != null && currentParts.size() > 0) {
+                    contents.add(currentContent);
+                }
+                currentContent = new JsonObject();
+                currentContent.addProperty("role", mappedRole);
+                currentParts = new JsonArray();
+                currentContent.add("parts", currentParts);
+                currentRole = mappedRole;
+            }
+
+            if (msgContent != null && !msgContent.isEmpty() && !"tool".equals(message.getRole())) {
                 JsonObject textPart = new JsonObject();
                 textPart.addProperty("text", msgContent);
-                parts.add(textPart);
+                currentParts.add(textPart);
             }
 
             if ("tool".equals(message.getRole()) && message.getToolCallId() != null) {
@@ -234,13 +247,21 @@ public class GeminiApiClient extends AiApiClient {
                     functionName = message.getToolCallId();
                 }
                 functionResponse.addProperty("name", functionName);
+                
                 JsonObject responseContent = new JsonObject();
-                responseContent.addProperty("result", message.getContent() != null ? message.getContent() : "");
+                try {
+                    // Try to parse the result as JSON (Gemini requires 'response' to be an object)
+                    JsonObject parsedJson = JsonParser.parseString(message.getContent() != null ? message.getContent() : "{}").getAsJsonObject();
+                    responseContent = parsedJson;
+                } catch (Exception e) {
+                    // Fallback to wrapping the string result
+                    responseContent.addProperty("result", message.getContent() != null ? message.getContent() : "");
+                }
                 functionResponse.add("response", responseContent);
 
                 JsonObject functionResponsePart = new JsonObject();
                 functionResponsePart.add("functionResponse", functionResponse);
-                parts.add(functionResponsePart);
+                currentParts.add(functionResponsePart);
             }
 
             if ("assistant".equals(message.getRole()) && message.getToolCalls() != null) {
@@ -257,18 +278,16 @@ public class GeminiApiClient extends AiApiClient {
 
                     JsonObject functionCallPart = new JsonObject();
                     functionCallPart.add("functionCall", functionCall);
-                    if (tc.getThoughtSignature() != null && !tc.getThoughtSignature().isEmpty()) {
-                        functionCallPart.addProperty("thoughtSignature", tc.getThoughtSignature());
-                    }
-                    parts.add(functionCallPart);
+                    // Do NOT add thoughtSignature or other custom fields here, as Gemini strictly rejects unknown fields in 'part'
+                    currentParts.add(functionCallPart);
                 }
             }
-
-            if (parts.size() > 0) {
-                content.add("parts", parts);
-                contents.add(content);
-            }
         }
+        
+        if (currentContent != null && currentParts != null && currentParts.size() > 0) {
+            contents.add(currentContent);
+        }
+
         body.add("contents", contents);
 
         if (tools != null && !tools.isEmpty()) {
