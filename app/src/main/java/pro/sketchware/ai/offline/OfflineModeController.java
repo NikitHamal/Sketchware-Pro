@@ -109,7 +109,7 @@ public class OfflineModeController {
             pro.sketchware.ai.models.ToolResult result = tool.execute(args, toolContext);
             mainHandler.post(() -> {
                 if (result.isSuccess()) {
-                    coordinator.addToolResultMessage(toolName, toolName + "_" + System.currentTimeMillis(), result.getOutput());
+                    coordinator.addToolResultMessage(toolName, result.getOutput());
                 } else {
                     coordinator.addInternalAssistantMessage(
                         "**Tool failed: `" + toolName + "`**\n\n" + result.getError()

@@ -107,34 +107,7 @@ public final class PromptBuilder {
         return aiResponse.trim();
     }
 
-    // ── Tool: MODIFY_UI ────────────────────────────────────────────────────────
-
-    /**
-     * Builds a prompt to modify an EXISTING layout according to user instructions.
-     * The existing XML is injected so the model can make precise, surgical changes.
-     *
-     * @param userRequest   what to change (e.g. "make the button red and add a title TextView")
-     * @param existingXml   the current layout XML (will be injected as context)
-     * @param activityName  screen being modified
-     * @return full prompt string
-     */
-    public static String buildModifyUiPrompt(
-            String userRequest, String existingXml, String activityName) {
-        return "You are an expert Android layout engineer.\n"
-                + "Modify the existing layout below according to the user's instructions.\n\n"
-                + "Activity: " + safe(activityName) + "\n\n"
-                + "=== EXISTING LAYOUT ===\n"
-                + "```xml\n" + safe(existingXml) + "\n```\n\n"
-                + "=== USER MODIFICATION REQUEST ===\n"
-                + safe(userRequest) + "\n\n"
-                + "Instructions:\n"
-                + "• Make ONLY the requested changes — do not restructure everything\n"
-                + "• Preserve ALL existing android:id values exactly as-is\n"
-                + "• Preserve views NOT mentioned in the request\n"
-                + "• Output the COMPLETE modified XML (not just the changed parts)\n"
-                + GUARDRAILS
-                + "\nOUTPUT (complete modified XML only):";
-    }
+}
 
     // ── Tool: FIX_CODE ─────────────────────────────────────────────────────────
 
