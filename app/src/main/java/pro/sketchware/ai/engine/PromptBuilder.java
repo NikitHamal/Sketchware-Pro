@@ -109,25 +109,6 @@ public final class PromptBuilder {
 
 }
 
-    // ── Tool: FIX_CODE ─────────────────────────────────────────────────────────
-
-    /**
-     * Builds a prompt to fix broken/invalid XML layout.
-     *
-     * @param brokenXml   the invalid XML that needs fixing
-     * @param errorReport diagnostic info from XMLValidator (may be empty)
-     * @return full prompt string
-     */
-    public static String buildFixPrompt(String brokenXml, String errorReport) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("You are an expert Android layout debugger.\n")
-          .append("Fix the following broken Android XML layout.\n\n");
-
-        if (errorReport != null && !errorReport.isEmpty()) {
-            sb.append("=== DIAGNOSTIC ERRORS ===\n")
-              .append(errorReport).append("\n\n");
-        }
-
         sb.append("=== BROKEN LAYOUT ===\n")
           .append("```xml\n").append(safe(brokenXml)).append("\n```\n\n")
           .append("Fix:\n")
