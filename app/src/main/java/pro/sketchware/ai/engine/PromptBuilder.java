@@ -106,7 +106,6 @@ public final class PromptBuilder {
         // Fallback: return as-is and let XMLValidator decide
         return aiResponse.trim();
     }
-}
 
     // ── Tool: MODIFY_UI ────────────────────────────────────────────────────────
 
