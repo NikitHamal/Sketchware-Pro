@@ -141,6 +141,7 @@ public class AiSettingsActivity extends AppCompatActivity {
 
             @Override
             public void onRefresh(AiProvider provider) {
+                preferences.clearCachedModels(provider);
                 fetchModels(provider);
             }
         });

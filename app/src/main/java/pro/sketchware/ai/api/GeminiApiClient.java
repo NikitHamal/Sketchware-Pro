@@ -70,6 +70,9 @@ public class GeminiApiClient extends AiApiClient {
                 }
 
                 String name = getStringOrDefault(model, "name", "");
+                if (name.startsWith("models/")) {
+                    name = name.substring(7);
+                }
                 String displayName = getStringOrDefault(model, "displayName", name);
                 String description = getStringOrDefault(model, "description", "");
                 long inputTokenLimit = model.has("inputTokenLimit")
@@ -78,18 +81,26 @@ public class GeminiApiClient extends AiApiClient {
                 // Skip image generation, music, video, embeddings, and non-chat Gemini models
                 // Only keep flash/pro models for coding tasks
                 {
-                    String _lo = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
+                    String _lo = name.toLowerCase(java.util.Locale.ROOT);
+                    String _dlo = displayName.toLowerCase(java.util.Locale.ROOT);
+                    
                     if (_lo.contains("embed") || _lo.contains("tts") || _lo.contains("speech")
                         || _lo.contains("audio") || _lo.contains("vision-gen")
                         || _lo.contains("aqa")
                         || _lo.contains("music") || _lo.contains("video") || _lo.contains("veo")
                         || _lo.contains("imagen") || _lo.contains("imagegen") || _lo.contains("image-generation")
                         || (_lo.contains("code") && _lo.contains("exec"))
-                        || _lo.contains("safety")) continue;
+                        || _lo.contains("learnlm") || _lo.contains("safety")
+                        || _dlo.contains("imagen") || _dlo.contains("embed")
+                        || _dlo.contains("audio") || _dlo.contains("video") || _dlo.contains("music")) {
+                        continue;
+                    }
 
                     // Only keep flash/pro model families (the useful ones)
                     if (!_lo.contains("flash") && !_lo.contains("pro") && !_lo.contains("preview")
-                        && !_lo.contains("experimental") && !_lo.contains("lite")) continue;
+                        && !_lo.contains("experimental") && !_lo.contains("lite")) {
+                        continue;
+                    }
                 }
                 result.add(new ModelInfo(name, displayName, AiProvider.GEMINI, inputTokenLimit, description));
             }
